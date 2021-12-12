@@ -8,6 +8,12 @@ namespace gazebo
 			physics::ModelPtr _model, sdf::ElementPtr _sdf
 			)
 	{
+		// TODO: Implement position control 
+		// TODO: Implement velocity control
+		// TODO: Generalize to all joints
+		// TODO: Advertise joint positions
+		// TODO: Advertise base pose
+
 		// Safety check
 		if (_model->GetJointCount() == 0)
 		{
@@ -24,28 +30,41 @@ namespace gazebo
 
 		this->world = _model->GetWorld();
 
-		// Get the first joint. We are making an assumption about the model
-		// having one joint that is the rotational joint.
+		// TODO: Expand to all joints
 		this->joint = _model->GetJoints()[0];
-
 		std::cout << "\nJoint name: " << this->joint->GetName() << std::endl;
 
-		// Setup a P-controller, with a gain of 0.1.
-		this->pid = common::PID(0.1, 0, 0);
-
-		// Apply the P-controller to the joint.
-		this->model->GetJointController()->SetVelocityPID(
-				this->joint->GetScopedName(), this->pid);
-
+		this->InitJointControllers();
 		this->InitRosTopics();
 	}
 
-	void AnymalController::SetVelocity(const double &_vel)
+	void AnymalController::InitJointControllers()
+	{
+		this->model->GetJointController()->SetVelocityPID(
+			this->joint->GetScopedName(),
+			common::PID(0.1, 0, 0)
+			);
+
+		this->model->GetJointController()->SetPositionPID(
+			this->joint->GetScopedName(),
+			common::PID(0.1, 0, 0)
+		);
+	}
+
+	void AnymalController::SetJointVelocity(const double &_vel)
 	{
 		// Set the joint's target velocity.
 		this->model->GetJointController()->SetVelocityTarget(
-				this->joint->GetScopedName(), _vel);
+				this->joint->GetScopedName(), _vel
+				);
 	} 
+
+	void AnymalController::SetJointPosition(const double &_pos)
+	{
+		this->model->GetJointController()->SetPositionTarget(
+				this->joint->GetScopedName(), _pos
+				);
+	}
 
 	void AnymalController::InitRosTopics()
 	{
@@ -57,28 +76,41 @@ namespace gazebo
 			ros::init(argc, argv, "gazebo_client",
 					ros::init_options::NoSigintHandler);
 		}
-		// Create ROS node
+
+		// Create ros node
 		this->rosNode.reset(new ros::NodeHandle("gazebo_client"));
 
-		// Create a named topic, and subscribe to it.
-		ros::SubscribeOptions so =
+		// Set up subscriptions
+		ros::SubscribeOptions vel_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float32>(
 					"/" + this->model->GetName() + "/vel_cmd",
 					1,
-					boost::bind(&AnymalController::OnRosMsg, this, _1),
+					boost::bind(&AnymalController::OnVelMsg, this, _1),
 					ros::VoidPtr(), &this->rosQueue);
-		this->rosSub = this->rosNode->subscribe(so);
+
+		ros::SubscribeOptions pos_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float32>(
+					"/" + this->model->GetName() + "/pos_cmd",
+					1,
+					boost::bind(&AnymalController::OnPosMsg, this, _1),
+					ros::VoidPtr(), &this->rosQueue);
+
+		this->velCmdSub = this->rosNode->subscribe(vel_cmd_so);
+		this->posCmdSub = this->rosNode->subscribe(pos_cmd_so);
 
 		// Spin up the queue helper thread.
 		this->rosQueueThread =
 			std::thread(std::bind(&AnymalController::QueueThread, this));
-
 	}
 
-	void AnymalController::OnRosMsg(const std_msgs::Float32ConstPtr &_msg)
+	void AnymalController::OnVelMsg(const std_msgs::Float32ConstPtr &_msg)
 	{
-		std::cout << "New ros message" << std::endl;
-		this->SetVelocity(_msg->data);
+		this->SetJointVelocity(_msg->data);
+	}
+
+	void AnymalController::OnPosMsg(const std_msgs::Float32ConstPtr &_msg)
+	{
+		this->SetJointPosition(_msg->data);
 	}
 
 	/// \brief ROS helper function that processes messages
