@@ -19,6 +19,7 @@ namespace gazebo
 			AnymalController();
 
 			virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
+			void SetVelocity(const double &_vel);
 
 			Eigen::Matrix<double,6,1> GetBasePose();
 

@@ -37,13 +37,15 @@ namespace gazebo
 		this->model->GetJointController()->SetVelocityPID(
 				this->joint->GetScopedName(), this->pid);
 
-		// Set the joint's target velocity. This target velocity is just
-		// for demonstration purposes.
-		this->model->GetJointController()->SetVelocityTarget(
-				this->joint->GetScopedName(), 1.0);
-
-		// this->InitRosTopics();
+		this->InitRosTopics();
 	}
+
+	void AnymalController::SetVelocity(const double &_vel)
+	{
+		// Set the joint's target velocity.
+		this->model->GetJointController()->SetVelocityTarget(
+				this->joint->GetScopedName(), _vel);
+	} 
 
 	void AnymalController::InitRosTopics()
 	{
@@ -76,6 +78,7 @@ namespace gazebo
 	void AnymalController::OnRosMsg(const std_msgs::Float32ConstPtr &_msg)
 	{
 		std::cout << "New ros message" << std::endl;
+		this->SetVelocity(_msg->data);
 	}
 
 	/// \brief ROS helper function that processes messages
