@@ -26,6 +26,10 @@ namespace gazebo
 			physics::ModelPtr model;
 			physics::WorldPtr world;
 			physics::LinkPtr base;
+			physics::JointPtr joint;
+
+			/// \brief A PID controller for the joint.
+			common::PID pid;
 
 			std::string model_name;
 
@@ -37,6 +41,10 @@ namespace gazebo
 			ros::CallbackQueue rosQueue;
 			/// \brief A thread the keeps running the rosQueue
 			std::thread rosQueueThread;
+
+			void OnRosMsg(const std_msgs::Float32ConstPtr &_msg);
+			void QueueThread();
+			void InitRosTopics();
   };
 
   // Tell Gazebo about this plugin, so that Gazebo can call Load on this plugin.
