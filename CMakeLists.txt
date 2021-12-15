@@ -23,8 +23,8 @@ link_directories(${GAZEBO_LIBRARY_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
 # Build our plugin
-add_library(anymal_controller SHARED src/anymal_controller.cpp)
-target_link_libraries(anymal_controller ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
-target_link_libraries(anymal_controller Eigen3::Eigen)
+add_library(anymal_plugin SHARED src/anymal_plugin.cpp)
+target_link_libraries(anymal_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
+target_link_libraries(anymal_plugin Eigen3::Eigen)
 
 

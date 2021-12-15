@@ -13,10 +13,10 @@
 
 namespace gazebo
 {
-  class AnymalController: public ModelPlugin
+  class AnymalPlugin: public ModelPlugin
   {
     public:
-			AnymalController();
+			AnymalPlugin();
 
 			virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
 			void SetJointVelocity(const double &_vel);
@@ -50,5 +50,5 @@ namespace gazebo
   };
 
   // Tell Gazebo about this plugin, so that Gazebo can call Load on this plugin.
-  GZ_REGISTER_MODEL_PLUGIN(AnymalController)
+  GZ_REGISTER_MODEL_PLUGIN(AnymalPlugin)
 }

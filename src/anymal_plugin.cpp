@@ -1,14 +1,15 @@
-#include "anymal_controller.hpp"
+#include "anymal_plugin.hpp"
 
 namespace gazebo
 {
-	AnymalController::AnymalController(){};
+	AnymalPlugin::AnymalPlugin(){};
 
-	void AnymalController::Load(
+	void AnymalPlugin::Load(
 			physics::ModelPtr _model, sdf::ElementPtr _sdf
 			)
 	{
 		// TODO: Implement position control 
+		// TODO: Somehow tune PIDs?
 		// TODO: Implement velocity control
 		// TODO: Generalize to all joints
 		// TODO: Advertise joint positions
@@ -38,20 +39,20 @@ namespace gazebo
 		this->InitRosTopics();
 	}
 
-	void AnymalController::InitJointControllers()
+	void AnymalPlugin::InitJointControllers()
 	{
 		this->model->GetJointController()->SetVelocityPID(
 			this->joint->GetScopedName(),
-			common::PID(0.1, 0, 0)
+			common::PID(1, 0, 0)
 			);
 
 		this->model->GetJointController()->SetPositionPID(
 			this->joint->GetScopedName(),
-			common::PID(0.1, 0, 0)
+			common::PID(1, 0, 0)
 		);
 	}
 
-	void AnymalController::SetJointVelocity(const double &_vel)
+	void AnymalPlugin::SetJointVelocity(const double &_vel)
 	{
 		// Set the joint's target velocity.
 		this->model->GetJointController()->SetVelocityTarget(
@@ -59,14 +60,14 @@ namespace gazebo
 				);
 	} 
 
-	void AnymalController::SetJointPosition(const double &_pos)
+	void AnymalPlugin::SetJointPosition(const double &_pos)
 	{
 		this->model->GetJointController()->SetPositionTarget(
 				this->joint->GetScopedName(), _pos
 				);
 	}
 
-	void AnymalController::InitRosTopics()
+	void AnymalPlugin::InitRosTopics()
 	{
 		// Initialize ROS, if it has not already bee initialized.
 		if (!ros::isInitialized())
@@ -85,14 +86,14 @@ namespace gazebo
 			ros::SubscribeOptions::create<std_msgs::Float32>(
 					"/" + this->model->GetName() + "/vel_cmd",
 					1,
-					boost::bind(&AnymalController::OnVelMsg, this, _1),
+					boost::bind(&AnymalPlugin::OnVelMsg, this, _1),
 					ros::VoidPtr(), &this->rosQueue);
 
 		ros::SubscribeOptions pos_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float32>(
 					"/" + this->model->GetName() + "/pos_cmd",
 					1,
-					boost::bind(&AnymalController::OnPosMsg, this, _1),
+					boost::bind(&AnymalPlugin::OnPosMsg, this, _1),
 					ros::VoidPtr(), &this->rosQueue);
 
 		this->velCmdSub = this->rosNode->subscribe(vel_cmd_so);
@@ -100,21 +101,21 @@ namespace gazebo
 
 		// Spin up the queue helper thread.
 		this->rosQueueThread =
-			std::thread(std::bind(&AnymalController::QueueThread, this));
+			std::thread(std::bind(&AnymalPlugin::QueueThread, this));
 	}
 
-	void AnymalController::OnVelMsg(const std_msgs::Float32ConstPtr &_msg)
+	void AnymalPlugin::OnVelMsg(const std_msgs::Float32ConstPtr &_msg)
 	{
 		this->SetJointVelocity(_msg->data);
 	}
 
-	void AnymalController::OnPosMsg(const std_msgs::Float32ConstPtr &_msg)
+	void AnymalPlugin::OnPosMsg(const std_msgs::Float32ConstPtr &_msg)
 	{
 		this->SetJointPosition(_msg->data);
 	}
 
 	/// \brief ROS helper function that processes messages
-	void AnymalController::QueueThread()
+	void AnymalPlugin::QueueThread()
 	{
 		static const double timeout = 0.01;
 		while (this->rosNode->ok())
@@ -123,7 +124,7 @@ namespace gazebo
 		}
 	}
 
-	Eigen::Matrix<double,6,1> AnymalController::GetBasePose()
+	Eigen::Matrix<double,6,1> AnymalPlugin::GetBasePose()
 	{
 		ignition::math::Pose3d base_pose = this->base->WorldPose();			
 
