@@ -24,11 +24,6 @@ namespace gazebo
 			physics::ModelPtr _model, sdf::ElementPtr _sdf
 			)
 	{
-		// TODO: Implement position control 
-		// TODO: Somehow tune PIDs?
-		// TODO: Implement velocity control
-		// TODO: Advertise base pose
-
 		// Safety check
 		if (_model->GetJointCount() == 0)
 		{
