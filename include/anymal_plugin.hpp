@@ -7,7 +7,10 @@
 #include "ros/ros.h"
 #include "ros/callback_queue.h"
 #include "ros/subscribe_options.h"
+
+#include "eigen_conversions/eigen_msg.h"
 #include "std_msgs/Float32.h"
+#include "std_msgs/Float64MultiArray.h"
 
 #include <Eigen/Core>
 
@@ -20,9 +23,22 @@ namespace gazebo
 			~AnymalPlugin();
 
 			virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
-			void SetJointVelocity(const double &_vel);
-			void SetJointPosition(const double &_pos);
-			double GetJointPosition();
+
+			// Setters
+			void SetJointVelocity(
+					const std::string &_joint_name, const double &_vel
+					);
+			void SetJointPosition(
+					const std::string &_joint_name, const double &_pos
+					);
+
+			// Getters
+			double GetJointPosition(const std::string &joint_name);
+			double GetJointVelocity(const std::string &joint_name);
+			double GetJointTorque(const std::string &joint_name);
+			Eigen::Matrix<double,12,1> GetJointPositions();
+			Eigen::Matrix<double,12,1> GetJointVelocities();
+			Eigen::Matrix<double,12,1> GetJointTorques();
 
 			Eigen::Matrix<double,6,1> GetBasePose();
 
@@ -30,7 +46,9 @@ namespace gazebo
 			physics::ModelPtr model;
 			physics::WorldPtr world;
 			physics::LinkPtr base;
-			physics::JointPtr joint;
+
+			std::map<std::string, physics::JointPtr> joints;
+			std::vector<std::string> joint_names;	
 
 			std::string model_name;
 
@@ -42,6 +60,8 @@ namespace gazebo
 
 			// Advertisements
 			ros::Publisher genCoordPub;
+			ros::Publisher genVelPub;
+			ros::Publisher jointTorquesPub;
 
 			ros::CallbackQueue rosProcessQueue;
 			ros::CallbackQueue rosPublishQueue;

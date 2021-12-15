@@ -1,5 +1,7 @@
 #include "anymal_plugin.hpp"
 
+// TODO: Replace all 12 with a constant?
+
 namespace gazebo
 {
 	AnymalPlugin::AnymalPlugin(){};
@@ -22,12 +24,9 @@ namespace gazebo
 			physics::ModelPtr _model, sdf::ElementPtr _sdf
 			)
 	{
-		// TODO: Advertise joint velocities 
 		// TODO: Implement position control 
 		// TODO: Somehow tune PIDs?
 		// TODO: Implement velocity control
-		// TODO: Generalize to all joints
-		// TODO: Advertise joint positions
 		// TODO: Advertise base pose
 
 		// Safety check
@@ -46,9 +45,9 @@ namespace gazebo
 
 		this->world = _model->GetWorld();
 
-		// TODO: Expand to all joints
-		this->joint = _model->GetJoints()[0];
-		std::cout << "\nJoint name: " << this->joint->GetName() << std::endl;
+		this->joints = _model->GetJointController()->GetJoints();
+		for(auto it = joints.begin(); it != joints.end(); ++it)
+			joint_names.push_back(it->first);
 
 		this->InitJointControllers();
 		std::cout << "Initialized joint controllers\n";
@@ -59,36 +58,104 @@ namespace gazebo
 
 	void AnymalPlugin::InitJointControllers()
 	{
-		this->model->GetJointController()->SetVelocityPID(
-			this->joint->GetScopedName(),
-			common::PID(1, 0, 0)
-			);
+		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		{
+			this->model->GetJointController()->SetVelocityPID(
+				this->joint_names[i],
+				common::PID(1, 0, 0)
+				);
 
-		this->model->GetJointController()->SetPositionPID(
-			this->joint->GetScopedName(),
-			common::PID(1, 0, 0)
-		);
+			this->model->GetJointController()->SetPositionPID(
+				this->joint_names[i],
+				common::PID(1, 0, 0)
+			);
+		}
 	}
 
-	void AnymalPlugin::SetJointVelocity(const double &_vel)
+	void AnymalPlugin::SetJointVelocity(
+			const std::string &_joint_name, const double &_vel
+			)
 	{
 		// Set the joint's target velocity.
 		this->model->GetJointController()->SetVelocityTarget(
-				this->joint->GetScopedName(), _vel
+				_joint_name, _vel
 				);
 	} 
 
-	void AnymalPlugin::SetJointPosition(const double &_pos)
+	void AnymalPlugin::SetJointPosition(
+			const std::string &_joint_name, const double &_pos
+			)
 	{
 		this->model->GetJointController()->SetPositionTarget(
-				this->joint->GetScopedName(), _pos
+				_joint_name, _pos
 				);
 	}
 
-	double AnymalPlugin::GetJointPosition()
+	double AnymalPlugin::GetJointPosition(const std::string &_joint_name)
 	{
-		double pos = this->joint->Position();	
+		double pos = this->joints[_joint_name]->Position();	
 		return pos;
+	}
+
+	double AnymalPlugin::GetJointVelocity(const std::string &_joint_name)
+	{
+		double vel = this->joints[_joint_name]->GetVelocity(0);	
+		return vel;
+	}
+
+	double AnymalPlugin::GetJointTorque(const std::string &_joint_name)
+	{
+		// TODO: Gazebo API docs says that this is not yet implemented? May cause trouble!
+		double torque = this->joints[_joint_name]->GetForce(0);	
+		return torque;
+	}
+
+	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointPositions()
+	{
+		Eigen::Matrix<double,12,1> q_j;
+		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		{
+			q_j(i) = this->GetJointPosition(this->joint_names[i]);
+		}
+
+		return q_j;
+	}
+
+	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointVelocities()
+	{
+		Eigen::Matrix<double,12,1> v_j;
+		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		{
+			v_j(i) = this->GetJointVelocity(this->joint_names[i]);
+		}
+
+		return v_j;
+	}
+
+	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointTorques()
+	{
+		Eigen::Matrix<double,12,1> tau_j;
+		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		{
+			tau_j(i) = this->GetJointTorque(this->joint_names[i]);
+		}
+
+		return tau_j;
+	}
+
+	Eigen::Matrix<double,6,1> AnymalPlugin::GetBasePose()
+	{
+		ignition::math::Pose3d base_pose = this->base->WorldPose();			
+
+		Eigen::Matrix<double,6,1> q_b;
+		q_b(0) = base_pose.X();
+    q_b(1) = base_pose.Y();
+    q_b(2) = base_pose.Z();
+    q_b(3) = base_pose.Roll();
+    q_b(4) = base_pose.Pitch();
+    q_b(5) = base_pose.Yaw();
+
+		return q_b;
 	}
 
 	void AnymalPlugin::InitRosTopics()
@@ -108,7 +175,7 @@ namespace gazebo
 
 		// Set up advertisements
 		ros::AdvertiseOptions gen_coord_ao =
-			ros::AdvertiseOptions::create<std_msgs::Float32>(
+			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
 					"/" + this->model->GetName() + "/gen_coord",
 					1,
 					ros::SubscriberStatusCallback(),
@@ -117,7 +184,29 @@ namespace gazebo
 					&this->rosPublishQueue
 					);
 
+		ros::AdvertiseOptions gen_vel_ao =
+			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
+					"/" + this->model->GetName() + "/gen_vel",
+					1,
+					ros::SubscriberStatusCallback(),
+					ros::SubscriberStatusCallback(),
+					ros::VoidPtr(),
+					&this->rosPublishQueue
+					);
+
+		ros::AdvertiseOptions joint_torques_ao =
+			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
+					"/" + this->model->GetName() + "/joint_torques",
+					1,
+					ros::SubscriberStatusCallback(),
+					ros::SubscriberStatusCallback(),
+					ros::VoidPtr(),
+					&this->rosPublishQueue
+					);
+
 		this->genCoordPub = this->rosNode->advertise(gen_coord_ao);
+		this->genVelPub = this->rosNode->advertise(gen_vel_ao);
+		this->jointTorquesPub = this->rosNode->advertise(joint_torques_ao);
 
 		// Set up subscriptions
 		ros::SubscribeOptions vel_cmd_so =
@@ -166,10 +255,28 @@ namespace gazebo
 
 		while (this->rosNode->ok())
 		{
-			// TODO: Expand to all joints
-			std_msgs::Float32 gen_coord_msg;
-			gen_coord_msg.data = this->GetJointPosition();
+			// TODO: Expand with base pose, not just joints!
+			Eigen::Matrix<double, 12, 1> q; // generalized coordinates
+			q = this->GetJointPositions();
+
+			Eigen::Matrix<double, 12, 1> u; // generalized velocities
+			u = this->GetJointVelocities();
+
+			Eigen::Matrix<double, 12, 1> tau; // joint torques
+			tau = this->GetJointTorques();
+
+			std_msgs::Float64MultiArray gen_coord_msg;
+			tf::matrixEigenToMsg(q, gen_coord_msg);
+
+			std_msgs::Float64MultiArray gen_vel_msg;
+			tf::matrixEigenToMsg(u, gen_vel_msg);
+
+			std_msgs::Float64MultiArray joint_torques_msg;
+			tf::matrixEigenToMsg(tau, joint_torques_msg);
+
 			this->genCoordPub.publish(gen_coord_msg);
+			this->genVelPub.publish(gen_vel_msg);
+			this->jointTorquesPub.publish(joint_torques_msg);
 
 			loop_rate.sleep();	
 		}
@@ -177,26 +284,12 @@ namespace gazebo
 
 	void AnymalPlugin::OnVelMsg(const std_msgs::Float32ConstPtr &_msg)
 	{
-		this->SetJointVelocity(_msg->data);
+		this->SetJointVelocity(this->joint_names[0], _msg->data);
 	}
 
 	void AnymalPlugin::OnPosMsg(const std_msgs::Float32ConstPtr &_msg)
 	{
-		this->SetJointPosition(_msg->data);
+		this->SetJointPosition(this->joint_names[0], _msg->data);
 	}
 
-	Eigen::Matrix<double,6,1> AnymalPlugin::GetBasePose()
-	{
-		ignition::math::Pose3d base_pose = this->base->WorldPose();			
-
-		Eigen::Matrix<double,6,1> q_b;
-		q_b(0) = base_pose.X();
-    q_b(1) = base_pose.Y();
-    q_b(2) = base_pose.Z();
-    q_b(3) = base_pose.Roll();
-    q_b(4) = base_pose.Pitch();
-    q_b(5) = base_pose.Yaw();
-
-		return q_b;
-	}
 }
