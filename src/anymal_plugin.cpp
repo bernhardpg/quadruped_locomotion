@@ -62,12 +62,12 @@ namespace gazebo
 		{
 			this->model->GetJointController()->SetVelocityPID(
 				this->joint_names[i],
-				common::PID(1, 0, 0)
+				common::PID(10, 0, 0)
 				);
 
 			this->model->GetJointController()->SetPositionPID(
 				this->joint_names[i],
-				common::PID(1, 0, 0)
+				common::PID(10, 0, 0)
 			);
 		}
 	}
@@ -89,6 +89,42 @@ namespace gazebo
 		this->model->GetJointController()->SetPositionTarget(
 				_joint_name, _pos
 				);
+	}
+
+	void AnymalPlugin::SetJointTorque(
+			const std::string &_joint_name, const double &_tau
+			)
+	{
+		this->model->GetJointController()->SetForce(
+				_joint_name, _tau
+				);
+	}
+
+	void AnymalPlugin::SetJointPositions(
+			const std::vector<double> &_pos_cmds
+			)
+	{
+		for (size_t i = 0; i < this->joint_names.size(); ++i)
+			this->SetJointTorque(this->joint_names[i], _pos_cmds[i]);
+	}
+
+	void AnymalPlugin::SetJointVelocities(
+			const std::vector<double> &_vel_cmds
+			)
+	{
+		for (size_t i = 0; i < this->joint_names.size(); ++i)
+			this->SetJointTorque(this->joint_names[i], _vel_cmds[i]);
+	}
+
+	void AnymalPlugin::SetJointTorques(
+			const std::vector<double> &_tau_cmds
+			)
+	{
+		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		{
+			std::cout << _tau_cmds[i] << std::endl;
+			this->SetJointTorque(this->joint_names[i], _tau_cmds[i]);
+		}
 	}
 
 	double AnymalPlugin::GetJointPosition(const std::string &_joint_name)
@@ -210,25 +246,35 @@ namespace gazebo
 
 		// Set up subscriptions
 		ros::SubscribeOptions vel_cmd_so =
-			ros::SubscribeOptions::create<std_msgs::Float32>(
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/" + this->model->GetName() + "/vel_cmd",
 					1,
-					boost::bind(&AnymalPlugin::OnVelMsg, this, _1),
+					boost::bind(&AnymalPlugin::OnVelCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->rosProcessQueue
 					);
 
 		ros::SubscribeOptions pos_cmd_so =
-			ros::SubscribeOptions::create<std_msgs::Float32>(
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/" + this->model->GetName() + "/pos_cmd",
 					1,
-					boost::bind(&AnymalPlugin::OnPosMsg, this, _1),
+					boost::bind(&AnymalPlugin::OnPosCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->rosProcessQueue
+					);
+
+		ros::SubscribeOptions torque_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/" + this->model->GetName() + "/torque_cmd",
+					1,
+					boost::bind(&AnymalPlugin::OnTorqueCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->rosProcessQueue
 					);
 
 		this->velCmdSub = this->rosNode->subscribe(vel_cmd_so);
 		this->posCmdSub = this->rosNode->subscribe(pos_cmd_so);
+		this->torqueCmdSub = this->rosNode->subscribe(torque_cmd_so);
 
 		// TODO: Move these to their own functions?
 		// Spin up the queue helper threads
@@ -282,14 +328,24 @@ namespace gazebo
 		}
 	}
 
-	void AnymalPlugin::OnVelMsg(const std_msgs::Float32ConstPtr &_msg)
+	void AnymalPlugin::OnVelCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &_msg
+			)
 	{
-		this->SetJointVelocity(this->joint_names[0], _msg->data);
+		this->SetJointVelocities(_msg->data);
 	}
 
-	void AnymalPlugin::OnPosMsg(const std_msgs::Float32ConstPtr &_msg)
+	void AnymalPlugin::OnPosCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &_msg
+			)
 	{
-		this->SetJointPosition(this->joint_names[0], _msg->data);
+		this->SetJointPositions(_msg->data);
 	}
 
+	void AnymalPlugin::OnTorqueCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &_msg
+			)
+	{
+		this->SetJointTorques(_msg->data);
+	}
 }
