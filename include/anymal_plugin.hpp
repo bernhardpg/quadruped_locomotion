@@ -70,15 +70,17 @@ namespace gazebo
 			ros::Publisher genVelPub;
 			ros::Publisher jointTorquesPub;
 
+			// Queues
 			ros::CallbackQueue rosProcessQueue;
 			ros::CallbackQueue rosPublishQueue;
-
 			std::thread rosProcessQueueThread;
 			std::thread rosPublishQueueThread;
 
 			void InitJointControllers();
 
 			void InitRosTopics();
+			
+			// Publishing and subscription runs on two separete threads
 			void PublishQueueThread();
 			void ProcessQueueThread();
 

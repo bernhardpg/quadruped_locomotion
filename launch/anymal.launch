@@ -5,4 +5,6 @@
 
 	<!-- Spawn anymal into Gazebo -->
 	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param anymal_description -urdf -model anymal -z 1"/>
+
+	<node name="anymal_controller" pkg="anymal_gazebo" type="controller_node"/>
 </launch>

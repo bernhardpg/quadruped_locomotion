@@ -1,5 +1,6 @@
 #include "anymal_plugin.hpp"
 
+// TODO: Fix style and casing!
 // TODO: Replace all 12 with a constant?
 
 namespace gazebo
@@ -45,10 +46,7 @@ namespace gazebo
 			joint_names.push_back(it->first);
 
 		this->InitJointControllers();
-		std::cout << "Initialized joint controllers\n";
-
 		this->InitRosTopics();
-		std::cout << "Initialized ros topics\n";
 	}
 
 	void AnymalPlugin::InitJointControllers()
@@ -117,7 +115,6 @@ namespace gazebo
 	{
 		for (size_t i = 0; i < this->joint_names.size(); ++i)
 		{
-			std::cout << _tau_cmds[i] << std::endl;
 			this->SetJointTorque(this->joint_names[i], _tau_cmds[i]);
 		}
 	}
@@ -191,7 +188,7 @@ namespace gazebo
 
 	void AnymalPlugin::InitRosTopics()
 	{
-		// Initialize ROS, if it has not already bee initialized.
+		// Initialize ROS, if it has not already been initialized.
 		if (!ros::isInitialized())
 		{
 			int argc = 0;

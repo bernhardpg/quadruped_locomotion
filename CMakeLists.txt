@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
-project(legged_locomotion)
+project(anymal_gazebo)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -22,9 +22,21 @@ include_directories(
 link_directories(${GAZEBO_LIBRARY_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
-# Build our plugin
+# Anymal gazebo plugin
 add_library(anymal_plugin SHARED src/anymal_plugin.cpp)
 target_link_libraries(anymal_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
 target_link_libraries(anymal_plugin Eigen3::Eigen)
+
+# Declare catkin package
+catkin_package()
+
+# Ros nodes
+add_executable(controller_node src/control/controller_node.cpp src/control/controller.cpp)
+target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(controller_node Eigen3::Eigen)
+
+add_library(controller SHARED src/control/controller.cpp)
+target_link_libraries(controller Eigen3::Eigen)
+target_link_libraries(controller ${roscpp_LIBRARIES})
 
 
