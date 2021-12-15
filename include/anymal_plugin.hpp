@@ -17,10 +17,12 @@ namespace gazebo
   {
     public:
 			AnymalPlugin();
+			~AnymalPlugin();
 
 			virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
 			void SetJointVelocity(const double &_vel);
 			void SetJointPosition(const double &_pos);
+			double GetJointPosition();
 
 			Eigen::Matrix<double,6,1> GetBasePose();
 
@@ -33,20 +35,29 @@ namespace gazebo
 			std::string model_name;
 
 			std::unique_ptr<ros::NodeHandle> rosNode;
+
+			// Subscriptions
 			ros::Subscriber velCmdSub;
 			ros::Subscriber posCmdSub;
 
-			/// \brief A ROS callbackqueue that helps process messages
-			ros::CallbackQueue rosQueue;
-			/// \brief A thread the keeps running the rosQueue
-			std::thread rosQueueThread;
+			// Advertisements
+			ros::Publisher genCoordPub;
+
+			ros::CallbackQueue rosProcessQueue;
+			ros::CallbackQueue rosPublishQueue;
+
+			std::thread rosProcessQueueThread;
+			std::thread rosPublishQueueThread;
 
 			void InitJointControllers();
 
 			void InitRosTopics();
+			void PublishQueueThread();
+			void ProcessQueueThread();
+
 			void OnVelMsg(const std_msgs::Float32ConstPtr &_msg);
 			void OnPosMsg(const std_msgs::Float32ConstPtr &_msg);
-			void QueueThread();
+
   };
 
   // Tell Gazebo about this plugin, so that Gazebo can call Load on this plugin.

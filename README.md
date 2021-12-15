@@ -4,7 +4,7 @@
 The lines
 ```
 		<gazebo>
-			<plugin name="anymal_controller" filename="libanymal_controller.so"/>
+			<plugin name="anymal_plugin" filename="libanymal_plugin.so"/>
 		</gazebo>
 ```
 
