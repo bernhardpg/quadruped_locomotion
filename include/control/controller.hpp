@@ -39,5 +39,8 @@ namespace control
 
 			void PublishQueueThread();
 			void ProcessQueueThread();
+
+			void PublishIdlePositionCmd();
+			void PublishTestTorqueCmd();
 	};
 }

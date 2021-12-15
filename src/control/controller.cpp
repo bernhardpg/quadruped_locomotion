@@ -94,13 +94,24 @@ namespace control {
 					);
 		}
 	}
-
-	void Controller::PublishQueueThread()
+	
+	void Controller::PublishIdlePositionCmd()
 	{
-		ros::Rate loop_rate(1);
+			Eigen::Matrix<double,12,1> q_cmd;
+			for (int i = 0; i < 12; ++i)
+			{
+				q_cmd(i) = 0.0;
+			}
 
-		while (this->ros_node_->ok())
-		{
+			std_msgs::Float64MultiArray pos_cmd_msg;
+			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
+
+			this->pos_cmd_pub_.publish(pos_cmd_msg);
+			ROS_INFO("Published idle joint position command");
+	}
+
+	void Controller::PublishTestTorqueCmd()
+	{
 			Eigen::Matrix<double,12,1> tau_cmd;
 			for (int i = 0; i < 12; ++i)
 			{
@@ -112,7 +123,18 @@ namespace control {
 
 			this->torque_cmd_pub_.publish(torque_cmd_msg);
 			ROS_INFO("Published test torques");
+	}
 
+	void Controller::PublishQueueThread()
+	{
+		ros::Rate loop_rate(1);
+
+		// TODO: Wait 10 seconds before publishing controller inputs
+		ros::Duration(10).sleep();
+
+		while (this->ros_node_->ok())
+		{
+			this->PublishIdlePositionCmd();
 			loop_rate.sleep();	
 		}
 	}

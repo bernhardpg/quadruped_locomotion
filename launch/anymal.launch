@@ -4,7 +4,7 @@
 	<include file="$(find anymal_c_simple_description)/launch/load.launch"/>
 
 	<!-- Spawn anymal into Gazebo -->
-	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param anymal_description -urdf -model anymal -z 1"/>
+	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param anymal_description -urdf -model anymal -z 5"/>
 
 	<node name="anymal_controller" pkg="anymal_gazebo" type="controller_node"/>
 </launch>

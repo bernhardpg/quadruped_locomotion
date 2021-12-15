@@ -1,6 +1,5 @@
 #include "anymal_plugin.hpp"
 
-// TODO: Fix style and casing!
 // TODO: Replace all 12 with a constant?
 
 namespace gazebo
@@ -53,15 +52,15 @@ namespace gazebo
 	{
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
+			this->model_->GetJointController()->SetPositionPID(
+				this->joint_names_[i],
+				common::PID(1000, 0.01, 10)
+			);
+
 			this->model_->GetJointController()->SetVelocityPID(
 				this->joint_names_[i],
 				common::PID(10, 0, 0)
 				);
-
-			this->model_->GetJointController()->SetPositionPID(
-				this->joint_names_[i],
-				common::PID(10, 0, 0)
-			);
 		}
 	}
 
@@ -98,7 +97,7 @@ namespace gazebo
 			)
 	{
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
-			this->SetJointTorque(this->joint_names_[i], pos_cmds[i]);
+			this->SetJointPosition(this->joint_names_[i], pos_cmds[i]);
 	}
 
 	void AnymalPlugin::SetJointVelocities(
@@ -106,7 +105,7 @@ namespace gazebo
 			)
 	{
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
-			this->SetJointTorque(this->joint_names_[i], vel_cmds[i]);
+			this->SetJointVelocity(this->joint_names_[i], vel_cmds[i]);
 	}
 
 	void AnymalPlugin::SetJointTorques(
@@ -290,6 +289,7 @@ namespace gazebo
 	void AnymalPlugin::PublishQueueThread()
 	{
 		ros::Rate loop_rate(200); // TODO: Is this fast enough?
+
 
 		while (this->ros_node_->ok())
 		{
