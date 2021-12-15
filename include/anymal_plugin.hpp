@@ -21,22 +21,22 @@ namespace gazebo
 			AnymalPlugin();
 			~AnymalPlugin();
 
-			virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
+			virtual void Load(physics::ModelPtr model, sdf::ElementPtr sdf);
 
 			// Setters
 			void SetJointVelocity(
-					const std::string &_joint_name, const double &_vel
+					const std::string &joint_name, const double &vel
 					);
 			void SetJointPosition(
-					const std::string &_joint_name, const double &_pos
+					const std::string &joint_name, const double &pos
 					);
 			void SetJointTorque(
-					const std::string &_joint_name, const double &_tau
+					const std::string &joint_name, const double &tau
 					);
 
-			void SetJointPositions(const std::vector<double> &_pos_cmds);
-			void SetJointVelocities(const std::vector<double> &_vel_cmds);
-			void SetJointTorques(const std::vector<double> &_tau_cmds);
+			void SetJointPositions(const std::vector<double> &pos_cmds);
+			void SetJointVelocities(const std::vector<double> &vel_cmds);
+			void SetJointTorques(const std::vector<double> &tau_cmds);
 
 			// Getters
 			double GetJointPosition(const std::string &joint_name);
@@ -49,49 +49,47 @@ namespace gazebo
 			Eigen::Matrix<double,6,1> GetBasePose();
 
 		private:
-			physics::ModelPtr model;
-			physics::WorldPtr world;
-			physics::LinkPtr base;
+			std::string model_name_;
+			std::vector<std::string> joint_names_;	
 
-			std::map<std::string, physics::JointPtr> joints;
-			std::vector<std::string> joint_names;	
+			physics::ModelPtr model_;
+			physics::WorldPtr world_;
+			physics::LinkPtr base_;
+			std::map<std::string, physics::JointPtr> joints_;
 
-			std::string model_name;
-
-			std::unique_ptr<ros::NodeHandle> rosNode;
+			std::unique_ptr<ros::NodeHandle> ros_node_;
 
 			// Subscriptions
-			ros::Subscriber velCmdSub;
-			ros::Subscriber posCmdSub;
-			ros::Subscriber torqueCmdSub;
+			ros::Subscriber vel_cmd_sub_;
+			ros::Subscriber pos_cmd_sub_;
+			ros::Subscriber torque_cmd_sub_;
 
 			// Advertisements
-			ros::Publisher genCoordPub;
-			ros::Publisher genVelPub;
-			ros::Publisher jointTorquesPub;
+			ros::Publisher gen_coord_pub_;
+			ros::Publisher gen_vel_pub_;
+			ros::Publisher joint_torques_pub_;
 
 			// Queues
-			ros::CallbackQueue rosProcessQueue;
-			ros::CallbackQueue rosPublishQueue;
-			std::thread rosProcessQueueThread;
-			std::thread rosPublishQueueThread;
-
-			void InitJointControllers();
+			ros::CallbackQueue ros_process_queue_;
+			ros::CallbackQueue ros_publish_queue_;
+			std::thread ros_process_queue_thread_;
+			std::thread ros_publish_queue_thread_;
 
 			void InitRosTopics();
+			void InitJointControllers();
 			
 			// Publishing and subscription runs on two separete threads
 			void PublishQueueThread();
 			void ProcessQueueThread();
 
 			void OnVelCmdMsg(
-					const std_msgs::Float64MultiArrayConstPtr &_msg
+					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 			void OnPosCmdMsg(
-					const std_msgs::Float64MultiArrayConstPtr &_msg
+					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 			void OnTorqueCmdMsg(
-					const std_msgs::Float64MultiArrayConstPtr &_msg
+					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
   };
 

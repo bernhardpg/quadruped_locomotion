@@ -10,40 +10,40 @@ namespace gazebo
 	// Destructor
 	AnymalPlugin::~AnymalPlugin()
 	{
-			this->rosNode->shutdown();
+			this->ros_node_->shutdown();
 
-			this->rosProcessQueue.clear();
-			this->rosProcessQueue.disable();
-			this->rosProcessQueueThread.join();
+			this->ros_process_queue_.clear();
+			this->ros_process_queue_.disable();
+			this->ros_process_queue_thread_.join();
 
-			this->rosPublishQueue.clear();
-			this->rosPublishQueue.disable();
-			this->rosPublishQueueThread.join();
+			this->ros_publish_queue_.clear();
+			this->ros_publish_queue_.disable();
+			this->ros_publish_queue_thread_.join();
 	}
 
 	void AnymalPlugin::Load(
-			physics::ModelPtr _model, sdf::ElementPtr _sdf
+			physics::ModelPtr model, sdf::ElementPtr sdf
 			)
 	{
 		// Safety check
-		if (_model->GetJointCount() == 0)
+		if (model->GetJointCount() == 0)
 		{
 			std::cerr << "Invalid joint count, ANYmal plugin not loaded\n";
 			return;
 		}
 
-		this->model = _model;
-		this->model_name = _model->GetName();
-		this->base = _model->GetLink(model_name + "::anymal::base");
+		this->model_ = model;
+		this->model_name_ = model->GetName();
+		this->base_ = model->GetLink(this->model_name_ + "::anymal::base");
 
 		std::cerr << "\nThe plugin is attach to model[" <<
-			this->model_name << "]\n";
+			this->model_name_ << "]\n";
 
-		this->world = _model->GetWorld();
+		this->world_ = model->GetWorld();
 
-		this->joints = _model->GetJointController()->GetJoints();
-		for(auto it = joints.begin(); it != joints.end(); ++it)
-			joint_names.push_back(it->first);
+		this->joints_ = model->GetJointController()->GetJoints();
+		for(auto it = this->joints_.begin(); it != this->joints_.end(); ++it)
+			this->joint_names_.push_back(it->first);
 
 		this->InitJointControllers();
 		this->InitRosTopics();
@@ -51,99 +51,99 @@ namespace gazebo
 
 	void AnymalPlugin::InitJointControllers()
 	{
-		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
-			this->model->GetJointController()->SetVelocityPID(
-				this->joint_names[i],
+			this->model_->GetJointController()->SetVelocityPID(
+				this->joint_names_[i],
 				common::PID(10, 0, 0)
 				);
 
-			this->model->GetJointController()->SetPositionPID(
-				this->joint_names[i],
+			this->model_->GetJointController()->SetPositionPID(
+				this->joint_names_[i],
 				common::PID(10, 0, 0)
 			);
 		}
 	}
 
 	void AnymalPlugin::SetJointVelocity(
-			const std::string &_joint_name, const double &_vel
+			const std::string &joint_name, const double &vel
 			)
 	{
 		// Set the joint's target velocity.
-		this->model->GetJointController()->SetVelocityTarget(
-				_joint_name, _vel
+		this->model_->GetJointController()->SetVelocityTarget(
+				joint_name, vel
 				);
 	} 
 
 	void AnymalPlugin::SetJointPosition(
-			const std::string &_joint_name, const double &_pos
+			const std::string &joint_name, const double &pos
 			)
 	{
-		this->model->GetJointController()->SetPositionTarget(
-				_joint_name, _pos
+		this->model_->GetJointController()->SetPositionTarget(
+				joint_name, pos
 				);
 	}
 
 	void AnymalPlugin::SetJointTorque(
-			const std::string &_joint_name, const double &_tau
+			const std::string &joint_name, const double &tau
 			)
 	{
-		this->model->GetJointController()->SetForce(
-				_joint_name, _tau
+		this->model_->GetJointController()->SetForce(
+				joint_name, tau
 				);
 	}
 
 	void AnymalPlugin::SetJointPositions(
-			const std::vector<double> &_pos_cmds
+			const std::vector<double> &pos_cmds
 			)
 	{
-		for (size_t i = 0; i < this->joint_names.size(); ++i)
-			this->SetJointTorque(this->joint_names[i], _pos_cmds[i]);
+		for (size_t i = 0; i < this->joint_names_.size(); ++i)
+			this->SetJointTorque(this->joint_names_[i], pos_cmds[i]);
 	}
 
 	void AnymalPlugin::SetJointVelocities(
-			const std::vector<double> &_vel_cmds
+			const std::vector<double> &vel_cmds
 			)
 	{
-		for (size_t i = 0; i < this->joint_names.size(); ++i)
-			this->SetJointTorque(this->joint_names[i], _vel_cmds[i]);
+		for (size_t i = 0; i < this->joint_names_.size(); ++i)
+			this->SetJointTorque(this->joint_names_[i], vel_cmds[i]);
 	}
 
 	void AnymalPlugin::SetJointTorques(
-			const std::vector<double> &_tau_cmds
+			const std::vector<double> &tau_cmds
 			)
 	{
-		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
-			this->SetJointTorque(this->joint_names[i], _tau_cmds[i]);
+			this->SetJointTorque(this->joint_names_[i], tau_cmds[i]);
 		}
 	}
 
-	double AnymalPlugin::GetJointPosition(const std::string &_joint_name)
+	double AnymalPlugin::GetJointPosition(const std::string &joint_name)
 	{
-		double pos = this->joints[_joint_name]->Position();	
+		double pos = this->joints_[joint_name]->Position();	
 		return pos;
 	}
 
-	double AnymalPlugin::GetJointVelocity(const std::string &_joint_name)
+	double AnymalPlugin::GetJointVelocity(const std::string &joint_name)
 	{
-		double vel = this->joints[_joint_name]->GetVelocity(0);	
+		double vel = this->joints_[joint_name]->GetVelocity(0);	
 		return vel;
 	}
 
-	double AnymalPlugin::GetJointTorque(const std::string &_joint_name)
+	double AnymalPlugin::GetJointTorque(const std::string &joint_name)
 	{
 		// TODO: Gazebo API docs says that this is not yet implemented? May cause trouble!
-		double torque = this->joints[_joint_name]->GetForce(0);	
+		double torque = this->joints_[joint_name]->GetForce(0);	
 		return torque;
 	}
 
 	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointPositions()
 	{
 		Eigen::Matrix<double,12,1> q_j;
-		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
-			q_j(i) = this->GetJointPosition(this->joint_names[i]);
+			q_j(i) = this->GetJointPosition(this->joint_names_[i]);
 		}
 
 		return q_j;
@@ -152,9 +152,9 @@ namespace gazebo
 	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointVelocities()
 	{
 		Eigen::Matrix<double,12,1> v_j;
-		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
-			v_j(i) = this->GetJointVelocity(this->joint_names[i]);
+			v_j(i) = this->GetJointVelocity(this->joint_names_[i]);
 		}
 
 		return v_j;
@@ -163,9 +163,9 @@ namespace gazebo
 	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointTorques()
 	{
 		Eigen::Matrix<double,12,1> tau_j;
-		for (size_t i = 0; i < this->joint_names.size(); ++i)
+		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
-			tau_j(i) = this->GetJointTorque(this->joint_names[i]);
+			tau_j(i) = this->GetJointTorque(this->joint_names_[i]);
 		}
 
 		return tau_j;
@@ -173,7 +173,7 @@ namespace gazebo
 
 	Eigen::Matrix<double,6,1> AnymalPlugin::GetBasePose()
 	{
-		ignition::math::Pose3d base_pose = this->base->WorldPose();			
+		ignition::math::Pose3d base_pose = this->base_->WorldPose();			
 
 		Eigen::Matrix<double,6,1> q_b;
 		q_b(0) = base_pose.X();
@@ -199,81 +199,81 @@ namespace gazebo
 		}
 
 		// Create ros node
-		this->rosNode.reset(new ros::NodeHandle("gazebo_client"));
+		this->ros_node_.reset(new ros::NodeHandle("gazebo_client"));
 
 		// Set up advertisements
 		ros::AdvertiseOptions gen_coord_ao =
 			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model->GetName() + "/gen_coord",
+					"/" + this->model_->GetName() + "/gen_coord",
 					1,
 					ros::SubscriberStatusCallback(),
 					ros::SubscriberStatusCallback(),
 					ros::VoidPtr(),
-					&this->rosPublishQueue
+					&this->ros_publish_queue_
 					);
 
 		ros::AdvertiseOptions gen_vel_ao =
 			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model->GetName() + "/gen_vel",
+					"/" + this->model_->GetName() + "/gen_vel",
 					1,
 					ros::SubscriberStatusCallback(),
 					ros::SubscriberStatusCallback(),
 					ros::VoidPtr(),
-					&this->rosPublishQueue
+					&this->ros_publish_queue_
 					);
 
 		ros::AdvertiseOptions joint_torques_ao =
 			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model->GetName() + "/joint_torques",
+					"/" + this->model_->GetName() + "/joint_torques",
 					1,
 					ros::SubscriberStatusCallback(),
 					ros::SubscriberStatusCallback(),
 					ros::VoidPtr(),
-					&this->rosPublishQueue
+					&this->ros_publish_queue_
 					);
 
-		this->genCoordPub = this->rosNode->advertise(gen_coord_ao);
-		this->genVelPub = this->rosNode->advertise(gen_vel_ao);
-		this->jointTorquesPub = this->rosNode->advertise(joint_torques_ao);
+		this->gen_coord_pub_ = this->ros_node_->advertise(gen_coord_ao);
+		this->gen_vel_pub_ = this->ros_node_->advertise(gen_vel_ao);
+		this->joint_torques_pub_ = this->ros_node_->advertise(joint_torques_ao);
 
 		// Set up subscriptions
 		ros::SubscribeOptions vel_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model->GetName() + "/vel_cmd",
+					"/" + this->model_->GetName() + "/vel_cmd",
 					1,
 					boost::bind(&AnymalPlugin::OnVelCmdMsg, this, _1),
 					ros::VoidPtr(),
-					&this->rosProcessQueue
+					&this->ros_process_queue_
 					);
 
 		ros::SubscribeOptions pos_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model->GetName() + "/pos_cmd",
+					"/" + this->model_->GetName() + "/pos_cmd",
 					1,
 					boost::bind(&AnymalPlugin::OnPosCmdMsg, this, _1),
 					ros::VoidPtr(),
-					&this->rosProcessQueue
+					&this->ros_process_queue_
 					);
 
 		ros::SubscribeOptions torque_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model->GetName() + "/torque_cmd",
+					"/" + this->model_->GetName() + "/torque_cmd",
 					1,
 					boost::bind(&AnymalPlugin::OnTorqueCmdMsg, this, _1),
 					ros::VoidPtr(),
-					&this->rosProcessQueue
+					&this->ros_process_queue_
 					);
 
-		this->velCmdSub = this->rosNode->subscribe(vel_cmd_so);
-		this->posCmdSub = this->rosNode->subscribe(pos_cmd_so);
-		this->torqueCmdSub = this->rosNode->subscribe(torque_cmd_so);
+		this->vel_cmd_sub_ = this->ros_node_->subscribe(vel_cmd_so);
+		this->pos_cmd_sub_ = this->ros_node_->subscribe(pos_cmd_so);
+		this->torque_cmd_sub_ = this->ros_node_->subscribe(torque_cmd_so);
 
 		// TODO: Move these to their own functions?
 		// Spin up the queue helper threads
-		this->rosProcessQueueThread = std::thread(
+		this->ros_process_queue_thread_ = std::thread(
 				std::bind(&AnymalPlugin::ProcessQueueThread, this)
 				);
-		this->rosPublishQueueThread = std::thread(
+		this->ros_publish_queue_thread_ = std::thread(
 				std::bind(&AnymalPlugin::PublishQueueThread, this)
 				);
 	}
@@ -281,9 +281,9 @@ namespace gazebo
 	void AnymalPlugin::ProcessQueueThread()
 	{
 		static const double timeout = 0.01;
-		while (this->rosNode->ok())
+		while (this->ros_node_->ok())
 		{
-			this->rosProcessQueue.callAvailable(ros::WallDuration(timeout));
+			this->ros_process_queue_.callAvailable(ros::WallDuration(timeout));
 		}
 	}
 
@@ -291,7 +291,7 @@ namespace gazebo
 	{
 		ros::Rate loop_rate(200); // TODO: Is this fast enough?
 
-		while (this->rosNode->ok())
+		while (this->ros_node_->ok())
 		{
 			// TODO: Expand with base pose, not just joints!
 			Eigen::Matrix<double, 12, 1> q; // generalized coordinates
@@ -312,32 +312,32 @@ namespace gazebo
 			std_msgs::Float64MultiArray joint_torques_msg;
 			tf::matrixEigenToMsg(tau, joint_torques_msg);
 
-			this->genCoordPub.publish(gen_coord_msg);
-			this->genVelPub.publish(gen_vel_msg);
-			this->jointTorquesPub.publish(joint_torques_msg);
+			this->gen_coord_pub_.publish(gen_coord_msg);
+			this->gen_vel_pub_.publish(gen_vel_msg);
+			this->joint_torques_pub_.publish(joint_torques_msg);
 
 			loop_rate.sleep();	
 		}
 	}
 
 	void AnymalPlugin::OnVelCmdMsg(
-			const std_msgs::Float64MultiArrayConstPtr &_msg
+			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		this->SetJointVelocities(_msg->data);
+		this->SetJointVelocities(msg->data);
 	}
 
 	void AnymalPlugin::OnPosCmdMsg(
-			const std_msgs::Float64MultiArrayConstPtr &_msg
+			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		this->SetJointPositions(_msg->data);
+		this->SetJointPositions(msg->data);
 	}
 
 	void AnymalPlugin::OnTorqueCmdMsg(
-			const std_msgs::Float64MultiArrayConstPtr &_msg
+			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		this->SetJointTorques(_msg->data);
+		this->SetJointTorques(msg->data);
 	}
 }
