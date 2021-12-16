@@ -8,6 +8,10 @@ namespace control {
 		this->model_name_ = "anymal"; // TODO: Replace with node argument
 
 		this->InitRosTopics();
+
+		// TODO: Just a testline
+		auto t = prog_.NewIndeterminates(1,1,"t");
+
 	}
 
 	Controller::~Controller()

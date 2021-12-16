@@ -8,7 +8,7 @@
 - [] Implement inverse kinematics trajectory optimization to make the robot stand up
 
 ## HO QP
-- [] Download and install drake as a dependency
+- [x] Download and install drake as a dependency
 - [] Test Optimization of one task, toy task
 - [] Implement dynamic constraint task (will require to somehow get dynamics here)
 - [] Implement controller torques

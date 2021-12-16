@@ -9,6 +9,8 @@
 #include "std_msgs/Float64MultiArray.h"
 #include "eigen_conversions/eigen_msg.h"
 
+#include <drake/solvers/mathematical_program.h>
+
 #include <Eigen/Core>
 
 namespace control
@@ -20,6 +22,8 @@ namespace control
 			~Controller();
 
 		private:
+			drake::solvers::MathematicalProgram prog_;
+
 			std::string model_name_;
 
 			std::unique_ptr<ros::NodeHandle> ros_node_;
