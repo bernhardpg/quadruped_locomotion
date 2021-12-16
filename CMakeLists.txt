@@ -26,6 +26,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 find_package(drake CONFIG REQUIRED PATHS /opt/drake)
 include_directories(${drake_INCLUDE_DIRS})
 
+# Pinoccio
+find_package(pinocchio REQUIRED)
+
 # Anymal gazebo plugin
 add_library(anymal_plugin SHARED src/anymal_plugin.cpp)
 target_link_libraries(anymal_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
@@ -39,4 +42,10 @@ add_executable(controller_node src/control/controller_node.cpp src/control/contr
 target_link_libraries(controller_node drake::drake)
 target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(controller_node Eigen3::Eigen)
+
+# Dynamics library
+add_executable(dynamics src/dynamics.cpp)
+target_link_libraries(dynamics Eigen3::Eigen)
+target_link_libraries(dynamics pinocchio::pinocchio)
+
 

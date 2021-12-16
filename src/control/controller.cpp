@@ -9,8 +9,8 @@ namespace control {
 
 		this->InitRosTopics();
 
-		// TODO: Just a testline
-		auto t = prog_.NewIndeterminates(1,1,"t");
+		// TODO: Just a testline, remove!
+		//auto t = prog_.NewIndeterminates(1,1,"t");
 
 	}
 
