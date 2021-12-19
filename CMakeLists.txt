@@ -48,4 +48,14 @@ add_executable(dynamics src/dynamics.cpp)
 target_link_libraries(dynamics Eigen3::Eigen)
 target_link_libraries(dynamics pinocchio::pinocchio)
 
+# Motion planner
+add_library(planner src/planner/planner.cpp)
+target_link_libraries(planner Eigen3::Eigen)
+target_link_libraries(planner drake::drake)
+
+add_executable(planner_test src/planner/planner_run.cpp)
+target_link_libraries(planner_test drake::drake)
+
+
+
 
