@@ -42,6 +42,7 @@ MotionPlanner::MotionPlanner(
 		// Implement integral over segment as sum
 		for (double t = 0; t < 1; t += dt)
 		{
+			// TODO: Use the GetAccAtT function for this?
 			symbolic_matrix_t T_ddot =
 				GetTransformationMatrixAtT(t, m_ddot_)
 				.cast <drake::symbolic::Expression>();
@@ -73,21 +74,26 @@ MotionPlanner::MotionPlanner(
 	// Enforce zmp constraint
 
 	// Initial and final conditions
+	// TODO: These are just for testing purposes
 	Eigen::Vector2d pos_initial(0,0);
 	Eigen::Vector2d pos_final(5,5);
 
-	// TODO: These are just for testing purposes
 	prog_.AddLinearConstraint(GetPosAtT(0, 0) == pos_initial);
 	prog_.AddLinearConstraint(
-			GetPosAtT(1, n_traj_segments - 1) == pos_final
+			GetPosAtT(1, n_traj_segments_ - 1) == pos_final
 			);
 
 	// Solve
 	result_ = Solve(prog_);
-	std::cout << "Solver id: " << result_.get_solver_id() << std::endl;
-	std::cout << "Found solution: " << result_.is_success() << std::endl;
-	std::cout << "Solution result: " << result_.get_solution_result() << std::endl;
+	std::cout << "Solver id: " << result_.get_solver_id()
+		<< "\nFound solution: " << result_.is_success()
+		<< "\nSolution result: " << result_.get_solution_result()
+		<< std::endl;
 	assert(result_.is_success());
+
+	GeneratePolynomials();
+	std::cout << "Traj at t = 1.5\n"
+		<< EvalTrajAtT(1.5) << std::endl;
 }
 
 // Constructs the transformation matrix
@@ -159,4 +165,35 @@ symbolic_vector_t MotionPlanner::EvalTrajectoryAtT(
 
 	symbolic_vector_t traj_at_t = T * alpha;
 	return traj_at_t;
+}
+
+void MotionPlanner::GeneratePolynomials()
+{
+	polynomials_.resize(traj_dimension_, n_traj_segments_);
+	for (int k = 0; k < n_traj_segments_; ++k)
+	{
+		symbolic_vector_t polynomial = result_
+			.GetSolution(coeffs_[k]) * m_;
+
+		for (int dim = 0; dim < traj_dimension_; ++dim)
+			polynomials_(dim,k) = drake::symbolic::Polynomial(polynomial[dim]);
+	}
+}
+
+Eigen::VectorXd MotionPlanner::EvalTrajAtT(double t)
+{
+	int traj_segment_index = 0;
+	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
+
+	double t_in_segment = t - (double) traj_segment_index;
+
+	Eigen::VectorXd traj_value(traj_dimension_);
+	drake::symbolic::Environment t_at_t {{t_, t_in_segment}};
+	for (int dim = 0; dim < traj_dimension_; ++dim)
+	{
+		traj_value(dim) = 
+			polynomials_(dim, traj_segment_index).Evaluate(t_at_t);
+	}
+
+	return traj_value;
 }

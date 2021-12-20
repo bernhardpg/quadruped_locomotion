@@ -8,8 +8,8 @@
 #include <iomanip>
 
 typedef Eigen::Matrix<drake::symbolic::Expression, Eigen::Dynamic, Eigen::Dynamic> symbolic_matrix_t;
-
 typedef Eigen::Matrix<drake::symbolic::Expression, Eigen::Dynamic, 1> symbolic_vector_t;
+typedef Eigen::Matrix<drake::symbolic::Polynomial, Eigen::Dynamic, Eigen::Dynamic> polynomial_matrix_t;
 
 class MotionPlanner
 {
@@ -23,6 +23,7 @@ class MotionPlanner
 
 		drake::solvers::MathematicalProgram prog_;
 		drake::solvers::MathematicalProgramResult result_;
+		polynomial_matrix_t polynomials_;
 
 		drake::symbolic::Variable t_;
 
@@ -54,4 +55,7 @@ class MotionPlanner
 		symbolic_vector_t EvalTrajectoryAtT(
 				double t, symbolic_vector_t v, int segment_j
 				);
+
+		void GeneratePolynomials();
+		Eigen::VectorXd EvalTrajAtT(double t);
 };
