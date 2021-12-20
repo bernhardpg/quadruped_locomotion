@@ -1,4 +1,4 @@
-#include "planner/planner.hpp"
+#include "planner/motion_planner.hpp"
 
 MotionPlanner::MotionPlanner(
 		int degree,

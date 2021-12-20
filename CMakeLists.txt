@@ -41,7 +41,7 @@ target_link_libraries(anymal_plugin Eigen3::Eigen)
 # Declare catkin package
 catkin_package()
 
-# Ros nodes
+# Controller 
 add_executable(controller_node src/control/controller_node.cpp src/control/controller.cpp)
 target_link_libraries(controller_node drake::drake)
 target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
@@ -53,13 +53,10 @@ target_link_libraries(dynamics Eigen3::Eigen)
 target_link_libraries(dynamics pinocchio::pinocchio)
 
 # Motion planner
-add_library(planner src/planner/planner.cpp)
-target_link_libraries(planner Eigen3::Eigen)
-target_link_libraries(planner drake::drake)
+add_library(motion_planner src/planner/motion_planner.cpp)
+target_link_libraries(motion_planner Eigen3::Eigen)
+target_link_libraries(motion_planner drake::drake)
 
-add_executable(planner_test src/planner/planner_run.cpp)
-target_link_libraries(planner_test planner)
-
-
-
-
+add_executable(motion_planner_node src/planner/motion_planner_node.cpp)
+target_link_libraries(motion_planner_node motion_planner)
+target_link_libraries(motion_planner_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
