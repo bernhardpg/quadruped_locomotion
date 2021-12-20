@@ -1,12 +1,7 @@
 <launch>
-	<include file="$(find gazebo_ros)/launch/empty_world.launch"/>
-	<!-- Load anymal urdf into ROS parameter server -->
-	<include file="$(find anymal_c_simple_description)/launch/load.launch"/>
-
-	<!-- Spawn anymal into Gazebo -->
-	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param anymal_description -urdf -model anymal -z 5"/>
-
 	<node name="motion_planner" pkg="quadruped_locomotion" type="motion_planner_node"/>
 
-	<node name="rviz" pkg="rviz" type="rviz"/>
+	<node name="rviz" pkg="rviz" type="rviz"
+		args="-d $(find quadruped_locomotion)/show_motion_plan.rviz"/>
+
 </launch>
