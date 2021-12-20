@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Marker1
       Splitter Ratio: 0.5
     Tree Height: 1160
   - Class: rviz/Selection
@@ -54,7 +55,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: visualization_marker
+      Marker Topic: visualization_trajectory
       Name: Marker
       Namespaces:
         trajectory: true
@@ -104,9 +105,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.4003983438014984
+      Pitch: 0.7403980493545532
       Target Frame: <Fixed Frame>
-      Yaw: 1.3903976678848267
+      Yaw: 3.495396614074707
     Saved: ~
 Window Geometry:
   Displays:

@@ -2,6 +2,6 @@
 	<node name="motion_planner" pkg="quadruped_locomotion" type="motion_planner_node"/>
 
 	<node name="rviz" pkg="rviz" type="rviz"
-		args="-d $(find quadruped_locomotion)/show_motion_plan.rviz"/>
+		args="-d $(find quadruped_locomotion)/rviz/show_motion_plan.rviz"/>
 
 </launch>

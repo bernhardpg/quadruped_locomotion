@@ -1,10 +1,14 @@
 #pragma once
 
+
+#include <ros/ros.h>
+#include <ros/console.h>
+#include <visualization_msgs/Marker.h>
+
 #include <drake/solvers/mathematical_program.h>
 #include <drake/common/symbolic.h>
 #include <drake/solvers/solve.h>
 #include <Eigen/Core>
-
 #include <iomanip>
 
 typedef Eigen::Matrix<drake::symbolic::Expression, Eigen::Dynamic, Eigen::Dynamic> symbolic_matrix_t;
@@ -16,7 +20,22 @@ class MotionPlanner
 	public:
 		MotionPlanner(int degree, int num_traj_segments);
 
+		void GenerateTrajectory();
+		Eigen::VectorXd EvalTrajAtT(double t);
+		void PublishTrajectory();
+
 	private:
+		// ROS
+		ros::NodeHandle ros_node_;
+		ros::Publisher traj_pub_;
+
+		void InitRos();
+
+		void SetupOptimizationProgram();
+		void InitDecisionVariables();
+		void AddAccelerationCost();
+		void AddContinuityConstraints();
+
 		int degree_;
 		int n_traj_segments_;
 		int traj_dimension_ = 2;
@@ -52,10 +71,9 @@ class MotionPlanner
 		symbolic_vector_t GetVelAtT(double t, int segment_j);
 		symbolic_vector_t GetAccAtT(double t, int segment_j);
 
-		symbolic_vector_t EvalTrajectoryAtT(
+		symbolic_vector_t GetTrajExpressionAtT(
 				double t, symbolic_vector_t v, int segment_j
 				);
 
 		void GeneratePolynomials();
-		Eigen::VectorXd EvalTrajAtT(double t);
 };
