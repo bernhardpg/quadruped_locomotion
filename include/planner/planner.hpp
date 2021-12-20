@@ -37,4 +37,8 @@ class MotionPlanner
 		void construct_transform_matrix(
 				symbolic_matrix_t *T, symbolic_vector_t *v
 				);
+
+		Eigen::MatrixXd get_transformation_matrix_at_t(
+				double t, symbolic_vector_t v
+				);
 };

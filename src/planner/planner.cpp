@@ -29,15 +29,41 @@ MotionPlanner::MotionPlanner(
 		coeffs_.push_back(coeffs_at_k);
 	}
 
-	construct_transform_matrix(&T_, &m_);
-	construct_transform_matrix(&T_dot_, &m_dot_);
-	construct_transform_matrix(&T_ddot_, &m_ddot_);
+	//	TODO: I may not need these as symbolic after all?
+//	construct_transform_matrix(&T_, &m_);
+//	construct_transform_matrix(&T_dot_, &m_dot_);
+//	construct_transform_matrix(&T_ddot_, &m_ddot_);
 
 	// Add cost on acceleration
+	double dt = 0.1;
+
+	for (int k = 0; k < n_traj_segments; ++k)
+	{
+		// Implement integral over segment as sum
+		for (double t = 0; t < 1; t += dt)
+		{
+			symbolic_matrix_t T_ddot =
+				get_transformation_matrix_at_t(t, m_ddot_)
+				.cast <drake::symbolic::Expression>();
+			symbolic_matrix_t Q = T_ddot.transpose() * T_ddot;
+
+			auto coeffs_test = coeffs_[k];
+			Eigen::Map<symbolic_vector_t> alpha(
+					coeffs_test.data(), coeffs_test.size()
+					);
+
+			drake::symbolic::Expression cost_at_t =
+				dt * alpha.transpose() * Q * alpha;
+
+			prog_.AddQuadraticCost(cost_at_t);
+		}
+	}
 
 	// Enforce continuity
 	
 	// Enforce zmp constraint
+
+	// Initial and final conditions
 
 	// Solve
 	//Solve(prog_);
@@ -59,4 +85,23 @@ void MotionPlanner::construct_transform_matrix(
 	{
 		T->block(dim, dim * v->rows(), 1, v->rows()) = v->transpose();
 	}
+}
+
+Eigen::MatrixXd MotionPlanner::get_transformation_matrix_at_t(
+		double t, symbolic_vector_t v
+		)
+{
+	// Evaluate monomial at t
+	drake::symbolic::Environment t_curr {{t_, t}};
+	Eigen::VectorXd v_at_t(v.rows());
+	for (int i = 0; i < v.rows(); ++i)
+		v_at_t(i) = v(i).Evaluate(t_curr);
+
+	// Construct transformation at t
+	Eigen::MatrixXd T_at_t(traj_dimension_, v.rows() * 2);
+	T_at_t.setZero();
+	for (int dim = 0; dim < traj_dimension_; ++dim)
+		T_at_t.block(dim, dim * v.rows(), 1, v.rows()) = v_at_t.transpose();
+
+	return T_at_t;
 }
