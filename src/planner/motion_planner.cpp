@@ -173,10 +173,18 @@ symbolic_vector_t MotionPlanner::GetTrajExpressionAtT(
 	symbolic_matrix_t T =
 		GetTransformationMatrixAtT(t, v)
 		.cast <drake::symbolic::Expression>();
+	std::cout << "T: " << std::endl
+		<< T << std::endl << std::endl;
 
 	Eigen::Map<symbolic_vector_t> alpha(
 			coeffs_[segment_j].data(), coeffs_[segment_j].size()
 			);
+
+	std::cout << "coeffs_[j]: " << std::endl
+		<< coeffs_[segment_j] << std::endl << std::endl;
+
+	std::cout << "alpha: " << std::endl
+		<< alpha << std::endl << std::endl;
 
 	symbolic_vector_t traj_at_t = T * alpha;
 	return traj_at_t;
@@ -186,7 +194,7 @@ void MotionPlanner::SetupOptimizationProgram()
 {
 	InitDecisionVariables();
 	AddAccelerationCost();
-	//AddContinuityConstraints();
+	AddContinuityConstraints();
 
 	// Enforce zmp constraint
 	// TODO: Implement
