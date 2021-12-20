@@ -23,12 +23,13 @@ class MotionPlanner
 		void GenerateTrajectory();
 		Eigen::VectorXd EvalTrajAtT(double t);
 		void PublishTrajectory();
+		void PublishPolygons();
 
 	private:
 		// ROS
 		ros::NodeHandle ros_node_;
 		ros::Publisher traj_pub_;
-
+		ros::Publisher polygons_pub_;
 		void InitRos();
 
 		void SetupOptimizationProgram();
@@ -40,6 +41,7 @@ class MotionPlanner
 		int n_traj_segments_;
 		int traj_dimension_ = 2;
 		double dt_ = 0.1;
+		std::vector<std::vector<Eigen::Vector2d>> support_polygons_;
 
 		drake::solvers::MathematicalProgram prog_;
 		drake::solvers::MathematicalProgramResult result_;

@@ -14,6 +14,25 @@ MotionPlanner::MotionPlanner(
 {
 	InitRos();
 	SetupOptimizationProgram();
+
+	// TODO: Only for testing
+	std::vector<Eigen::Vector2d> polygon;
+	polygon.push_back(Eigen::Vector2d(0,0));
+	polygon.push_back(Eigen::Vector2d(0,3));
+	polygon.push_back(Eigen::Vector2d(2,0));
+	support_polygons_.push_back(polygon);
+
+	std::vector<Eigen::Vector2d> polygon2;
+	polygon2.push_back(Eigen::Vector2d(0,1));
+	polygon2.push_back(Eigen::Vector2d(2.5,1.5));
+	polygon2.push_back(Eigen::Vector2d(2,3.5));
+	support_polygons_.push_back(polygon2);
+
+	std::vector<Eigen::Vector2d> polygon3;
+	polygon3.push_back(Eigen::Vector2d(0,2));
+	polygon3.push_back(Eigen::Vector2d(2,2));
+	polygon3.push_back(Eigen::Vector2d(0,5));
+	support_polygons_.push_back(polygon3);
 }
 
 
@@ -46,6 +65,50 @@ void MotionPlanner::GenerateTrajectory()
 	GeneratePolynomials();
 }
 
+void MotionPlanner::PublishPolygons()
+{
+	visualization_msgs::Marker polygon_msg;
+	polygon_msg.header.frame_id = "world";
+	polygon_msg.header.stamp = ros::Time::now();
+	polygon_msg.ns = "polygons";
+	polygon_msg.action = visualization_msgs::Marker::ADD;
+	polygon_msg.pose.orientation.w = 1.0; // Set no rotation
+	polygon_msg.type = visualization_msgs::Marker::LINE_STRIP;
+
+	polygon_msg.scale.x = 0.01; // = width
+	polygon_msg.color.b = 1.0;
+	polygon_msg.color.a = 1.0;
+
+	geometry_msgs::Point p;
+	for (
+			int polygon_i = 0;
+			polygon_i < support_polygons_.size();
+			++polygon_i
+			)
+	{
+		polygon_msg.points.clear(); // clear previous points
+		polygon_msg.id = polygon_i;
+		for (
+				int point_j = 0;
+				point_j < support_polygons_[polygon_i].size();
+				++point_j
+				)
+		{
+			p.x = support_polygons_[polygon_i][point_j](0);
+			p.y = support_polygons_[polygon_i][point_j](1);
+			p.z = 0;
+			polygon_msg.points.push_back(p);
+		}
+		// Close polygon
+		p.x = support_polygons_[polygon_i][0](0);
+		p.y = support_polygons_[polygon_i][0](1);
+		p.z = 0;
+		polygon_msg.points.push_back(p);
+
+		polygons_pub_.publish(polygon_msg);
+	}
+}
+
 void MotionPlanner::PublishTrajectory()
 {
 	// Construct linestrip message
@@ -61,8 +124,8 @@ void MotionPlanner::PublishTrajectory()
 	points.type = visualization_msgs::Marker::POINTS;
 
 	// Configure figure
-  points.scale.x = 0.2;
-  points.scale.y = 0.2;
+  points.scale.x = 0.05;
+  points.scale.y = 0.05;
 	points.color.r = 1.0;
 	points.color.a = 1.0;
 
@@ -70,6 +133,7 @@ void MotionPlanner::PublishTrajectory()
 	line_strip.color.g = 1.0;
 	line_strip.color.a = 1.0;
 
+	// Publish initial and final point
 	geometry_msgs::Point p;
 	p.x = pos_initial_(0);
 	p.y = pos_initial_(1);
@@ -77,6 +141,16 @@ void MotionPlanner::PublishTrajectory()
 	p.x = pos_final_(0);
 	p.y = pos_final_(0);
 	points.points.push_back(p);
+
+	for (int k = 0; k < n_traj_segments_; ++k)
+	{
+		Eigen::VectorXd p_xy = EvalTrajAtT(k);
+		p.x = p_xy(0);
+		p.y = p_xy(1);
+		p.z = 0;
+
+		points.points.push_back(p);
+	}
 
 	for (double t = 0; t < n_traj_segments_ - dt_; t += dt_)
 	{
@@ -204,6 +278,9 @@ void MotionPlanner::SetupOptimizationProgram()
 	std::cout << GetPosAtT(0, 0) << std::endl << std::endl;
 
 	prog_.AddLinearConstraint(
+			GetPosAtT(0.5, 3).array() == Eigen::Vector2d(4,2).array()
+			);
+	prog_.AddLinearConstraint(
 			GetPosAtT(0, 0).array() == pos_initial_.array()
 			);
 	prog_.AddLinearConstraint(
@@ -281,5 +358,9 @@ void MotionPlanner::InitRos()
   traj_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("visualization_trajectory", 10);
+
+  polygons_pub_ =
+		ros_node_.advertise<visualization_msgs::Marker>
+		("visualization_polygons", 10);
 }
 
