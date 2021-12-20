@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(quadruped_locomotion)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -21,6 +21,10 @@ include_directories(
 	include)
 link_directories(${GAZEBO_LIBRARY_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
+
+# Eigen
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
 
 # Drake
 find_package(drake CONFIG REQUIRED PATHS /opt/drake)
@@ -54,7 +58,7 @@ target_link_libraries(planner Eigen3::Eigen)
 target_link_libraries(planner drake::drake)
 
 add_executable(planner_test src/planner/planner_run.cpp)
-target_link_libraries(planner_test drake::drake)
+target_link_libraries(planner_test planner)
 
 
 
