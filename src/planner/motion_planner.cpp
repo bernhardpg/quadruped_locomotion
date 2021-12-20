@@ -49,31 +49,48 @@ void MotionPlanner::GenerateTrajectory()
 void MotionPlanner::PublishTrajectory()
 {
 	// Construct linestrip message
-	visualization_msgs::Marker line_strip;
-	line_strip.header.frame_id = "world";
-	line_strip.header.stamp = ros::Time::now();
-	line_strip.ns = "trajectory";
-	line_strip.action = visualization_msgs::Marker::ADD;
-	line_strip.pose.orientation.w = 1.0; // Set no rotation: The rest set to 0 by initialization
+	visualization_msgs::Marker points, line_strip;
+	line_strip.header.frame_id = points.header.frame_id = "world";
+	line_strip.header.stamp = points.header.stamp = ros::Time::now();
+	line_strip.ns = points.ns = "trajectory";
+	line_strip.action = points.action = visualization_msgs::Marker::ADD;
+	line_strip.pose.orientation.w = points.pose.orientation.w = 1.0; // Set no rotation: The rest set to 0 by initialization
 	line_strip.id = 0;
+	points.id = 1;
 	line_strip.type = visualization_msgs::Marker::LINE_STRIP;
+	points.type = visualization_msgs::Marker::POINTS;
 
 	// Configure figure
-	line_strip.scale.x = 0.1; // = width
-	line_strip.color.b = 1.0;
+  points.scale.x = 0.2;
+  points.scale.y = 0.2;
+	points.color.r = 1.0;
+	points.color.a = 1.0;
+
+	line_strip.scale.x = 0.01; // = width
+	line_strip.color.g = 1.0;
 	line_strip.color.a = 1.0;
 
-	for (int i = 0; i < 10; ++i)
+	geometry_msgs::Point p;
+	p.x = pos_initial_(0);
+	p.y = pos_initial_(1);
+	points.points.push_back(p);
+	p.x = pos_final_(0);
+	p.y = pos_final_(0);
+	points.points.push_back(p);
+
+	for (double t = 0; t < n_traj_segments_ - dt_; t += dt_)
 	{
-		geometry_msgs::Point p;
-		p.x = i;
-		p.y = i;
+		Eigen::VectorXd p_xy = EvalTrajAtT(t);
+
+		p.x = p_xy(0);
+		p.y = p_xy(1);
 		p.z = 0;
 
 		line_strip.points.push_back(p);
 	}
 
 	traj_pub_.publish(line_strip);
+	traj_pub_.publish(points);
 }
 
 // ***************** // 
@@ -169,24 +186,20 @@ void MotionPlanner::SetupOptimizationProgram()
 {
 	InitDecisionVariables();
 	AddAccelerationCost();
-	AddContinuityConstraints();
-
-	//	TODO: I may not need these as symbolic after all?
-//	construct_transform_matrix(&T_, &m_);
-//	construct_transform_matrix(&T_dot_, &m_dot_);
-//	construct_transform_matrix(&T_ddot_, &m_ddot_);
+	//AddContinuityConstraints();
 
 	// Enforce zmp constraint
 	// TODO: Implement
 
 	// Initial and final conditions
 	// TODO: These are just for testing purposes
-	Eigen::Vector2d pos_initial(0,0);
-	Eigen::Vector2d pos_final(5,5);
+	std::cout << GetPosAtT(0, 0) << std::endl << std::endl;
 
-	prog_.AddLinearConstraint(GetPosAtT(0, 0) == pos_initial);
 	prog_.AddLinearConstraint(
-			GetPosAtT(1, n_traj_segments_ - 1) == pos_final
+			GetPosAtT(0, 0).array() == pos_initial_.array()
+			);
+	prog_.AddLinearConstraint(
+			GetPosAtT(1, n_traj_segments_ - 1).array() == pos_final_.array()
 			);
 }
 

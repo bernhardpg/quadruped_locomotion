@@ -7,7 +7,7 @@ int main( int argc, char** argv )
 {
 
 	int traj_degree = 5;
-	int n_traj_segments = 10;
+	int n_traj_segments = 4;
 
   ros::init(argc, argv, "motion_planner_node");
 	MotionPlanner planner(traj_degree, n_traj_segments);

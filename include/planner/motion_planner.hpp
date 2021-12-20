@@ -39,10 +39,17 @@ class MotionPlanner
 		int degree_;
 		int n_traj_segments_;
 		int traj_dimension_ = 2;
+		double dt_ = 0.1;
 
 		drake::solvers::MathematicalProgram prog_;
 		drake::solvers::MathematicalProgramResult result_;
 		polynomial_matrix_t polynomials_;
+
+		// TODO: Hardcoded for now
+		Eigen::Vector2d pos_initial_ =
+			Eigen::Vector2d(0,0);
+		Eigen::Vector2d pos_final_ = 
+			Eigen::Vector2d(5,5);
 
 		drake::symbolic::Variable t_;
 
