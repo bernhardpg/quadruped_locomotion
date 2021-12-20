@@ -5,6 +5,8 @@
 #include <drake/solvers/solve.h>
 #include <Eigen/Core>
 
+#include <iomanip>
+
 typedef Eigen::Matrix<drake::symbolic::Expression, Eigen::Dynamic, Eigen::Dynamic> symbolic_matrix_t;
 
 typedef Eigen::Matrix<drake::symbolic::Expression, Eigen::Dynamic, 1> symbolic_vector_t;
@@ -20,6 +22,8 @@ class MotionPlanner
 		int traj_dimension_ = 2;
 
 		drake::solvers::MathematicalProgram prog_;
+		drake::solvers::MathematicalProgramResult result_;
+
 		drake::symbolic::Variable t_;
 
 		// Monomial basis of t
@@ -38,7 +42,16 @@ class MotionPlanner
 				symbolic_matrix_t *T, symbolic_vector_t *v
 				);
 
-		Eigen::MatrixXd get_transformation_matrix_at_t(
+		Eigen::MatrixXd GetTransformationMatrixAtT(
 				double t, symbolic_vector_t v
+				);
+
+
+		symbolic_vector_t GetPosAtT(double t, int segment_j);
+		symbolic_vector_t GetVelAtT(double t, int segment_j);
+		symbolic_vector_t GetAccAtT(double t, int segment_j);
+
+		symbolic_vector_t EvalTrajectoryAtT(
+				double t, symbolic_vector_t v, int segment_j
 				);
 };

@@ -43,7 +43,7 @@ MotionPlanner::MotionPlanner(
 		for (double t = 0; t < 1; t += dt)
 		{
 			symbolic_matrix_t T_ddot =
-				get_transformation_matrix_at_t(t, m_ddot_)
+				GetTransformationMatrixAtT(t, m_ddot_)
 				.cast <drake::symbolic::Expression>();
 			symbolic_matrix_t Q = T_ddot.transpose() * T_ddot;
 
@@ -59,14 +59,35 @@ MotionPlanner::MotionPlanner(
 		}
 	}
 
-	// Enforce continuity
+	// Enforce continuity for position and velocity
+	for (int k = 0; k < n_traj_segments - 1; ++k)
+	{
+		prog_.AddLinearConstraint(
+				GetPosAtT(1, k).array() == GetPosAtT(0, k + 1).array()
+				);
+		prog_.AddLinearConstraint(
+				GetVelAtT(1, k).array() == GetVelAtT(0, k + 1).array()
+				);
+	}
 	
 	// Enforce zmp constraint
 
 	// Initial and final conditions
+	Eigen::Vector2d pos_initial(0,0);
+	Eigen::Vector2d pos_final(5,5);
+
+	// TODO: These are just for testing purposes
+	prog_.AddLinearConstraint(GetPosAtT(0, 0) == pos_initial);
+	prog_.AddLinearConstraint(
+			GetPosAtT(1, n_traj_segments - 1) == pos_final
+			);
 
 	// Solve
-	//Solve(prog_);
+	result_ = Solve(prog_);
+	std::cout << "Solver id: " << result_.get_solver_id() << std::endl;
+	std::cout << "Found solution: " << result_.is_success() << std::endl;
+	std::cout << "Solution result: " << result_.get_solution_result() << std::endl;
+	assert(result_.is_success());
 }
 
 // Constructs the transformation matrix
@@ -87,7 +108,7 @@ void MotionPlanner::construct_transform_matrix(
 	}
 }
 
-Eigen::MatrixXd MotionPlanner::get_transformation_matrix_at_t(
+Eigen::MatrixXd MotionPlanner::GetTransformationMatrixAtT(
 		double t, symbolic_vector_t v
 		)
 {
@@ -104,4 +125,38 @@ Eigen::MatrixXd MotionPlanner::get_transformation_matrix_at_t(
 		T_at_t.block(dim, dim * v.rows(), 1, v.rows()) = v_at_t.transpose();
 
 	return T_at_t;
+}
+
+symbolic_vector_t MotionPlanner::GetPosAtT(double t, int segment_j)
+{
+	auto pos = EvalTrajectoryAtT(t, m_, segment_j);
+	return pos;
+}
+
+symbolic_vector_t MotionPlanner::GetVelAtT(double t, int segment_j)
+{
+	auto vel = EvalTrajectoryAtT(t, m_dot_, segment_j);
+	return vel;
+}
+
+symbolic_vector_t MotionPlanner::GetAccAtT(double t, int segment_j)
+{
+	auto acc = EvalTrajectoryAtT(t, m_ddot_, segment_j);
+	return acc;
+}
+
+symbolic_vector_t MotionPlanner::EvalTrajectoryAtT(
+		double t, symbolic_vector_t v, int segment_j
+		)
+{
+	symbolic_matrix_t T =
+		GetTransformationMatrixAtT(t, v)
+		.cast <drake::symbolic::Expression>();
+
+	Eigen::Map<symbolic_vector_t> alpha(
+			coeffs_[segment_j].data(), coeffs_[segment_j].size()
+			);
+
+	symbolic_vector_t traj_at_t = T * alpha;
+	return traj_at_t;
 }
