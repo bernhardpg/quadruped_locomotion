@@ -10,6 +10,7 @@
 #include "eigen_conversions/eigen_msg.h"
 
 #include <drake/solvers/mathematical_program.h>
+#include <drake/common/trajectories/piecewise_polynomial.h>
 
 #include <Eigen/Core>
 
@@ -22,6 +23,15 @@ namespace control
 			~Controller();
 
 		private:
+			int n_legs_ = 4;
+			int n_dims_ = 3;
+			double swing_height_ = 0.2;
+
+			Eigen::Vector3d LF_KFE_pos_;
+			Eigen::Vector3d RF_KFE_pos_;
+			Eigen::Vector3d LH_KFE_pos_;
+			Eigen::Vector3d RH_KFE_pos_;
+
 			void RunStandupSequence();
 
 			std::string model_name_;

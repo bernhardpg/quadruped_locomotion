@@ -34,6 +34,48 @@ namespace control {
 	void Controller::RunStandupSequence()
 	{
 		ROS_INFO("Starting standup sequence");
+
+		LF_KFE_pos_ << 0.36, -0.29, 0.28; 
+		LH_KFE_pos_ << -0.36, -0.29, 0.28; 
+		RH_KFE_pos_ << -0.36, 0.29, 0.28; 
+		RF_KFE_pos_ << 0.36, 0.29, 0.28; 
+
+		// Construct trajectory for standing up
+		const std::vector<double> breaks = { 0.0, 5.0, 10.0 };
+		std::vector<Eigen::MatrixXd> samples;
+		auto start_conf = Eigen::MatrixXd(n_dims_, n_legs_);
+		auto apex_conf = Eigen::MatrixXd(n_dims_, n_legs_);
+		auto touchdown_conf = Eigen::MatrixXd(n_dims_, n_legs_);
+		start_conf << // TODO: Replace with actual starting configuration
+			0, 0, 0, 0, 
+			0, 0, 0, 0,
+			0, 0, 0, 0;
+
+		apex_conf <<
+			LF_KFE_pos_(0), LH_KFE_pos_(0), RH_KFE_pos_(0), RF_KFE_pos_(0), 
+			LF_KFE_pos_(1), LH_KFE_pos_(1), RH_KFE_pos_(1), RF_KFE_pos_(1), 
+			swing_height_, swing_height_, swing_height_, swing_height_;
+
+		touchdown_conf <<
+			LF_KFE_pos_(0), LH_KFE_pos_(0), RH_KFE_pos_(0), RF_KFE_pos_(0), 
+			LF_KFE_pos_(1), LH_KFE_pos_(1), RH_KFE_pos_(1), RF_KFE_pos_(1), 
+			0, 0, 0, 0;
+
+		samples.push_back(start_conf);
+		samples.push_back(apex_conf);
+		samples.push_back(touchdown_conf);
+
+		const auto feet_pos_traj =
+			drake::trajectories::PiecewisePolynomial<double>::FirstOrderHold(
+					breaks, samples
+					);
+
+		for (double t = 0; t < 10; t+=0.5)
+		{
+			std::cout << feet_pos_traj.value(t)	<< std::endl << std::endl;
+		}
+
+		const auto feet_vel_traj = feet_pos_traj.derivative(1);
 	}
 
 	// TODO: Remove
