@@ -9,8 +9,9 @@ MotionPlanner::MotionPlanner(
 		degree_(degree)
 {
 	InitRos();
-	SetupOptimizationProgram();
 	InitGaitSequence();
+	GenerateSupportPolygons(); // TODO: Place this at the right spot
+	SetupOptimizationProgram();
 }
 
 Eigen::VectorXd MotionPlanner::EvalTrajAtT(double t)
@@ -226,15 +227,69 @@ void MotionPlanner::AddTestPolygons()
 
 void MotionPlanner::InitGaitSequence()
 {
-	int num_legs = 4;
-	int num_steps = 20;
+	// TODO: This should come from a ROS topic
+	vel_cmd_ = Eigen::Vector2d(0.25, 0);
+	n_gait_dims_ = 2;
+	n_gait_steps_ = 20;
+	t_stride_ = 10;
+	t_per_step_ = t_stride_ / (double) n_gait_steps_;
 
-	gait_sequence_.resize(num_legs, num_steps);
+	// TODO: Hardcoded and it is actually not correct to use KFE
+	LF_KFE_pos_ << 0.36, -0.29, 0.28; 
+	RF_KFE_pos_ << 0.36, 0.29, 0.28; 
+	LH_KFE_pos_ << -0.36, -0.29, 0.28; 
+	RH_KFE_pos_ << -0.36, 0.29, 0.28; 
+
+	gait_sequence_.resize(n_legs_, n_gait_steps_);
 	gait_sequence_ << 
 		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1,
 		1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1,
 		1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+
+	curr_gait_step_ = 0;
+
+	current_stance_.resize(n_gait_dims_, n_legs_);
+	current_stance_ <<
+		LF_KFE_pos_(0), LH_KFE_pos_(0), RH_KFE_pos_(0), RF_KFE_pos_(0),
+		LF_KFE_pos_(1), LH_KFE_pos_(1), RH_KFE_pos_(1), RF_KFE_pos_(1);
+}
+
+void MotionPlanner::GenerateSupportPolygons()
+{
+	stance_sequence_.clear();
+	stance_sequence_.push_back(current_stance_);
+	std::cout << current_stance_ << std::endl;
+
+	// TODO: Factor into separate functions
+	// TODO: For now, this assumes that we always start at the first gait step
+	// Generate stance sequence along vel_cmd_ direction
+	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
+	{
+		Eigen::MatrixXd new_stance(n_gait_dims_, n_legs_);
+		new_stance = 
+			current_stance_.colwise()
+			+ vel_cmd_ * gait_step_i * t_per_step_;
+		stance_sequence_.push_back(new_stance);
+	}
+
+	// Generate support polygons from stance sequence	
+	support_polygons_.clear();
+	std::vector<Eigen::Vector2d> new_polygon;
+	for (int gait_step_i = 0; gait_step_i < n_gait_steps_; ++gait_step_i)
+	{
+		new_polygon.clear();
+		auto curr_stance = stance_sequence_[gait_step_i];
+		// Find legs that are in contact
+		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)	
+		{
+			if (gait_sequence_(leg_i, gait_step_i) == 1)	
+			{
+				new_polygon.push_back(curr_stance.col(leg_i));
+			}
+		}
+		support_polygons_.push_back(new_polygon);
+	}
 }
 
 // ******************** //
@@ -246,7 +301,6 @@ void MotionPlanner::SetupOptimizationProgram()
 	InitDecisionVariables();
 	AddAccelerationCost();
 	AddContinuityConstraints();
-	AddTestPolygons(); // TODO: Remove this
 	AddInitialAndFinalConstraint();
 	// Enforce zmp constraint
 	// TODO: Implement
