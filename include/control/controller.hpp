@@ -22,10 +22,15 @@ namespace control
 			~Controller();
 
 		private:
-			drake::solvers::MathematicalProgram prog_;
+			void RunStandupSequence();
 
 			std::string model_name_;
+			void PublishIdlePositionCmd();
+			void PublishTestTorqueCmd();
 
+			// *** //
+			// ROS //
+			// *** //
 			std::unique_ptr<ros::NodeHandle> ros_node_;
 
 			// Advertisements
@@ -40,11 +45,8 @@ namespace control
 			std::thread ros_publish_queue_thread_;
 
 			void InitRosTopics();
-
 			void PublishQueueThread();
 			void ProcessQueueThread();
 
-			void PublishIdlePositionCmd();
-			void PublishTestTorqueCmd();
 	};
 }

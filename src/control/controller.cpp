@@ -1,31 +1,76 @@
 #include "control/controller.hpp"
 
+// TODO: remove all 'this' references
+
 namespace control {
 	Controller::Controller()
 	{
 		ROS_INFO("Running controller");
 
-		this->model_name_ = "anymal"; // TODO: Replace with node argument
+		model_name_ = "anymal"; // TODO: Replace with node argument
 
-		this->InitRosTopics();
+		InitRosTopics();
 
-		// TODO: Just a testline, remove!
-		//auto t = prog_.NewIndeterminates(1,1,"t");
-
+		RunStandupSequence();
 	}
 
 	Controller::~Controller()
 	{
-			this->ros_node_->shutdown();
+			ros_node_->shutdown();
 
-			this->ros_process_queue_.clear();
-			this->ros_process_queue_.disable();
-			this->ros_process_queue_thread_.join();
+			ros_process_queue_.clear();
+			ros_process_queue_.disable();
+			ros_process_queue_thread_.join();
 
-			this->ros_publish_queue_.clear();
-			this->ros_publish_queue_.disable();
-			this->ros_publish_queue_thread_.join();
+			ros_publish_queue_.clear();
+			ros_publish_queue_.disable();
+			ros_publish_queue_thread_.join();
 	}
+
+	// **************** //
+	// STANDUP SEQUENCE //
+	// **************** //
+
+	void Controller::RunStandupSequence()
+	{
+		ROS_INFO("Starting standup sequence");
+	}
+
+	// TODO: Remove
+	void Controller::PublishIdlePositionCmd()
+	{
+			Eigen::Matrix<double,12,1> q_cmd;
+			for (int i = 0; i < 12; ++i)
+			{
+				q_cmd(i) = 0.0;
+			}
+
+			std_msgs::Float64MultiArray pos_cmd_msg;
+			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
+
+			this->pos_cmd_pub_.publish(pos_cmd_msg);
+			ROS_INFO("Published idle joint position command");
+	}
+
+	// TODO: Remove
+	void Controller::PublishTestTorqueCmd()
+	{
+			Eigen::Matrix<double,12,1> tau_cmd;
+			for (int i = 0; i < 12; ++i)
+			{
+				tau_cmd(i) = 20.0;
+			}
+
+			std_msgs::Float64MultiArray torque_cmd_msg;
+			tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
+
+			this->torque_cmd_pub_.publish(torque_cmd_msg);
+			ROS_INFO("Published test torques");
+	}
+
+	// *** //
+	// ROS //
+	// *** //
 
 	void Controller::InitRosTopics()
 	{
@@ -40,7 +85,7 @@ namespace control {
             ros::init_options::NoSigintHandler
         );
     }
-		this->ros_node_.reset(new ros::NodeHandle("controller_node"));
+		ros_node_.reset(new ros::NodeHandle("controller_node"));
 
 		// Set up advertisements
 		ros::AdvertiseOptions pos_cmd_ao =
@@ -99,46 +144,13 @@ namespace control {
 		}
 	}
 	
-	void Controller::PublishIdlePositionCmd()
-	{
-			Eigen::Matrix<double,12,1> q_cmd;
-			for (int i = 0; i < 12; ++i)
-			{
-				q_cmd(i) = 0.0;
-			}
-
-			std_msgs::Float64MultiArray pos_cmd_msg;
-			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
-
-			this->pos_cmd_pub_.publish(pos_cmd_msg);
-			ROS_INFO("Published idle joint position command");
-	}
-
-	void Controller::PublishTestTorqueCmd()
-	{
-			Eigen::Matrix<double,12,1> tau_cmd;
-			for (int i = 0; i < 12; ++i)
-			{
-				tau_cmd(i) = 20.0;
-			}
-
-			std_msgs::Float64MultiArray torque_cmd_msg;
-			tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
-
-			this->torque_cmd_pub_.publish(torque_cmd_msg);
-			ROS_INFO("Published test torques");
-	}
 
 	void Controller::PublishQueueThread()
 	{
 		ros::Rate loop_rate(1);
 
-		// TODO: Wait 10 seconds before publishing controller inputs
-		ros::Duration(10).sleep();
-
 		while (this->ros_node_->ok())
 		{
-			this->PublishIdlePositionCmd();
 			loop_rate.sleep();	
 		}
 	}
