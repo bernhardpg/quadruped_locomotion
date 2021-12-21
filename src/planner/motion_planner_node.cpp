@@ -16,8 +16,8 @@ int main( int argc, char** argv )
   ros::Rate r(30);
   while (ros::ok())
   {
-		planner.PublishTrajectory();
-		planner.PublishPolygons();
+		planner.PublishTrajectoryVisualization();
+		planner.PublishPolygonsVisualization();
     r.sleep();
   }
 }

@@ -17,7 +17,13 @@
 - ... ?
 
 ## ZMP Motion planner
-- ...?
+- [x] Specify a format for gait sequence
+- [] Get polygons from vel_cmd and gait sequence
+- [] Get A and b from polygon
+- [] Implement zmp constraints
+- [] Implement current position as constraint on first spline
+- [] (Make constraint on final position a soft one)
+- [] (Implement path regularizer?)
 
 [##](##) Dependencies 
 The lines

@@ -1,9 +1,5 @@
 #include "planner/motion_planner.hpp"
 
-// **************** // 
-// PUBLIC FUNCTIONS //
-// **************** // 
-
 MotionPlanner::MotionPlanner(
 		int degree,
 		int n_traj_segments
@@ -14,8 +10,7 @@ MotionPlanner::MotionPlanner(
 {
 	InitRos();
 	SetupOptimizationProgram();
-	AddTestPolygons();
-
+	InitGaitSequence();
 }
 
 Eigen::VectorXd MotionPlanner::EvalTrajAtT(double t)
@@ -44,10 +39,14 @@ void MotionPlanner::GenerateTrajectory()
 		<< "\nSolution result: " << result_.get_solution_result()
 		<< std::endl);
 	assert(result_.is_success());
-	GeneratePolynomials();
+	GeneratePolynomialsFromSolution();
 }
 
-void MotionPlanner::PublishPolygons()
+// ************* //
+// VISUALIZATION //
+// ************* //
+
+void MotionPlanner::PublishPolygonsVisualization()
 {
 	visualization_msgs::Marker polygon_msg;
 	polygon_msg.header.frame_id = "world";
@@ -91,7 +90,7 @@ void MotionPlanner::PublishPolygons()
 	}
 }
 
-void MotionPlanner::PublishTrajectory()
+void MotionPlanner::PublishTrajectoryVisualization()
 {
 	visualization_msgs::Marker
 		traj_points, start_end_points, line_strip;
@@ -172,120 +171,83 @@ void MotionPlanner::PublishTrajectory()
 	traj_pub_.publish(start_end_points);
 }
 
-// ***************** // 
-// PRIVATE FUNCTIONS //
-// ***************** // 
+// *** //
+// ROS //
+// *** //
 
-void MotionPlanner::GeneratePolynomials()
+void MotionPlanner::InitRos()
 {
-	polynomials_.resize(traj_dimension_, n_traj_segments_);
-	for (int k = 0; k < n_traj_segments_; ++k)
-	{
-		symbolic_vector_t polynomial = result_
-			.GetSolution(coeffs_[k]) * m_;
+  traj_pub_ =
+		ros_node_.advertise<visualization_msgs::Marker>
+		("visualization_trajectory", 10);
 
-		for (int dim = 0; dim < traj_dimension_; ++dim)
-			polynomials_(dim,k) = drake::symbolic::Polynomial(polynomial[dim]);
-	}
+  polygons_pub_ =
+		ros_node_.advertise<visualization_msgs::Marker>
+		("visualization_polygons", 10);
 }
 
+// ******************* //
+// GAIT AND TRAJECTORY //
+// ******************* //
 
-// Constructs the transformation matrix
-// T = [ m 0 0 0 ...
-//		 [ 0 m 0 0 ...
-//		 [ 0 0 m 0 ...
-//		 [ 0 0 0 m ...
-void MotionPlanner::construct_transform_matrix(
-		symbolic_matrix_t *T, symbolic_vector_t *v
-		)
+void MotionPlanner::AddTestPolygons()
 {
-	T->resize(traj_dimension_, v->rows() * 2);
-	T->setZero();
+	// TODO: Only for testing
+	std::vector<Eigen::Vector2d> polygon;
+	polygon.push_back(Eigen::Vector2d(0,0));
+	polygon.push_back(Eigen::Vector2d(0,3));
+	polygon.push_back(Eigen::Vector2d(2,0));
+	support_polygons_.push_back(polygon);
 
-	for (int dim = 0; dim < traj_dimension_; ++dim)
-	{
-		T->block(dim, dim * v->rows(), 1, v->rows()) = v->transpose();
-	}
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,1));
+	polygon.push_back(Eigen::Vector2d(2.5,1.5));
+	polygon.push_back(Eigen::Vector2d(2,3.5));
+	support_polygons_.push_back(polygon);
+
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,2));
+	polygon.push_back(Eigen::Vector2d(2,2));
+	polygon.push_back(Eigen::Vector2d(0,5));
+	support_polygons_.push_back(polygon);
+
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,2));
+	polygon.push_back(Eigen::Vector2d(2.5,3.5));
+	polygon.push_back(Eigen::Vector2d(2,4.5));
+	support_polygons_.push_back(polygon);
+
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,3));
+	polygon.push_back(Eigen::Vector2d(2,3));
+	polygon.push_back(Eigen::Vector2d(0,6));
+	support_polygons_.push_back(polygon);
 }
 
-Eigen::MatrixXd MotionPlanner::GetTransformationMatrixAtT(
-		double t, symbolic_vector_t v
-		)
+void MotionPlanner::InitGaitSequence()
 {
-	// Evaluate monomial at t
-	drake::symbolic::Environment t_curr {{t_, t}};
-	Eigen::VectorXd v_at_t(v.rows());
-	for (int i = 0; i < v.rows(); ++i)
-		v_at_t(i) = v(i).Evaluate(t_curr);
+	int num_legs = 4;
+	int num_steps = 20;
 
-	// Construct transformation at t
-	Eigen::MatrixXd T_at_t(traj_dimension_, v.rows() * 2);
-	T_at_t.setZero();
-	for (int dim = 0; dim < traj_dimension_; ++dim)
-		T_at_t.block(dim, dim * v.rows(), 1, v.rows()) = v_at_t.transpose();
-
-	return T_at_t;
+	gait_sequence_.resize(num_legs, num_steps);
+	gait_sequence_ << 
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1,
+		1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+		1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
 }
 
-symbolic_vector_t MotionPlanner::GetPosAtT(double t)
-{
-	int traj_segment_index = 0;
-	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
-	double t_in_segment = t - (double) traj_segment_index;
-	auto pos = GetTrajExpressionAtT(t_in_segment, m_, traj_segment_index);
-	return pos;
-}
-
-symbolic_vector_t MotionPlanner::GetPosAtT(double t_in_segment, int segment_j)
-{
-	auto pos = GetTrajExpressionAtT(t_in_segment, m_, segment_j);
-	return pos;
-}
-
-symbolic_vector_t MotionPlanner::GetVelAtT(double t_in_segment, int segment_j)
-{
-	auto vel = GetTrajExpressionAtT(t_in_segment, m_dot_, segment_j);
-	return vel;
-}
-
-symbolic_vector_t MotionPlanner::GetAccAtT(double t_in_segment, int segment_j)
-{
-	auto acc = GetTrajExpressionAtT(t_in_segment, m_ddot_, segment_j);
-	return acc;
-}
-
-symbolic_vector_t MotionPlanner::GetTrajExpressionAtT(
-		double t, symbolic_vector_t v, int segment_j
-		)
-{
-	symbolic_matrix_t T =
-		GetTransformationMatrixAtT(t, v)
-		.cast <drake::symbolic::Expression>();
-//	std::cout << "T: " << std::endl
-//		<< T << std::endl << std::endl;
-
-	Eigen::Map<symbolic_vector_t> alpha(
-			coeffs_[segment_j].data(), coeffs_[segment_j].size()
-			);
-
-//	std::cout << "coeffs_[j]: " << std::endl
-//		<< coeffs_[segment_j] << std::endl << std::endl;
-//
-//	std::cout << "alpha: " << std::endl
-//		<< alpha << std::endl << std::endl;
-
-	symbolic_vector_t traj_at_t = T * alpha;
-	return traj_at_t;
-}
+// ******************** //
+// OPTIMIZATION PROBLEM //
+// ******************** //
 
 void MotionPlanner::SetupOptimizationProgram()
 {
 	InitDecisionVariables();
 	AddAccelerationCost();
 	AddContinuityConstraints();
-	AddTestPolygons();
+	AddTestPolygons(); // TODO: Remove this
 	AddInitialAndFinalConstraint();
-
 	// Enforce zmp constraint
 	// TODO: Implement
 
@@ -348,87 +310,129 @@ void MotionPlanner::AddContinuityConstraints()
 	for (int k = 0; k < n_traj_segments_ - 1; ++k)
 	{
 		prog_.AddLinearConstraint(
-				GetPosAtT(1, k).array() == GetPosAtT(0, k + 1).array()
+				GetPosExpressionAtT(1, k).array()
+				== GetPosExpressionAtT(0, k + 1).array()
 				);
 		prog_.AddLinearConstraint(
-				GetVelAtT(1, k).array() == GetVelAtT(0, k + 1).array()
+				GetVelExpressionAtT(1, k).array()
+				== GetVelExpressionAtT(0, k + 1).array()
 				);
 	}
 }
 
 void MotionPlanner::AddInitialAndFinalConstraint()
 {
-	// TODO: Factor this into separate function
-	pos_initial_ = Eigen::Vector2d(0,0);
-	for (int point_i = 0; point_i < support_polygons_[0].size(); ++point_i)
-	{
-		pos_initial_ += support_polygons_[0][point_i];
-	}
-	pos_initial_ /= support_polygons_[0].size();
+	pos_initial_ = GetPolygonCentroid(support_polygons_[0]);
+	pos_final_ = GetPolygonCentroid(support_polygons_.back());
 
-	pos_final_ = Eigen::Vector2d(0,0);
-	for (int point_i = 0; point_i < support_polygons_.back().size(); ++point_i)
-	{
-		pos_final_ += support_polygons_.back()[point_i];
-	}
-	pos_final_ /= support_polygons_.back().size();
-
-	std::cout << "initial: " << std::endl << pos_initial_ << std::endl << std::endl;
-	std::cout << "final: " << std::endl << pos_final_ << std::endl << std::endl;
-
-//	prog_.AddLinearConstraint(
-//			GetPosAtT(4.0).array() == Eigen::Vector2d(4,2).array()
-//			);
 	prog_.AddLinearConstraint(
-			GetPosAtT(0, 0).array() == pos_initial_.array()
+			GetPosExpressionAtT(0, 0).array()
+			== pos_initial_.array()
 			);
 	prog_.AddLinearConstraint(
-			GetPosAtT(1, n_traj_segments_ - 1).array() == pos_final_.array()
+			GetPosExpressionAtT(1, n_traj_segments_ - 1).array()
+			== pos_final_.array()
 			);
 }
 
-void MotionPlanner::AddTestPolygons()
+void MotionPlanner::GeneratePolynomialsFromSolution()
 {
-	// TODO: Only for testing
-	std::vector<Eigen::Vector2d> polygon;
-	polygon.push_back(Eigen::Vector2d(0,0));
-	polygon.push_back(Eigen::Vector2d(0,3));
-	polygon.push_back(Eigen::Vector2d(2,0));
-	support_polygons_.push_back(polygon);
+	polynomials_.resize(traj_dimension_, n_traj_segments_);
+	for (int k = 0; k < n_traj_segments_; ++k)
+	{
+		symbolic_vector_t polynomial = result_
+			.GetSolution(coeffs_[k]) * m_;
 
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,1));
-	polygon.push_back(Eigen::Vector2d(2.5,1.5));
-	polygon.push_back(Eigen::Vector2d(2,3.5));
-	support_polygons_.push_back(polygon);
-
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,2));
-	polygon.push_back(Eigen::Vector2d(2,2));
-	polygon.push_back(Eigen::Vector2d(0,5));
-	support_polygons_.push_back(polygon);
-
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,2));
-	polygon.push_back(Eigen::Vector2d(2.5,3.5));
-	polygon.push_back(Eigen::Vector2d(2,4.5));
-	support_polygons_.push_back(polygon);
-
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,3));
-	polygon.push_back(Eigen::Vector2d(2,3));
-	polygon.push_back(Eigen::Vector2d(0,6));
-	support_polygons_.push_back(polygon);
+		for (int dim = 0; dim < traj_dimension_; ++dim)
+			polynomials_(dim,k) = drake::symbolic::Polynomial(polynomial[dim]);
+	}
 }
 
-void MotionPlanner::InitRos()
-{
-  traj_pub_ =
-		ros_node_.advertise<visualization_msgs::Marker>
-		("visualization_trajectory", 10);
+// **************** //
+// HELPER FUNCTIONS //
+// **************** //
 
-  polygons_pub_ =
-		ros_node_.advertise<visualization_msgs::Marker>
-		("visualization_polygons", 10);
+Eigen::MatrixXd MotionPlanner::GetTransformationMatrixAtT(
+		double t, symbolic_vector_t v
+		)
+{
+	// Evaluate monomial at t
+	drake::symbolic::Environment t_curr {{t_, t}};
+	Eigen::VectorXd v_at_t(v.rows());
+	for (int i = 0; i < v.rows(); ++i)
+		v_at_t(i) = v(i).Evaluate(t_curr);
+
+	// Construct transformation at t
+	Eigen::MatrixXd T_at_t(traj_dimension_, v.rows() * 2);
+	T_at_t.setZero();
+	for (int dim = 0; dim < traj_dimension_; ++dim)
+		T_at_t.block(dim, dim * v.rows(), 1, v.rows()) = v_at_t.transpose();
+
+	return T_at_t;
 }
+
+symbolic_vector_t MotionPlanner::GetPosExpressionAtT(double t)
+{
+	int traj_segment_index = 0;
+	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
+	double t_in_segment = t - (double) traj_segment_index;
+	auto pos = GetTrajExpressionAtT(t_in_segment, m_, traj_segment_index);
+	return pos;
+}
+
+symbolic_vector_t MotionPlanner::GetPosExpressionAtT(
+		double t_in_segment, int segment_j
+		)
+{
+	auto pos = GetTrajExpressionAtT(t_in_segment, m_, segment_j);
+	return pos;
+}
+
+symbolic_vector_t MotionPlanner::GetVelExpressionAtT(
+		double t_in_segment, int segment_j
+		)
+{
+	auto vel = GetTrajExpressionAtT(t_in_segment, m_dot_, segment_j);
+	return vel;
+}
+
+symbolic_vector_t MotionPlanner::GetAccExpressionAtT(
+		double t_in_segment, int segment_j
+		)
+{
+	auto acc = GetTrajExpressionAtT(t_in_segment, m_ddot_, segment_j);
+	return acc;
+}
+
+symbolic_vector_t MotionPlanner::GetTrajExpressionAtT(
+		double t, symbolic_vector_t v, int segment_j
+		)
+{
+	symbolic_matrix_t T =
+		GetTransformationMatrixAtT(t, v)
+		.cast <drake::symbolic::Expression>();
+
+	Eigen::Map<symbolic_vector_t> alpha(
+			coeffs_[segment_j].data(), coeffs_[segment_j].size()
+			);
+
+	symbolic_vector_t traj_at_t = T * alpha;
+	return traj_at_t;
+}
+
+// TODO: For now, this only calculates the center of mass which may not coincide with the actual centroid
+Eigen::Vector2d MotionPlanner::GetPolygonCentroid(
+		std::vector<Eigen::Vector2d> polygon
+		)
+{
+	Eigen::Vector2d centroid(0,0);
+	for (int point_i = 0; point_i < polygon.size(); ++point_i)
+	{
+		centroid += polygon[point_i];
+	}
+	centroid /= polygon.size();
+
+	return centroid;
+}
+
 
