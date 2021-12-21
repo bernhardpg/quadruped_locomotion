@@ -36,6 +36,8 @@ class MotionPlanner
 		void InitDecisionVariables();
 		void AddAccelerationCost();
 		void AddContinuityConstraints();
+		void AddInitialAndFinalConstraint();
+		void AddTestPolygons();
 
 		int degree_;
 		int n_traj_segments_;
@@ -48,10 +50,8 @@ class MotionPlanner
 		polynomial_matrix_t polynomials_;
 
 		// TODO: Hardcoded for now
-		Eigen::Vector2d pos_initial_ =
-			Eigen::Vector2d(0,0);
-		Eigen::Vector2d pos_final_ = 
-			Eigen::Vector2d(5,5);
+		Eigen::Vector2d pos_initial_;
+		Eigen::Vector2d pos_final_;
 
 		drake::symbolic::Variable t_;
 
@@ -76,9 +76,10 @@ class MotionPlanner
 				);
 
 
-		symbolic_vector_t GetPosAtT(double t, int segment_j);
-		symbolic_vector_t GetVelAtT(double t, int segment_j);
-		symbolic_vector_t GetAccAtT(double t, int segment_j);
+		symbolic_vector_t GetPosAtT(double t);
+		symbolic_vector_t GetPosAtT(double t_in_segment, int segment_j);
+		symbolic_vector_t GetVelAtT(double t_in_segment, int segment_j);
+		symbolic_vector_t GetAccAtT(double t_in_segment, int segment_j);
 
 		symbolic_vector_t GetTrajExpressionAtT(
 				double t, symbolic_vector_t v, int segment_j

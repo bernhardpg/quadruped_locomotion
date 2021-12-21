@@ -14,27 +14,9 @@ MotionPlanner::MotionPlanner(
 {
 	InitRos();
 	SetupOptimizationProgram();
+	AddTestPolygons();
 
-	// TODO: Only for testing
-	std::vector<Eigen::Vector2d> polygon;
-	polygon.push_back(Eigen::Vector2d(0,0));
-	polygon.push_back(Eigen::Vector2d(0,3));
-	polygon.push_back(Eigen::Vector2d(2,0));
-	support_polygons_.push_back(polygon);
-
-	std::vector<Eigen::Vector2d> polygon2;
-	polygon2.push_back(Eigen::Vector2d(0,1));
-	polygon2.push_back(Eigen::Vector2d(2.5,1.5));
-	polygon2.push_back(Eigen::Vector2d(2,3.5));
-	support_polygons_.push_back(polygon2);
-
-	std::vector<Eigen::Vector2d> polygon3;
-	polygon3.push_back(Eigen::Vector2d(0,2));
-	polygon3.push_back(Eigen::Vector2d(2,2));
-	polygon3.push_back(Eigen::Vector2d(0,5));
-	support_polygons_.push_back(polygon3);
 }
-
 
 Eigen::VectorXd MotionPlanner::EvalTrajAtT(double t)
 {
@@ -111,23 +93,45 @@ void MotionPlanner::PublishPolygons()
 
 void MotionPlanner::PublishTrajectory()
 {
-	// Construct linestrip message
-	visualization_msgs::Marker points, line_strip;
-	line_strip.header.frame_id = points.header.frame_id = "world";
-	line_strip.header.stamp = points.header.stamp = ros::Time::now();
-	line_strip.ns = points.ns = "trajectory";
-	line_strip.action = points.action = visualization_msgs::Marker::ADD;
-	line_strip.pose.orientation.w = points.pose.orientation.w = 1.0; // Set no rotation: The rest set to 0 by initialization
+	visualization_msgs::Marker
+		traj_points, start_end_points, line_strip;
+	line_strip.header.frame_id
+		= start_end_points.header.frame_id
+		= traj_points.header.frame_id
+		= "world";
+	line_strip.header.stamp
+		= start_end_points.header.stamp
+		= traj_points.header.stamp
+		= ros::Time::now();
+	line_strip.ns
+		= start_end_points.ns
+		= traj_points.ns
+		= "trajectory";
+	line_strip.action
+		= start_end_points.action
+		= traj_points.action
+		= visualization_msgs::Marker::ADD;
+	line_strip.pose.orientation.w
+		= start_end_points.pose.orientation.w
+		= traj_points.pose.orientation.w
+		= 1.0; // Set no rotation: The rest set to 0 by initialization
 	line_strip.id = 0;
-	points.id = 1;
+	start_end_points.id = 1;
+	traj_points.id = 2;
 	line_strip.type = visualization_msgs::Marker::LINE_STRIP;
-	points.type = visualization_msgs::Marker::POINTS;
+	start_end_points.type = visualization_msgs::Marker::POINTS;
+	traj_points.type = visualization_msgs::Marker::POINTS;
 
 	// Configure figure
-  points.scale.x = 0.05;
-  points.scale.y = 0.05;
-	points.color.r = 1.0;
-	points.color.a = 1.0;
+	start_end_points.scale.x = 0.1;
+  start_end_points.scale.y = 0.1;
+	start_end_points.color.r = 1.0;
+	start_end_points.color.a = 1.0;
+
+  traj_points.scale.x = 0.05;
+  traj_points.scale.y = 0.05;
+	traj_points.color.g = 1.0;
+	traj_points.color.a = 1.0;
 
 	line_strip.scale.x = 0.01; // = width
 	line_strip.color.g = 1.0;
@@ -137,19 +141,19 @@ void MotionPlanner::PublishTrajectory()
 	geometry_msgs::Point p;
 	p.x = pos_initial_(0);
 	p.y = pos_initial_(1);
-	points.points.push_back(p);
+	start_end_points.points.push_back(p);
 	p.x = pos_final_(0);
-	p.y = pos_final_(0);
-	points.points.push_back(p);
+	p.y = pos_final_(1);
+	start_end_points.points.push_back(p);
 
-	for (int k = 0; k < n_traj_segments_; ++k)
+	for (int k = 1; k < n_traj_segments_; ++k)
 	{
 		Eigen::VectorXd p_xy = EvalTrajAtT(k);
 		p.x = p_xy(0);
 		p.y = p_xy(1);
 		p.z = 0;
 
-		points.points.push_back(p);
+		traj_points.points.push_back(p);
 	}
 
 	for (double t = 0; t < n_traj_segments_ - dt_; t += dt_)
@@ -164,7 +168,8 @@ void MotionPlanner::PublishTrajectory()
 	}
 
 	traj_pub_.publish(line_strip);
-	traj_pub_.publish(points);
+	traj_pub_.publish(traj_points);
+	traj_pub_.publish(start_end_points);
 }
 
 // ***************** // 
@@ -222,21 +227,30 @@ Eigen::MatrixXd MotionPlanner::GetTransformationMatrixAtT(
 	return T_at_t;
 }
 
-symbolic_vector_t MotionPlanner::GetPosAtT(double t, int segment_j)
+symbolic_vector_t MotionPlanner::GetPosAtT(double t)
 {
-	auto pos = GetTrajExpressionAtT(t, m_, segment_j);
+	int traj_segment_index = 0;
+	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
+	double t_in_segment = t - (double) traj_segment_index;
+	auto pos = GetTrajExpressionAtT(t_in_segment, m_, traj_segment_index);
 	return pos;
 }
 
-symbolic_vector_t MotionPlanner::GetVelAtT(double t, int segment_j)
+symbolic_vector_t MotionPlanner::GetPosAtT(double t_in_segment, int segment_j)
 {
-	auto vel = GetTrajExpressionAtT(t, m_dot_, segment_j);
+	auto pos = GetTrajExpressionAtT(t_in_segment, m_, segment_j);
+	return pos;
+}
+
+symbolic_vector_t MotionPlanner::GetVelAtT(double t_in_segment, int segment_j)
+{
+	auto vel = GetTrajExpressionAtT(t_in_segment, m_dot_, segment_j);
 	return vel;
 }
 
-symbolic_vector_t MotionPlanner::GetAccAtT(double t, int segment_j)
+symbolic_vector_t MotionPlanner::GetAccAtT(double t_in_segment, int segment_j)
 {
-	auto acc = GetTrajExpressionAtT(t, m_ddot_, segment_j);
+	auto acc = GetTrajExpressionAtT(t_in_segment, m_ddot_, segment_j);
 	return acc;
 }
 
@@ -247,18 +261,18 @@ symbolic_vector_t MotionPlanner::GetTrajExpressionAtT(
 	symbolic_matrix_t T =
 		GetTransformationMatrixAtT(t, v)
 		.cast <drake::symbolic::Expression>();
-	std::cout << "T: " << std::endl
-		<< T << std::endl << std::endl;
+//	std::cout << "T: " << std::endl
+//		<< T << std::endl << std::endl;
 
 	Eigen::Map<symbolic_vector_t> alpha(
 			coeffs_[segment_j].data(), coeffs_[segment_j].size()
 			);
 
-	std::cout << "coeffs_[j]: " << std::endl
-		<< coeffs_[segment_j] << std::endl << std::endl;
-
-	std::cout << "alpha: " << std::endl
-		<< alpha << std::endl << std::endl;
+//	std::cout << "coeffs_[j]: " << std::endl
+//		<< coeffs_[segment_j] << std::endl << std::endl;
+//
+//	std::cout << "alpha: " << std::endl
+//		<< alpha << std::endl << std::endl;
 
 	symbolic_vector_t traj_at_t = T * alpha;
 	return traj_at_t;
@@ -269,23 +283,12 @@ void MotionPlanner::SetupOptimizationProgram()
 	InitDecisionVariables();
 	AddAccelerationCost();
 	AddContinuityConstraints();
+	AddTestPolygons();
+	AddInitialAndFinalConstraint();
 
 	// Enforce zmp constraint
 	// TODO: Implement
 
-	// Initial and final conditions
-	// TODO: These are just for testing purposes
-	std::cout << GetPosAtT(0, 0) << std::endl << std::endl;
-
-	prog_.AddLinearConstraint(
-			GetPosAtT(0.5, 3).array() == Eigen::Vector2d(4,2).array()
-			);
-	prog_.AddLinearConstraint(
-			GetPosAtT(0, 0).array() == pos_initial_.array()
-			);
-	prog_.AddLinearConstraint(
-			GetPosAtT(1, n_traj_segments_ - 1).array() == pos_final_.array()
-			);
 }
 
 void MotionPlanner::InitDecisionVariables()
@@ -351,6 +354,71 @@ void MotionPlanner::AddContinuityConstraints()
 				GetVelAtT(1, k).array() == GetVelAtT(0, k + 1).array()
 				);
 	}
+}
+
+void MotionPlanner::AddInitialAndFinalConstraint()
+{
+	// TODO: Factor this into separate function
+	pos_initial_ = Eigen::Vector2d(0,0);
+	for (int point_i = 0; point_i < support_polygons_[0].size(); ++point_i)
+	{
+		pos_initial_ += support_polygons_[0][point_i];
+	}
+	pos_initial_ /= support_polygons_[0].size();
+
+	pos_final_ = Eigen::Vector2d(0,0);
+	for (int point_i = 0; point_i < support_polygons_.back().size(); ++point_i)
+	{
+		pos_final_ += support_polygons_.back()[point_i];
+	}
+	pos_final_ /= support_polygons_.back().size();
+
+	std::cout << "initial: " << std::endl << pos_initial_ << std::endl << std::endl;
+	std::cout << "final: " << std::endl << pos_final_ << std::endl << std::endl;
+
+//	prog_.AddLinearConstraint(
+//			GetPosAtT(4.0).array() == Eigen::Vector2d(4,2).array()
+//			);
+	prog_.AddLinearConstraint(
+			GetPosAtT(0, 0).array() == pos_initial_.array()
+			);
+	prog_.AddLinearConstraint(
+			GetPosAtT(1, n_traj_segments_ - 1).array() == pos_final_.array()
+			);
+}
+
+void MotionPlanner::AddTestPolygons()
+{
+	// TODO: Only for testing
+	std::vector<Eigen::Vector2d> polygon;
+	polygon.push_back(Eigen::Vector2d(0,0));
+	polygon.push_back(Eigen::Vector2d(0,3));
+	polygon.push_back(Eigen::Vector2d(2,0));
+	support_polygons_.push_back(polygon);
+
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,1));
+	polygon.push_back(Eigen::Vector2d(2.5,1.5));
+	polygon.push_back(Eigen::Vector2d(2,3.5));
+	support_polygons_.push_back(polygon);
+
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,2));
+	polygon.push_back(Eigen::Vector2d(2,2));
+	polygon.push_back(Eigen::Vector2d(0,5));
+	support_polygons_.push_back(polygon);
+
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,2));
+	polygon.push_back(Eigen::Vector2d(2.5,3.5));
+	polygon.push_back(Eigen::Vector2d(2,4.5));
+	support_polygons_.push_back(polygon);
+
+	polygon.clear();
+	polygon.push_back(Eigen::Vector2d(0,3));
+	polygon.push_back(Eigen::Vector2d(2,3));
+	polygon.push_back(Eigen::Vector2d(0,6));
+	support_polygons_.push_back(polygon);
 }
 
 void MotionPlanner::InitRos()
