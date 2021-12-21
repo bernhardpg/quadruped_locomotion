@@ -33,7 +33,7 @@ namespace gazebo
 
 		this->model_ = model;
 		this->model_name_ = model->GetName();
-		this->base_ = model->GetLink(this->model_name_ + "::anymal::base");
+		this->base_ = model->GetLink(this->model_name_ + "::base");
 
 		std::cerr << "\nThe plugin is attach to model[" <<
 			this->model_name_ << "]\n";
@@ -170,19 +170,38 @@ namespace gazebo
 		return tau_j;
 	}
 
-	Eigen::Matrix<double,6,1> AnymalPlugin::GetBasePose()
+	Eigen::Matrix<double, 7, 1> AnymalPlugin::GetBasePose()
 	{
 		ignition::math::Pose3d base_pose = this->base_->WorldPose();			
 
-		Eigen::Matrix<double,6,1> q_b;
-		q_b(0) = base_pose.X();
-    q_b(1) = base_pose.Y();
-    q_b(2) = base_pose.Z();
-    q_b(3) = base_pose.Roll();
-    q_b(4) = base_pose.Pitch();
-    q_b(5) = base_pose.Yaw();
+		Eigen::Matrix<double, 7, 1> q_b;
+		q_b(0) = base_pose.Pos().X();
+		q_b(1) = base_pose.Pos().Y();
+		q_b(2) = base_pose.Pos().Z();
+		q_b(3) = base_pose.Rot().W();
+		q_b(4) = base_pose.Rot().X();
+		q_b(5) = base_pose.Rot().Y();
+		q_b(6) = base_pose.Rot().Z();
 
 		return q_b;
+	}
+
+	Eigen::Matrix<double, 6, 1> AnymalPlugin::GetBaseTwist()
+	{
+		ignition::math::Vector3d base_linear_velocity =
+			this->base_->WorldLinearVel();			
+		ignition::math::Vector3d base_angular_velocity =
+			this->base_->WorldAngularVel();			
+
+		Eigen::VectorXd u_b(6);
+		u_b(0) = base_linear_velocity.X();
+		u_b(1) = base_linear_velocity.Y();
+		u_b(2) = base_linear_velocity.Z();
+		u_b(3) = base_angular_velocity.X();
+		u_b(4) = base_angular_velocity.Y();
+		u_b(5) = base_angular_velocity.Z();
+
+		return u_b;
 	}
 
 	void AnymalPlugin::InitRosTopics()
@@ -293,12 +312,23 @@ namespace gazebo
 
 		while (this->ros_node_->ok())
 		{
-			// TODO: Expand with base pose, not just joints!
-			Eigen::Matrix<double, 12, 1> q; // generalized coordinates
-			q = this->GetJointPositions();
+			Eigen::Matrix<double, 7, 1> q_b;
+			q_b = GetBasePose();
+			Eigen::Matrix<double, 12, 1> q_j; // generalized coordinates
+			q_j = this->GetJointPositions();
 
-			Eigen::Matrix<double, 12, 1> u; // generalized velocities
-			u = this->GetJointVelocities();
+			Eigen::Matrix<double, 19, 1> q;
+			q.block<7,1>(0,0) = q_b;
+			q.block<12,1>(7,0) = q_j;
+
+			Eigen::Matrix<double, 6, 1> u_b;
+			u_b = GetBaseTwist();
+			Eigen::Matrix<double, 12, 1> u_j; // generalized velocities
+			u_j = this->GetJointVelocities();
+
+			Eigen::Matrix<double, 18, 1> u;
+			u.block<6,1>(0,0) = u_b;
+			u.block<12,1>(6,0) = u_j;
 
 			Eigen::Matrix<double, 12, 1> tau; // joint torques
 			tau = this->GetJointTorques();

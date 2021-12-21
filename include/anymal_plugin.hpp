@@ -46,7 +46,8 @@ namespace gazebo
 			Eigen::Matrix<double,12,1> GetJointVelocities();
 			Eigen::Matrix<double,12,1> GetJointTorques();
 
-			Eigen::Matrix<double,6,1> GetBasePose();
+			Eigen::Matrix<double, 7, 1> GetBasePose();
+			Eigen::Matrix<double, 6, 1> GetBaseTwist();
 
 		private:
 			std::string model_name_;
