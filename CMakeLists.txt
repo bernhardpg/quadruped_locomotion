@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(quadruped_locomotion)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -7,58 +7,75 @@ project(quadruped_locomotion)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
+
+find_package(Boost REQUIRED COMPONENTS)
+
+find_package(pinocchio REQUIRED COMPONENTS)
+
+find_package(
+	catkin REQUIRED COMPONENTS
 	roscpp REQUIRED
 	std_msgs REQUIRED
+	gazebo REQUIRED
+	Eigen3 REQUIRED
+	drake CONFIG REQUIRED PATHS /opt/drake
 )
 
-# Find Gazebo
-find_package(gazebo REQUIRED)
+# Declare catkin package
+catkin_package(
+	 INCLUDE_DIRS
+    include
+  LIBRARIES
+    ${PROJECT_NAME}
+  DEPENDS
+    Boost
+    pinocchio
+		drake
+)
+
+########
+# BUILD
+########
+
 include_directories(
+	${pinocchio_INCLUDE_DIRS}
+	${catkin_INCLUDE_DIRS}
+	${Boost_INCLUDE_DIR}
 	${roscpp_INCLUDE_DIRS}
 	${GAZEBO_INCLUDE_DIRS}
 	${std_msgs_INCLUDE_DIRS}
+	${EIGEN3_INCLUDE_DIR}
+	${drake_INCLUDE_DIRS}
 	include)
-link_directories(${GAZEBO_LIBRARY_DIRS})
+
+set(FLAGS ${pinocchio_CFLAGS_OTHER} -Wno-ignored-attributes -Wno-invalid-partial-specialization -DPINOCCHIO_URDFDOM_TYPEDEF_SHARED_PTR -DPINOCCHIO_URDFDOM_USE_STD_SHARED_PTR)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
-# Eigen
-find_package(Eigen3 REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIR})
+# Apparently this is not the way to go
+link_directories(
+  ${pinocchio_LIBRARY_DIRS}
+)
 
-# Drake
-find_package(drake CONFIG REQUIRED PATHS /opt/drake)
-include_directories(${drake_INCLUDE_DIRS})
-
-# Pinoccio
-find_package(pinocchio REQUIRED)
 
 # Anymal gazebo plugin
 add_library(anymal_plugin SHARED src/anymal_plugin.cpp)
 target_link_libraries(anymal_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
-target_link_libraries(anymal_plugin Eigen3::Eigen)
 
-# Declare catkin package
-catkin_package()
+# Dynamics library
+add_library(dynamics src/dynamics/dynamics.cpp)
+target_link_libraries(dynamics ${pinocchio_LIBRARIES})
 
 # Controller 
 add_executable(controller_node src/control/controller_node.cpp src/control/controller.cpp)
 target_link_libraries(controller_node drake::drake)
 target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
-target_link_libraries(controller_node Eigen3::Eigen)
 target_link_libraries(controller_node dynamics)
-target_link_libraries(controller_node pinocchio::pinocchio)
-
-# Dynamics library
-add_executable(dynamics src/dynamics/dynamics.cpp)
-target_link_libraries(dynamics Eigen3::Eigen)
-target_link_libraries(dynamics pinocchio::pinocchio)
 
 # Motion planner
 add_library(motion_planner src/planner/motion_planner.cpp)
-target_link_libraries(motion_planner Eigen3::Eigen)
 target_link_libraries(motion_planner drake::drake)
 
 add_executable(motion_planner_node src/planner/motion_planner_node.cpp)
-target_link_libraries(motion_planner_node motion_planner)
 target_link_libraries(motion_planner_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(motion_planner_node motion_planner)

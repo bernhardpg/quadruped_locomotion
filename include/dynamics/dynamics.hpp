@@ -1,8 +1,11 @@
-#include "pinocchio/parsers/urdf.hpp"
+#pragma once
+
+#include <pinocchio/fwd.hpp>
 #include "pinocchio/algorithm/joint-configuration.hpp"
 #include "pinocchio/algorithm/kinematics.hpp"
 #include "pinocchio/algorithm/compute-all-terms.hpp"
 #include "pinocchio/algorithm/frames.hpp"
+#include "pinocchio/parsers/urdf.hpp"
 
 #include <iostream>
 #include <iomanip>

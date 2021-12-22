@@ -3,7 +3,7 @@
 Dynamics::Dynamics()
 {
 	// TODO: Load URDF file from somewhere
-  urdf_filename_ = "~/catkin_ws/src/anymal_c_simple_description/urdf/anymal.urdf";
+  urdf_filename_ = "/home/bernhardpg/catkin_ws/src/anymal_c_simple_description/urdf/anymal.urdf";
 
   // Load the urdf model
   pinocchio::urdf::buildModel(
@@ -88,9 +88,3 @@ void Dynamics::Test()
 		std::cout << data_.g << std::endl;
 	}
 } 
-
-int main(int argc, char **argv)
-{
-	std::cout << "TEst\n";
-	Dynamics test_dynamics;
-}

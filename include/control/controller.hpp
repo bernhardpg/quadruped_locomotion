@@ -1,5 +1,7 @@
 #pragma once
 
+#include "dynamics/dynamics.hpp"
+
 #include <thread>
 #include "ros/ros.h"
 #include "ros/console.h"
@@ -14,7 +16,6 @@
 
 #include <Eigen/Core>
 
-#include "dynamics/dynamics.hpp"
 
 namespace control
 {

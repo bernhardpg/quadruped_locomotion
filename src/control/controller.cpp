@@ -9,6 +9,7 @@ namespace control {
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		InitRosTopics();
 		RunStandupSequence();
+		robot_dynamics_.Test();
 	}
 
 	Controller::~Controller()
