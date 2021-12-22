@@ -94,7 +94,14 @@ namespace control {
 		Eigen::VectorXd q_dot_cmd(12);
 		q_dot_cmd = J_inv * (0.1 * pos_error + vel_feedforward);
 
-		PublishJointVelCmd();
+		if (t >= 5.0)
+		{
+			std::cout << "changing direction!\n";
+			vel_cmd_ *= -1;	
+			std::cout << vel_cmd_ << std::endl;
+			PublishJointVelCmd(vel_cmd_);
+			start_time_ = ros::Time::now();
+		}
 	}
 
 	// *** //
@@ -208,13 +215,14 @@ namespace control {
 		SetGenCoords(msg->data);
 	}
 
-	void Controller::PublishJointVelCmd()
+	void Controller::PublishJointVelCmd(double vel_cmd)
 	{
 			Eigen::Matrix<double,12,1> q_cmd;
-			for (int i = 0; i < 12; ++i)
-			{
-				q_cmd(i) = 0.5;
-			}
+			q_cmd.setZero();
+			q_cmd(2) = vel_cmd;
+			q_cmd(5) = vel_cmd;
+			q_cmd(8) = vel_cmd;
+			q_cmd(11) = vel_cmd;
 
 			std_msgs::Float64MultiArray pos_cmd_msg;
 			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);

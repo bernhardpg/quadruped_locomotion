@@ -53,9 +53,13 @@ namespace gazebo
 			std::string model_name_;
 			std::vector<std::string> joint_names_;	
 			
-			double vel_p_gain_;
-			double vel_i_gain_;
-			double vel_d_gain_;
+			double vel_p_gain_ = 0;
+			double vel_i_gain_ = 0;
+			double vel_d_gain_ = 0;
+
+			double pos_p_gain_ = 0;
+			double pos_i_gain_ = 0;
+			double pos_d_gain_ = 0;
 
 			physics::ModelPtr model_;
 			physics::WorldPtr world_;
@@ -80,10 +84,16 @@ namespace gazebo
 			std::thread ros_process_queue_thread_;
 			std::thread ros_publish_queue_thread_;
 
+			// Parameter server handling
+			std::thread ros_param_server_thread_;
+			void ParamServerThread();
+			bool LoadParametersFromRos();
+			bool UpdateParameterFromRos(
+				std::string param_name, double *param_ptr
+				);
+
 			void InitRosTopics();
 			void InitJointControllers();
-
-			bool LoadParametersFromRos();
 				
 			// Publishing and subscription runs on two separete threads
 			void PublishQueueThread();

@@ -1,5 +1,9 @@
 gazebo_client:
   joint_velocity_controller:
-    p_gain: 300
+    p_gain: 30
     i_gain: 0
-    d_gain: 10
+    d_gain: 0
+  joint_position_controller:
+    p_gain: 1000
+    i_gain: 10
+    d_gain: 20

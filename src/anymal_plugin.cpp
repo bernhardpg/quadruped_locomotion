@@ -39,9 +39,9 @@ namespace gazebo
 		std::cerr << "\nThe plugin is attach to model[" <<
 			this->model_name_ << "]\n";
 
-		this->world_ = model->GetWorld();
+		this->world_ = model_->GetWorld();
 
-		this->joints_ = model->GetJointController()->GetJoints();
+		this->joints_ = model_->GetJointController()->GetJoints();
 		for(auto it = this->joints_.begin(); it != this->joints_.end(); ++it)
 			this->joint_names_.push_back(it->first);
 
@@ -60,7 +60,7 @@ namespace gazebo
 		{
 			this->model_->GetJointController()->SetPositionPID(
 				this->joint_names_[i],
-				common::PID(50000, 0.01, 10) // TODO: Move to param server
+				common::PID(pos_p_gain_, pos_i_gain_, pos_d_gain_) 
 			);
 
 			this->model_->GetJointController()->SetVelocityPID(
@@ -73,6 +73,30 @@ namespace gazebo
 	bool AnymalPlugin::LoadParametersFromRos()
 	{
 		if (!this->ros_node_->getParam(
+					"joint_position_controller/p_gain",
+					this->pos_p_gain_))
+    {
+        ROS_ERROR("Could not read position P gains from parameter server.");
+        return false;
+    }
+
+		if (!this->ros_node_->getParam(
+					"joint_position_controller/i_gain",
+					this->pos_i_gain_))
+    {
+        ROS_ERROR("Could not read position I gains from parameter server.");
+        return false;
+    }
+
+		if (!this->ros_node_->getParam(
+					"joint_position_controller/d_gain",
+					this->pos_d_gain_))
+    {
+        ROS_ERROR("Could not read position D gains from parameter server.");
+        return false;
+    }
+
+		if (!this->ros_node_->getParam(
 					"joint_velocity_controller/p_gain",
 					this->vel_p_gain_))
     {
@@ -81,8 +105,8 @@ namespace gazebo
     }
 
 		if (!this->ros_node_->getParam(
-					"joint_velocity_controller/d_gain",
-					this->vel_d_gain_))
+					"joint_velocity_controller/i_gain",
+					this->vel_i_gain_))
     {
         ROS_ERROR("Could not read velocity I gains from parameter server.");
         return false;
@@ -96,6 +120,19 @@ namespace gazebo
         return false;
     }
 		return true;
+	}
+
+	bool AnymalPlugin::UpdateParameterFromRos(
+			std::string param_name, double *param_ptr)
+	{
+		double param_value;
+		ros_node_->getParam(param_name, param_value);
+		if (param_value != *param_ptr)
+		{
+			*param_ptr = param_value;	
+			return true;
+		}
+		return false;
 	}
 
 	void AnymalPlugin::SetJointVelocity(
@@ -328,6 +365,9 @@ namespace gazebo
 		this->ros_publish_queue_thread_ = std::thread(
 				std::bind(&AnymalPlugin::PublishQueueThread, this)
 				);
+		this->ros_param_server_thread_ = std::thread(
+				std::bind(&AnymalPlugin::ParamServerThread, this)
+				);
 	}
 
 	void AnymalPlugin::ProcessQueueThread()
@@ -381,6 +421,43 @@ namespace gazebo
 			this->joint_torques_pub_.publish(joint_torques_msg);
 
 			loop_rate.sleep();	
+		}
+	}
+
+	void AnymalPlugin::ParamServerThread()
+	{
+		ros::Rate loop_rate(4);
+
+		bool updated;
+		while (this->ros_node_->ok())
+		{
+			updated = false;
+			// Velocity PID
+			updated = UpdateParameterFromRos(
+					"joint_velocity_controller/p_gain", &vel_p_gain_
+					) || updated;
+			updated = UpdateParameterFromRos(
+					"joint_velocity_controller/i_gain", &vel_i_gain_
+					) || updated;
+			updated = UpdateParameterFromRos(
+					"joint_velocity_controller/d_gain", &vel_d_gain_
+					) || updated;
+
+			// Position PID
+			updated = UpdateParameterFromRos(
+					"joint_position_controller/p_gain", &pos_p_gain_
+					) || updated;
+			updated = UpdateParameterFromRos(
+					"joint_position_controller/i_gain", &pos_i_gain_
+					) || updated;
+			updated = UpdateParameterFromRos(
+					"joint_position_controller/d_gain", &pos_d_gain_
+					) || updated;
+
+			if (updated)
+			{
+				InitJointControllers();
+			}
 		}
 	}
 

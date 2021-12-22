@@ -48,6 +48,8 @@ namespace control
 			void CreateStandupTrajectory();
 			void RunStandupSequence();
 
+			double vel_cmd_ = 0.5;
+
 			void PositionController();
 
 			// *** //
@@ -78,7 +80,7 @@ namespace control
 			void OnGenCoordMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
-			void PublishJointVelCmd();
+			void PublishJointVelCmd(double vel_cmd);
 
 			// ***************** //
 			// SETTERS & GETTERS //
