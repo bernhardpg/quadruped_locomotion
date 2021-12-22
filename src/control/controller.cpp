@@ -8,8 +8,12 @@ namespace control {
 		ROS_INFO("Running controller");
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		InitRosTopics();
+		SpinRosThreads();
+		SetStartTime();
+		CreateStandupTrajectory();
+		ros::Duration(0.5).sleep(); // Wait before starting
 
-		ros::Duration(2).sleep();
+		controller_initialized_ = true;
 		RunStandupSequence();
 	}
 
@@ -33,9 +37,6 @@ namespace control {
 	void Controller::RunStandupSequence()
 	{
 		ROS_INFO("Starting standup sequence");
-		CreateStandupTrajectory();
-		ROS_INFO("Created standup trajectory");
-
 		Eigen::MatrixXd J_full = robot_dynamics_.GetFullContactJacobian(q_);
 		CalcPseudoInverse(J_full);
 	}
@@ -73,7 +74,16 @@ namespace control {
 					breaks, samples
 					);
 		standup_vel_traj_ = standup_pos_traj_.derivative(1);
-	
+	}
+
+	void Controller::PositionController()
+	{
+		double t = GetElapsedTime();
+
+		Eigen::MatrixXd pos_error;
+		pos_error.setZero();
+		Eigen::MatrixXd curr_pos = robot_dynamics_.GetFeetPositions(q_);
+		pos_error = standup_pos_traj_.value(t) - curr_pos;
 	}
 
 	// *** //
@@ -142,15 +152,17 @@ namespace control {
 
 		gen_coord_sub_ = ros_node_->subscribe(gen_coord_so);
 
-		// Spin up the queue helper threads
+		ROS_INFO("Finished setting up ros topics");
+	}
+
+	void Controller::SpinRosThreads()
+	{
 		this->ros_process_queue_thread_ = std::thread(
 				std::bind(&Controller::ProcessQueueThread, this)
 				);
 		this->ros_publish_queue_thread_ = std::thread(
 				std::bind(&Controller::PublishQueueThread, this)
 				);
-
-		ROS_INFO("Finished setting up ros topics");
 	}
 
 	void Controller::ProcessQueueThread()
@@ -166,10 +178,14 @@ namespace control {
 
 	void Controller::PublishQueueThread()
 	{
-		ros::Rate loop_rate(1);
+		ros::Rate loop_rate(10);
 
 		while (this->ros_node_->ok())
 		{
+			if (!controller_initialized_)
+				continue;
+
+			PositionController();
 			loop_rate.sleep();	
 		}
 	}
@@ -178,13 +194,36 @@ namespace control {
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
+		SetGenCoords(msg->data);
+	}
+
+	// ***************** //
+	// SETTERS & GETTERS //
+	// ***************** //
+
+	void Controller::SetGenCoords(const std::vector<double> &gen_coords)
+	{
 		for (int i = 0; i < kNumGenCoords_; ++i)
-			q_(i) = msg->data[i];
+			q_(i) = gen_coords[i];
 	}
 
 	// **************** //
 	// HELPER FUNCTIONS //
 	// **************** //
+
+	void Controller::SetStartTime()
+	{
+		// Wait for /clock to get published
+		while (ros::Time::now().toSec() == 0.0); 
+		start_time_ = ros::Time::now();
+		ROS_INFO("Start time: %f", start_time_.toSec());
+	}
+
+	double Controller::GetElapsedTime()
+	{
+		double elapsed_time = (ros::Time::now() - start_time_).toSec();
+		return elapsed_time; 
+	}
 
 	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
 	{
@@ -193,6 +232,7 @@ namespace control {
 			A.transpose() * (A * A.transpose()).inverse();
 		return pseudo_inverse;
 	}
+
 
 	// ****************
 // TODO: REMOVE

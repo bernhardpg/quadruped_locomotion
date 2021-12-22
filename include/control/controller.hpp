@@ -30,6 +30,8 @@ namespace control
 			const int kNumGenCoords_ = 19; // TODO: Not currently used everywhere
 			Eigen::Matrix<double, 19, 1> q_;
 			Dynamics robot_dynamics_;
+			ros::Time start_time_;
+			bool controller_initialized_ = false;
 			
 			int n_legs_ = 4;
 			int n_dims_ = 3;
@@ -46,6 +48,7 @@ namespace control
 			void CreateStandupTrajectory();
 			void RunStandupSequence();
 
+			void PositionController();
 
 			// *** //
 			// ROS //
@@ -68,6 +71,7 @@ namespace control
 			std::thread ros_publish_queue_thread_;
 
 			void InitRosTopics();
+			void SpinRosThreads();
 			void PublishQueueThread();
 			void ProcessQueueThread();
 
@@ -75,9 +79,18 @@ namespace control
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 
+			// ***************** //
+			// SETTERS & GETTERS //
+			// ***************** //
+
+			void SetGenCoords(const std::vector<double> &gen_coords);
+
 			// **************** //
 			// HELPER FUNCTIONS //
 			// **************** //
+
+			void SetStartTime();
+			double GetElapsedTime();
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
 
 			// TODO: Remove
