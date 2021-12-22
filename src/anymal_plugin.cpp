@@ -163,6 +163,7 @@ namespace gazebo
 				);
 	}
 
+	// TODO: Note that position control is poorly tuned as it not used
 	void AnymalPlugin::SetJointPositions(
 			const std::vector<double> &pos_cmds
 			)
@@ -171,6 +172,7 @@ namespace gazebo
 			this->SetJointPosition(this->joint_names_[i], pos_cmds[i]);
 	}
 
+	// TODO: Note that velocity control is poorly tuned as it not used
 	void AnymalPlugin::SetJointVelocities(
 			const std::vector<double> &vel_cmds
 			)
@@ -381,7 +383,7 @@ namespace gazebo
 
 	void AnymalPlugin::PublishQueueThread()
 	{
-		ros::Rate loop_rate(200); // TODO: Is this fast enough?
+		ros::Rate loop_rate(2500);
 
 
 		while (this->ros_node_->ok())
