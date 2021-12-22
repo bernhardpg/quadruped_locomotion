@@ -29,6 +29,7 @@ namespace control
 			std::string model_name_;
 			const int kNumGenCoords_ = 19; // TODO: Not currently used everywhere
 			Eigen::Matrix<double, 19, 1> q_;
+			Eigen::Matrix<double, 18, 1> u_;
 			Dynamics robot_dynamics_;
 			ros::Time start_time_;
 			bool controller_initialized_ = false;
@@ -48,10 +49,19 @@ namespace control
 			void CreateStandupTrajectory();
 			void RunStandupSequence();
 
-			double vel_cmd_ = 0.5;
+			void RunController();
 
-			void PositionController();
+			Eigen::VectorXd integral_;
+			double t_ = 0;
+			double dt_ = 0;
+			ros::Time last_run_; // TODO: change name
 
+			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
+			Eigen::Matrix<double,12,1> q_j_cmd_;
+
+			void CalcTorqueCmd(); // TODO: cleanup
+			void Integrate(Eigen::VectorXd vec); // TODO: cleanup, make this able to integrate anything
+	
 			// *** //
 			// ROS //
 			// *** //
@@ -65,6 +75,7 @@ namespace control
 
 			// Subscriptions
 			ros::Subscriber gen_coord_sub_;
+			ros::Subscriber gen_vel_sub_;
 
 			// Queues and their threads
 			ros::CallbackQueue ros_process_queue_;
@@ -80,6 +91,9 @@ namespace control
 			void OnGenCoordMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
+			void OnGenVelMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
 			void PublishJointVelCmd(double vel_cmd);
 
 			// ***************** //
@@ -87,13 +101,14 @@ namespace control
 			// ***************** //
 
 			void SetGenCoords(const std::vector<double> &gen_coords);
+			void SetGenVels(const std::vector<double> &gen_vels);
 
 			// **************** //
 			// HELPER FUNCTIONS //
 			// **************** //
 
 			void SetStartTime();
-			double GetElapsedTime();
+			double GetElapsedTimeSince(ros::Time t);
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
 
 			// TODO: Remove

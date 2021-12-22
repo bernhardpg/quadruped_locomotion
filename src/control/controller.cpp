@@ -13,6 +13,9 @@ namespace control {
 		CreateStandupTrajectory();
 		ros::Duration(0.5).sleep(); // Wait before starting
 
+		integral_.resize(12); // TODO: move
+		integral_.setZero();
+
 		controller_initialized_ = true;
 		RunStandupSequence();
 	}
@@ -74,17 +77,18 @@ namespace control {
 		standup_vel_traj_ = standup_pos_traj_.derivative(1);
 	}
 
-	void Controller::PositionController()
+	void Controller::RunController()
 	{
-		double t = GetElapsedTime();
+		t_ = GetElapsedTimeSince(start_time_);
+		dt_ = GetElapsedTimeSince(last_run_);
 
 		Eigen::VectorXd pos_error(12);
 		pos_error.setZero();
 		Eigen::MatrixXd curr_pos = robot_dynamics_.GetFeetPositions(q_);
-		pos_error = standup_pos_traj_.value(t) - curr_pos;
+		pos_error = standup_pos_traj_.value(t_) - curr_pos;
 
 		Eigen::VectorXd vel_feedforward(12);
-		vel_feedforward = standup_vel_traj_.value(t);
+		vel_feedforward = standup_vel_traj_.value(t_);
 
 		Eigen::MatrixXd J_feet_pos
 			= robot_dynamics_.GetStackedFeetJacobianPos(q_)
@@ -94,14 +98,30 @@ namespace control {
 		Eigen::VectorXd q_dot_cmd(12);
 		q_dot_cmd = J_inv * (0.1 * pos_error + vel_feedforward);
 
-		if (t >= 5.0)
-		{
-			std::cout << "changing direction!\n";
-			vel_cmd_ *= -1;	
-			std::cout << vel_cmd_ << std::endl;
-			PublishJointVelCmd(vel_cmd_);
-			start_time_ = ros::Time::now();
-		}
+		last_run_ = ros::Time::now();
+
+		Integrate(q_dot_cmd);
+
+		q_j_dot_cmd_ = q_dot_cmd;
+		q_j_cmd_ = integral_; // TODO: clean up this
+
+		CalcTorqueCmd();
+	}
+
+
+	void Controller::CalcTorqueCmd()
+	{
+		Eigen::Matrix<double,12,1> tau_cmd;
+		tau_cmd.setZero();
+
+		// TODO: Fix gains
+		tau_cmd = 5 * (q_j_cmd_ - q_.block<12,1>(7,0))
+			+ 1 * (q_j_dot_cmd_ - u_.block<12,1>(6,0));
+					
+		std_msgs::Float64MultiArray torque_cmd_msg;
+		tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
+
+		this->torque_cmd_pub_.publish(torque_cmd_msg);
 	}
 
 	// *** //
@@ -168,7 +188,17 @@ namespace control {
 					&this->ros_process_queue_
 					);
 
+		ros::SubscribeOptions gen_vel_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/" + this->model_name_ + "/gen_vel",
+					1,
+					boost::bind(&Controller::OnGenVelMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
 		gen_coord_sub_ = ros_node_->subscribe(gen_coord_so);
+		gen_vel_sub_ = ros_node_->subscribe(gen_vel_so);
 
 		ROS_INFO("Finished setting up ros topics");
 	}
@@ -203,7 +233,7 @@ namespace control {
 			if (!controller_initialized_)
 				continue;
 
-			PositionController();
+			RunController();
 			loop_rate.sleep();	
 		}
 	}
@@ -215,20 +245,13 @@ namespace control {
 		SetGenCoords(msg->data);
 	}
 
-	void Controller::PublishJointVelCmd(double vel_cmd)
+	void Controller::OnGenVelMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
 	{
-			Eigen::Matrix<double,12,1> q_cmd;
-			q_cmd.setZero();
-			q_cmd(2) = vel_cmd;
-			q_cmd(5) = vel_cmd;
-			q_cmd(8) = vel_cmd;
-			q_cmd(11) = vel_cmd;
-
-			std_msgs::Float64MultiArray pos_cmd_msg;
-			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
-
-			this->vel_cmd_pub_.publish(pos_cmd_msg);
+		SetGenVels(msg->data);
 	}
+
 
 	// ***************** //
 	// SETTERS & GETTERS //
@@ -240,21 +263,33 @@ namespace control {
 			q_(i) = gen_coords[i];
 	}
 
+	void Controller::SetGenVels(const std::vector<double> &gen_vels)
+	{
+		for (int i = 0; i < 18; ++i)
+			u_(i) = gen_vels[i];
+	}
+
 	// **************** //
 	// HELPER FUNCTIONS //
 	// **************** //
+	
+	void Controller::Integrate(Eigen::VectorXd vec)
+	{
+		integral_ += dt_ * vec;
+	}
 
 	void Controller::SetStartTime()
 	{
 		// Wait for /clock to get published
 		while (ros::Time::now().toSec() == 0.0); 
 		start_time_ = ros::Time::now();
+		last_run_ = ros::Time::now();
 		ROS_INFO("Start time: %f", start_time_.toSec());
 	}
 
-	double Controller::GetElapsedTime()
+	double Controller::GetElapsedTimeSince(ros::Time t)
 	{
-		double elapsed_time = (ros::Time::now() - start_time_).toSec();
+		double elapsed_time = (ros::Time::now() - t).toSec();
 		return elapsed_time; 
 	}
 
@@ -271,6 +306,23 @@ namespace control {
 // TODO: REMOVE
 	// ****************
 	//
+	//
+	//
+	//
+	void Controller::PublishJointVelCmd(double vel_cmd)
+	{
+			Eigen::Matrix<double,12,1> q_cmd;
+			q_cmd.setZero();
+			q_cmd(2) = vel_cmd;
+			q_cmd(5) = vel_cmd;
+			q_cmd(8) = vel_cmd;
+			q_cmd(11) = vel_cmd;
+
+			std_msgs::Float64MultiArray pos_cmd_msg;
+			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
+
+			this->vel_cmd_pub_.publish(pos_cmd_msg);
+	}
 	// TODO: Remove
 	void Controller::PublishIdlePositionCmd()
 	{
