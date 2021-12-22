@@ -9,7 +9,7 @@ namespace control {
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		InitRosTopics();
 
-		ros::Duration(5).sleep();
+		ros::Duration(2).sleep();
 		RunStandupSequence();
 	}
 
@@ -34,42 +34,45 @@ namespace control {
 	{
 		ROS_INFO("Starting standup sequence");
 
-		// TODO: Move these
-		LF_KFE_pos_ << 0.36, -0.29, 0.28; 
-		LH_KFE_pos_ << -0.36, -0.29, 0.28; 
-		RH_KFE_pos_ << -0.36, 0.29, 0.28; 
-		RF_KFE_pos_ << 0.36, 0.29, 0.28; 
-
 		// Construct trajectory for standing up
 		const std::vector<double> breaks = { 0.0, 5.0, 10.0 };
 		std::vector<Eigen::MatrixXd> samples;
 
-		auto start_conf = Eigen::MatrixXd(n_dims_, n_legs_);
-		auto apex_conf = Eigen::MatrixXd(n_dims_, n_legs_);
-		auto touchdown_conf = Eigen::MatrixXd(n_dims_, n_legs_);
-
+		Eigen::MatrixXd start_conf = Eigen::MatrixXd(n_dims_, n_legs_);
 		start_conf = robot_dynamics_.GetFeetPositions(q_);
 
-		apex_conf <<
-			LF_KFE_pos_(0), LH_KFE_pos_(0), RH_KFE_pos_(0), RF_KFE_pos_(0), 
-			LF_KFE_pos_(1), LH_KFE_pos_(1), RH_KFE_pos_(1), RF_KFE_pos_(1), 
-			swing_height_, swing_height_, swing_height_, swing_height_;
+		Eigen::MatrixXd neutral_conf = Eigen::MatrixXd(n_dims_, n_legs_);
+		Eigen::Matrix<double, 19, 1> q_neutral;
+		q_neutral.block<7,1>(0,0) = q_.block<7,1>(0,0);
+		q_neutral.block<12,1>(7,0) = Eigen::VectorXd::Zero(12);
+		neutral_conf = robot_dynamics_.GetFeetPositions(q_neutral);
 
-		touchdown_conf <<
-			LF_KFE_pos_(0), LH_KFE_pos_(0), RH_KFE_pos_(0), RF_KFE_pos_(0), 
-			LF_KFE_pos_(1), LH_KFE_pos_(1), RH_KFE_pos_(1), RF_KFE_pos_(1), 
-			0, 0, 0, 0;
+		Eigen::MatrixXd apex_conf = neutral_conf;
+		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
+			apex_conf(2, leg_i) = swing_height_;
+
+		Eigen::MatrixXd touchdown_conf = neutral_conf;
+		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
+			touchdown_conf(2, leg_i) = 0;
+
+		std::cout << start_conf << std::endl << std::endl;
+		std::cout << neutral_conf << std::endl << std::endl;
+		std::cout << apex_conf << std::endl << std::endl;
+		std::cout << touchdown_conf << std::endl << std::endl;
 
 		samples.push_back(start_conf);
 		samples.push_back(apex_conf);
 		samples.push_back(touchdown_conf);
 
+		// Use drake piecewise polynomials for easy trajectory construction
 		const auto feet_pos_traj =
 			drake::trajectories::PiecewisePolynomial<double>::FirstOrderHold(
 					breaks, samples
 					);
 
-
+		std::cout << "!!!!!!!!!!!\n\n";
+		for (double t = 0; t < 10; t += 0.5)
+			std::cout << feet_pos_traj.value(t) << std::endl << std::endl;
 		const auto feet_vel_traj = feet_pos_traj.derivative(1);
 	}
 
