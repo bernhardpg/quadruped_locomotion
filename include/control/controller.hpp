@@ -26,23 +26,31 @@ namespace control
 			~Controller();
 
 		private:
-			Dynamics robot_dynamics_;
-			const int kNumGenCoords_ = 19;
+			std::string model_name_;
+			const int kNumGenCoords_ = 19; // TODO: Not currently used everywhere
 			Eigen::Matrix<double, 19, 1> q_;
+			Dynamics robot_dynamics_;
 			
 			int n_legs_ = 4;
 			int n_dims_ = 3;
 			double swing_height_ = 0.2;
 
+			// **************** //
+			// STANDUP SEQUENCE //
+			// **************** //
+
+			drake::trajectories::PiecewisePolynomial<double>
+				standup_pos_traj_;
+			drake::trajectories::PiecewisePolynomial<double>
+				standup_vel_traj_;
+			void CreateStandupTrajectory();
 			void RunStandupSequence();
 
-			std::string model_name_;
-			void PublishIdlePositionCmd();
-			void PublishTestTorqueCmd();
 
 			// *** //
 			// ROS //
 			// *** //
+
 			std::unique_ptr<ros::NodeHandle> ros_node_;
 
 			// Advertisements
@@ -67,5 +75,13 @@ namespace control
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 
+			// **************** //
+			// HELPER FUNCTIONS //
+			// **************** //
+			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
+
+			// TODO: Remove
+			void PublishIdlePositionCmd();
+			void PublishTestTorqueCmd();
 	};
 }

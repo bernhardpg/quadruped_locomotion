@@ -33,9 +33,16 @@ namespace control {
 	void Controller::RunStandupSequence()
 	{
 		ROS_INFO("Starting standup sequence");
+		CreateStandupTrajectory();
+		ROS_INFO("Created standup trajectory");
 
-		// TODO: Move into function
-		// Construct trajectory for standing up
+		Eigen::MatrixXd J_full = robot_dynamics_.GetFullContactJacobian(q_);
+		CalcPseudoInverse(J_full);
+	}
+
+	void Controller::CreateStandupTrajectory()
+	{
+		// Three standup steps 
 		const std::vector<double> breaks = { 0.0, 5.0, 10.0 };
 		std::vector<Eigen::MatrixXd> samples;
 
@@ -61,47 +68,12 @@ namespace control {
 		samples.push_back(touchdown_conf);
 
 		// Use drake piecewise polynomials for easy trajectory construction
-		// TODO: Rename this
-		const auto feet_pos_traj =
+		standup_pos_traj_ =
 			drake::trajectories::PiecewisePolynomial<double>::FirstOrderHold(
 					breaks, samples
 					);
-		const auto feet_vel_traj = feet_pos_traj.derivative(1);
-
-		Eigen::MatrixXd J_full = robot_dynamics_.GetFullContactJacobian(q_);
-		std::cout << std::fixed << std::setprecision(2) << J_full << std::endl;
-	}
-
-	// TODO: Remove
-	void Controller::PublishIdlePositionCmd()
-	{
-			Eigen::Matrix<double,12,1> q_cmd;
-			for (int i = 0; i < 12; ++i)
-			{
-				q_cmd(i) = 0.0;
-			}
-
-			std_msgs::Float64MultiArray pos_cmd_msg;
-			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
-
-			this->pos_cmd_pub_.publish(pos_cmd_msg);
-			ROS_INFO("Published idle joint position command");
-	}
-
-	// TODO: Remove
-	void Controller::PublishTestTorqueCmd()
-	{
-			Eigen::Matrix<double,12,1> tau_cmd;
-			for (int i = 0; i < 12; ++i)
-			{
-				tau_cmd(i) = 20.0;
-			}
-
-			std_msgs::Float64MultiArray torque_cmd_msg;
-			tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
-
-			this->torque_cmd_pub_.publish(torque_cmd_msg);
-			ROS_INFO("Published test torques");
+		standup_vel_traj_ = standup_pos_traj_.derivative(1);
+	
 	}
 
 	// *** //
@@ -191,7 +163,6 @@ namespace control {
 					);
 		}
 	}
-	
 
 	void Controller::PublishQueueThread()
 	{
@@ -210,4 +181,53 @@ namespace control {
 		for (int i = 0; i < kNumGenCoords_; ++i)
 			q_(i) = msg->data[i];
 	}
+
+	// **************** //
+	// HELPER FUNCTIONS //
+	// **************** //
+
+	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
+	{
+		// Moore-Penrose right inverse: A^t (A A^t)
+		Eigen:: MatrixXd pseudo_inverse =
+			A.transpose() * (A * A.transpose()).inverse();
+		return pseudo_inverse;
+	}
+
+	// ****************
+// TODO: REMOVE
+	// ****************
+	//
+	// TODO: Remove
+	void Controller::PublishIdlePositionCmd()
+	{
+			Eigen::Matrix<double,12,1> q_cmd;
+			for (int i = 0; i < 12; ++i)
+			{
+				q_cmd(i) = 0.0;
+			}
+
+			std_msgs::Float64MultiArray pos_cmd_msg;
+			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
+
+			this->pos_cmd_pub_.publish(pos_cmd_msg);
+			ROS_INFO("Published idle joint position command");
+	}
+
+	// TODO: Remove
+	void Controller::PublishTestTorqueCmd()
+	{
+			Eigen::Matrix<double,12,1> tau_cmd;
+			for (int i = 0; i < 12; ++i)
+			{
+				tau_cmd(i) = 20.0;
+			}
+
+			std_msgs::Float64MultiArray torque_cmd_msg;
+			tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
+
+			this->torque_cmd_pub_.publish(torque_cmd_msg);
+			ROS_INFO("Published test torques");
+	}
+
 }
