@@ -1,6 +1,7 @@
 #include "anymal_plugin.hpp"
 
 // TODO: Replace all 12 with a constant?
+// TODO: Replace all unecessary instances of this
 
 namespace gazebo
 {
@@ -44,24 +45,57 @@ namespace gazebo
 		for(auto it = this->joints_.begin(); it != this->joints_.end(); ++it)
 			this->joint_names_.push_back(it->first);
 
-		this->InitJointControllers();
 		this->InitRosTopics();
+    if (!LoadParametersFromRos())
+    {
+        ROS_ERROR("Could not load parameters.");
+        return;
+    }
+		this->InitJointControllers();
 	}
 
 	void AnymalPlugin::InitJointControllers()
 	{
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
-		Pu://github.com/Norwegian-Legged-Lab/Tetrapod-Robot/blob/main/catkin_ws/src/simulator/tetrapod_gazebo/src/terrain_plugin.cpp {
+		{
 			this->model_->GetJointController()->SetPositionPID(
 				this->joint_names_[i],
-				common::PID(50000, 0.01, 10)
+				common::PID(50000, 0.01, 10) // TODO: Move to param server
 			);
 
 			this->model_->GetJointController()->SetVelocityPID(
 				this->joint_names_[i],
-				common::PID(50000, 0.01, 10)
+				common::PID(vel_p_gain_, vel_i_gain_, vel_d_gain_)
 				);
 		}
+	}
+
+	bool AnymalPlugin::LoadParametersFromRos()
+	{
+		if (!this->ros_node_->getParam(
+					"joint_velocity_controller/p_gain",
+					this->vel_p_gain_))
+    {
+        ROS_ERROR("Could not read velocity P gains from parameter server.");
+        return false;
+    }
+
+		if (!this->ros_node_->getParam(
+					"joint_velocity_controller/d_gain",
+					this->vel_d_gain_))
+    {
+        ROS_ERROR("Could not read velocity I gains from parameter server.");
+        return false;
+    }
+
+		if (!this->ros_node_->getParam(
+					"joint_velocity_controller/d_gain",
+					this->vel_d_gain_))
+    {
+        ROS_ERROR("Could not read velocity D gains from parameter server.");
+        return false;
+    }
+		return true;
 	}
 
 	void AnymalPlugin::SetJointVelocity(

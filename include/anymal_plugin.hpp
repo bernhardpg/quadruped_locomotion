@@ -52,6 +52,10 @@ namespace gazebo
 		private:
 			std::string model_name_;
 			std::vector<std::string> joint_names_;	
+			
+			double vel_p_gain_;
+			double vel_i_gain_;
+			double vel_d_gain_;
 
 			physics::ModelPtr model_;
 			physics::WorldPtr world_;
@@ -78,7 +82,9 @@ namespace gazebo
 
 			void InitRosTopics();
 			void InitJointControllers();
-			
+
+			bool LoadParametersFromRos();
+				
 			// Publishing and subscription runs on two separete threads
 			void PublishQueueThread();
 			void ProcessQueueThread();

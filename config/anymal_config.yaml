@@ -1,0 +1,5 @@
+gazebo_client:
+  joint_velocity_controller:
+    p_gain: 300
+    i_gain: 0
+    d_gain: 10
