@@ -51,15 +51,15 @@ namespace gazebo
 	void AnymalPlugin::InitJointControllers()
 	{
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
-		{
+		Pu://github.com/Norwegian-Legged-Lab/Tetrapod-Robot/blob/main/catkin_ws/src/simulator/tetrapod_gazebo/src/terrain_plugin.cpp {
 			this->model_->GetJointController()->SetPositionPID(
 				this->joint_names_[i],
-				common::PID(1000, 0.01, 10)
+				common::PID(50000, 0.01, 10)
 			);
 
 			this->model_->GetJointController()->SetVelocityPID(
 				this->joint_names_[i],
-				common::PID(10, 0, 0)
+				common::PID(50000, 0.01, 10)
 				);
 		}
 	}

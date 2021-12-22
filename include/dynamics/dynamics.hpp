@@ -21,7 +21,10 @@ class Dynamics
 		Eigen::MatrixXd GetFootJacobian(
 				Eigen::Matrix<double,19,1> q, int foot_i
 				);
-		Eigen::MatrixXd GetFullContactJacobian(
+		Eigen::MatrixXd GetStackedFeetJacobian(
+				Eigen::Matrix<double,19,1> q
+				);
+		Eigen::MatrixXd GetStackedFeetJacobianPos(
 				Eigen::Matrix<double,19,1> q
 				);
 		void Test(); // TODO: Remove

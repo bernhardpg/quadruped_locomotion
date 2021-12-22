@@ -37,8 +37,6 @@ namespace control {
 	void Controller::RunStandupSequence()
 	{
 		ROS_INFO("Starting standup sequence");
-		Eigen::MatrixXd J_full = robot_dynamics_.GetFullContactJacobian(q_);
-		CalcPseudoInverse(J_full);
 	}
 
 	void Controller::CreateStandupTrajectory()
@@ -80,11 +78,23 @@ namespace control {
 	{
 		double t = GetElapsedTime();
 
-		Eigen::MatrixXd pos_error(12,1);
+		Eigen::VectorXd pos_error(12);
 		pos_error.setZero();
 		Eigen::MatrixXd curr_pos = robot_dynamics_.GetFeetPositions(q_);
 		pos_error = standup_pos_traj_.value(t) - curr_pos;
-		std::cout << pos_error.transpose() << std::endl << std::endl;
+
+		Eigen::VectorXd vel_feedforward(12);
+		vel_feedforward = standup_vel_traj_.value(t);
+
+		Eigen::MatrixXd J_feet_pos
+			= robot_dynamics_.GetStackedFeetJacobianPos(q_)
+			.block(0,6,12,12); // Only get jacobian for joints
+		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_feet_pos);
+		
+		Eigen::VectorXd q_dot_cmd(12);
+		q_dot_cmd = J_inv * (0.1 * pos_error + vel_feedforward);
+
+		PublishJointVelCmd();
 	}
 
 	// *** //
@@ -198,6 +208,20 @@ namespace control {
 		SetGenCoords(msg->data);
 	}
 
+	void Controller::PublishJointVelCmd()
+	{
+			Eigen::Matrix<double,12,1> q_cmd;
+			for (int i = 0; i < 12; ++i)
+			{
+				q_cmd(i) = 0.5;
+			}
+
+			std_msgs::Float64MultiArray pos_cmd_msg;
+			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
+
+			this->vel_cmd_pub_.publish(pos_cmd_msg);
+	}
+
 	// ***************** //
 	// SETTERS & GETTERS //
 	// ***************** //
@@ -270,5 +294,4 @@ namespace control {
 			this->torque_cmd_pub_.publish(torque_cmd_msg);
 			ROS_INFO("Published test torques");
 	}
-
 }

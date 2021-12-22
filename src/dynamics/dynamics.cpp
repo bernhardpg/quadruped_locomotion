@@ -59,8 +59,7 @@ Eigen::MatrixXd Dynamics::GetFootJacobian(
 	return J;
 }
 
-// TODO: Currently returns stacked jacobian for all feet
-Eigen::MatrixXd Dynamics::GetFullContactJacobian(
+Eigen::MatrixXd Dynamics::GetStackedFeetJacobian(
 		Eigen::Matrix<double,19,1> q
 		)
 {
@@ -71,6 +70,23 @@ Eigen::MatrixXd Dynamics::GetFullContactJacobian(
 	{
 		Eigen::MatrixXd J_i = GetFootJacobian(q, foot_i);
 		J.block<6,18>(6 * foot_i,0) = J_i;
+	}
+
+	return J;
+}
+
+Eigen::MatrixXd Dynamics::GetStackedFeetJacobianPos(
+		Eigen::Matrix<double,19,1> q
+		)
+{
+	Eigen::MatrixXd J(12, model_.nv);
+	J.setZero();
+
+	for (int foot_i = 0; foot_i < n_legs_; ++foot_i)
+	{
+		Eigen::MatrixXd J_i = GetFootJacobian(q, foot_i);
+		J.block(3 * foot_i,0,3,model_.nv)
+			= J_i.block(0,0,3,model_.nv);
 	}
 
 	return J;

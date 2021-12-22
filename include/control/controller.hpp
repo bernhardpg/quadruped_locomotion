@@ -78,6 +78,7 @@ namespace control
 			void OnGenCoordMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
+			void PublishJointVelCmd();
 
 			// ***************** //
 			// SETTERS & GETTERS //
