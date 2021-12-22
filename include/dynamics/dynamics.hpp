@@ -16,7 +16,13 @@ class Dynamics
 		Dynamics();
 
 		Eigen::MatrixXd GetFeetPositions(Eigen::Matrix<double, 19, 1> q);
-		void Test();
+		Eigen::MatrixXd GetFootJacobian(
+				Eigen::Matrix<double,19,1> q, int foot_i
+				);
+		Eigen::MatrixXd GetFullContactJacobian(
+				Eigen::Matrix<double,19,1> q
+				);
+		void Test(); // TODO: Remove
 
 	private:
 		int n_legs_ = 4;

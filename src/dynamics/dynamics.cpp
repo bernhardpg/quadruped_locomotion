@@ -11,10 +11,11 @@ Dynamics::Dynamics()
 			); // Specify JointModelFreeFlyer to make root joint floating base
 	model_.names[1] = "base"; // Set name of floating base
 
+	// Reflects URDF
 	feet_frames_.push_back("LF_FOOT");
 	feet_frames_.push_back("LH_FOOT");
-	feet_frames_.push_back("RH_FOOT");
 	feet_frames_.push_back("RF_FOOT");
+	feet_frames_.push_back("RH_FOOT");
 
   // Create data required by the algorithms
 	data_ = pinocchio::Data(model_);
@@ -30,7 +31,7 @@ Eigen::MatrixXd Dynamics::GetFeetPositions(Eigen::Matrix<double, 19, 1> q)
 	pinocchio::forwardKinematics(model_, data_, q);
 	pinocchio::updateFramePlacements(model_, data_);
 
-	Eigen::MatrixXd feet_positions(n_dims_, n_legs_); // LF LH RH RF
+	Eigen::MatrixXd feet_positions(n_dims_, n_legs_); // LF LH RF RH
 
 	for (int foot_i = 0; foot_i < feet_frames_.size(); ++foot_i)
 	{
@@ -40,6 +41,37 @@ Eigen::MatrixXd Dynamics::GetFeetPositions(Eigen::Matrix<double, 19, 1> q)
 	}
 
 	return feet_positions;
+}
+
+Eigen::MatrixXd Dynamics::GetFootJacobian(
+		Eigen::Matrix<double,19,1> q, int foot_i
+		)
+{
+	Eigen::MatrixXd J(6, model_.nv);
+	J.setZero();
+	pinocchio::computeFrameJacobian(
+			model_, data_, q, model_.getFrameId(feet_frames_[foot_i]), 
+			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J
+			);
+
+	return J;
+}
+
+// TODO: Currently returns stacked jacobian for all feet
+Eigen::MatrixXd Dynamics::GetFullContactJacobian(
+		Eigen::Matrix<double,19,1> q
+		)
+{
+	Eigen::MatrixXd J(24, model_.nv);
+	J.setZero();
+
+	for (int foot_i = 0; foot_i < n_legs_; ++foot_i)
+	{
+		Eigen::MatrixXd J_i = GetFootJacobian(q, foot_i);
+		J.block<6,18>(6 * foot_i,0) = J_i;
+	}
+
+	return J;
 }
 
 void Dynamics::Test()

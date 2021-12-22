@@ -51,7 +51,7 @@ class MotionPlanner
 
 		Eigen::Vector2d vel_cmd_;
 		int curr_gait_step_;
-		Eigen::MatrixXd current_stance_; // [LF LH RH RF]
+		Eigen::MatrixXd current_stance_; // [LF LH RH RF] TODO: Change direction to LF LH RF RH to reflect URDF
 		std::vector<std::vector<Eigen::Vector2d>> support_polygons_;
 		std::vector<Eigen::MatrixXd> stance_sequence_;;
 

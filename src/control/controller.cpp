@@ -34,6 +34,7 @@ namespace control {
 	{
 		ROS_INFO("Starting standup sequence");
 
+		// TODO: Move into function
 		// Construct trajectory for standing up
 		const std::vector<double> breaks = { 0.0, 5.0, 10.0 };
 		std::vector<Eigen::MatrixXd> samples;
@@ -55,25 +56,20 @@ namespace control {
 		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
 			touchdown_conf(2, leg_i) = 0;
 
-		std::cout << start_conf << std::endl << std::endl;
-		std::cout << neutral_conf << std::endl << std::endl;
-		std::cout << apex_conf << std::endl << std::endl;
-		std::cout << touchdown_conf << std::endl << std::endl;
-
 		samples.push_back(start_conf);
 		samples.push_back(apex_conf);
 		samples.push_back(touchdown_conf);
 
 		// Use drake piecewise polynomials for easy trajectory construction
+		// TODO: Rename this
 		const auto feet_pos_traj =
 			drake::trajectories::PiecewisePolynomial<double>::FirstOrderHold(
 					breaks, samples
 					);
-
-		std::cout << "!!!!!!!!!!!\n\n";
-		for (double t = 0; t < 10; t += 0.5)
-			std::cout << feet_pos_traj.value(t) << std::endl << std::endl;
 		const auto feet_vel_traj = feet_pos_traj.derivative(1);
+
+		Eigen::MatrixXd J_full = robot_dynamics_.GetFullContactJacobian(q_);
+		std::cout << std::fixed << std::setprecision(2) << J_full << std::endl;
 	}
 
 	// TODO: Remove
