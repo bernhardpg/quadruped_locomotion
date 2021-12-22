@@ -47,10 +47,10 @@ namespace control {
 		const std::vector<double> breaks = { 0.0, 5.0, 10.0 };
 		std::vector<Eigen::MatrixXd> samples;
 
-		Eigen::MatrixXd start_conf = Eigen::MatrixXd(n_dims_, n_legs_);
+		Eigen::MatrixXd start_conf(12,1);
 		start_conf = robot_dynamics_.GetFeetPositions(q_);
 
-		Eigen::MatrixXd neutral_conf = Eigen::MatrixXd(n_dims_, n_legs_);
+		Eigen::MatrixXd neutral_conf(12,1);
 		Eigen::Matrix<double, 19, 1> q_neutral;
 		q_neutral.block<7,1>(0,0) = q_.block<7,1>(0,0);
 		q_neutral.block<12,1>(7,0) = Eigen::VectorXd::Zero(12);
@@ -58,11 +58,11 @@ namespace control {
 
 		Eigen::MatrixXd apex_conf = neutral_conf;
 		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
-			apex_conf(2, leg_i) = swing_height_;
+			apex_conf(2 + leg_i * n_dims_) = swing_height_;
 
 		Eigen::MatrixXd touchdown_conf = neutral_conf;
 		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
-			touchdown_conf(2, leg_i) = 0;
+			touchdown_conf(2 + leg_i * n_dims_) = 0.0;
 
 		samples.push_back(start_conf);
 		samples.push_back(apex_conf);
@@ -80,10 +80,11 @@ namespace control {
 	{
 		double t = GetElapsedTime();
 
-		Eigen::MatrixXd pos_error;
+		Eigen::MatrixXd pos_error(12,1);
 		pos_error.setZero();
 		Eigen::MatrixXd curr_pos = robot_dynamics_.GetFeetPositions(q_);
 		pos_error = standup_pos_traj_.value(t) - curr_pos;
+		std::cout << pos_error.transpose() << std::endl << std::endl;
 	}
 
 	// *** //

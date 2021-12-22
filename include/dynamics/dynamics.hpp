@@ -15,7 +15,9 @@ class Dynamics
 	public:
 		Dynamics();
 
-		Eigen::MatrixXd GetFeetPositions(Eigen::Matrix<double, 19, 1> q);
+		Eigen::Matrix<double,12,1> GetFeetPositions(
+				Eigen::Matrix<double, 19, 1> q
+				);
 		Eigen::MatrixXd GetFootJacobian(
 				Eigen::Matrix<double,19,1> q, int foot_i
 				);

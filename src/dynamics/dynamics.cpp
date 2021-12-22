@@ -26,18 +26,20 @@ Dynamics::Dynamics()
 	std::cout << "	nv: " << model_.nv << std::endl;
 }
 
-Eigen::MatrixXd Dynamics::GetFeetPositions(Eigen::Matrix<double, 19, 1> q)
+Eigen::Matrix<double,12,1> Dynamics::GetFeetPositions(
+		Eigen::Matrix<double, 19, 1> q
+		)
 {
 	pinocchio::forwardKinematics(model_, data_, q);
 	pinocchio::updateFramePlacements(model_, data_);
 
-	Eigen::MatrixXd feet_positions(n_dims_, n_legs_); // LF LH RF RH
+	Eigen::Matrix<double,12,1> feet_positions; // LF LH RF RH
 
 	for (int foot_i = 0; foot_i < feet_frames_.size(); ++foot_i)
 	{
 		Eigen::Vector3d pos = data_.oMf[model_.getFrameId(feet_frames_[foot_i])]
 			.translation().transpose();
-		feet_positions.col(foot_i) = pos;
+		feet_positions.block<3,1>(foot_i * 3, 0) = pos;
 	}
 
 	return feet_positions;
