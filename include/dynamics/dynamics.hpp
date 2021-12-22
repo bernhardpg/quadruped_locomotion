@@ -15,11 +15,15 @@ class Dynamics
 	public:
 		Dynamics();
 
-		void GetFeetPositions();
+		Eigen::MatrixXd GetFeetPositions(Eigen::Matrix<double, 19, 1> q);
 		void Test();
 
 	private:
+		int n_legs_ = 4;
+		int n_dims_ = 3;
+
 		std::string urdf_filename_;
+		std::vector<std::string> feet_frames_;
 		pinocchio::Model model_;
 		pinocchio::Data data_;
 };

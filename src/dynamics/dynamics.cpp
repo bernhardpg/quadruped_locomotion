@@ -11,14 +11,35 @@ Dynamics::Dynamics()
 			); // Specify JointModelFreeFlyer to make root joint floating base
 	model_.names[1] = "base"; // Set name of floating base
 
+	feet_frames_.push_back("LF_FOOT");
+	feet_frames_.push_back("LH_FOOT");
+	feet_frames_.push_back("RH_FOOT");
+	feet_frames_.push_back("RF_FOOT");
+
   // Create data required by the algorithms
 	data_ = pinocchio::Data(model_);
 
   std::cout << "Loaded dynamics with model name: "
 		<< model_.name << std::endl;
-
 	std::cout << "	nq: " << model_.nq << std::endl;
 	std::cout << "	nv: " << model_.nv << std::endl;
+}
+
+Eigen::MatrixXd Dynamics::GetFeetPositions(Eigen::Matrix<double, 19, 1> q)
+{
+	pinocchio::forwardKinematics(model_, data_, q);
+	pinocchio::updateFramePlacements(model_, data_);
+
+	Eigen::MatrixXd feet_positions(n_dims_, n_legs_); // LF LH RH RF
+
+	for (int foot_i = 0; foot_i < feet_frames_.size(); ++foot_i)
+	{
+		Eigen::Vector3d pos = data_.oMf[model_.getFrameId(feet_frames_[foot_i])]
+			.translation().transpose();
+		feet_positions.col(foot_i) = pos;
+	}
+
+	return feet_positions;
 }
 
 void Dynamics::Test()

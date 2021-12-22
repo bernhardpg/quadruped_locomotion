@@ -8,8 +8,9 @@ namespace control {
 		ROS_INFO("Running controller");
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		InitRosTopics();
+
+		ros::Duration(5).sleep();
 		RunStandupSequence();
-		robot_dynamics_.Test();
 	}
 
 	Controller::~Controller()
@@ -33,6 +34,7 @@ namespace control {
 	{
 		ROS_INFO("Starting standup sequence");
 
+		// TODO: Move these
 		LF_KFE_pos_ << 0.36, -0.29, 0.28; 
 		LH_KFE_pos_ << -0.36, -0.29, 0.28; 
 		RH_KFE_pos_ << -0.36, 0.29, 0.28; 
@@ -41,13 +43,12 @@ namespace control {
 		// Construct trajectory for standing up
 		const std::vector<double> breaks = { 0.0, 5.0, 10.0 };
 		std::vector<Eigen::MatrixXd> samples;
+
 		auto start_conf = Eigen::MatrixXd(n_dims_, n_legs_);
 		auto apex_conf = Eigen::MatrixXd(n_dims_, n_legs_);
 		auto touchdown_conf = Eigen::MatrixXd(n_dims_, n_legs_);
-		start_conf << // TODO: Replace with actual starting configuration
-			0, 0, 0, 0, 
-			0, 0, 0, 0,
-			0, 0, 0, 0;
+
+		start_conf = robot_dynamics_.GetFeetPositions(q_);
 
 		apex_conf <<
 			LF_KFE_pos_(0), LH_KFE_pos_(0), RH_KFE_pos_(0), RF_KFE_pos_(0), 
@@ -68,10 +69,6 @@ namespace control {
 					breaks, samples
 					);
 
-		for (double t = 0; t < 10; t+=0.5)
-		{
-			std::cout << feet_pos_traj.value(t)	<< std::endl << std::endl;
-		}
 
 		const auto feet_vel_traj = feet_pos_traj.derivative(1);
 	}
@@ -162,6 +159,18 @@ namespace control {
 		this->vel_cmd_pub_ = this->ros_node_->advertise(vel_cmd_ao);
 		this->torque_cmd_pub_ = this->ros_node_->advertise(torque_cmd_ao);
 
+		// Set up subscriptions
+		ros::SubscribeOptions gen_coord_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/" + this->model_name_ + "/gen_coord",
+					1,
+					boost::bind(&Controller::OnGenCoordMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		gen_coord_sub_ = ros_node_->subscribe(gen_coord_so);
+
 		// Spin up the queue helper threads
 		this->ros_process_queue_thread_ = std::thread(
 				std::bind(&Controller::ProcessQueueThread, this)
@@ -195,4 +204,11 @@ namespace control {
 		}
 	}
 
+	void Controller::OnGenCoordMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		for (int i = 0; i < kNumGenCoords_; ++i)
+			q_(i) = msg->data[i];
+	}
 }

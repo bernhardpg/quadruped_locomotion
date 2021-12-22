@@ -38,6 +38,7 @@ catkin_package(
 ########
 
 include_directories(
+	SYSTEM # suppress warnings from 3rd party libs that I can't control
 	${pinocchio_INCLUDE_DIRS}
 	${catkin_INCLUDE_DIRS}
 	${Boost_INCLUDE_DIR}

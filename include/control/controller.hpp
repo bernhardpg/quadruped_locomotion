@@ -27,15 +27,17 @@ namespace control
 
 		private:
 			Dynamics robot_dynamics_;
+			const int kNumGenCoords_ = 19;
+			Eigen::Matrix<double, 19, 1> q_;
 			
 			int n_legs_ = 4;
 			int n_dims_ = 3;
 			double swing_height_ = 0.2;
 
 			Eigen::Vector3d LF_KFE_pos_;
-			Eigen::Vector3d RF_KFE_pos_;
 			Eigen::Vector3d LH_KFE_pos_;
 			Eigen::Vector3d RH_KFE_pos_;
+			Eigen::Vector3d RF_KFE_pos_;
 
 			void RunStandupSequence();
 
@@ -53,6 +55,9 @@ namespace control
 			ros::Publisher vel_cmd_pub_;
 			ros::Publisher torque_cmd_pub_;
 
+			// Subscriptions
+			ros::Subscriber gen_coord_sub_;
+
 			// Queues and their threads
 			ros::CallbackQueue ros_process_queue_;
 			ros::CallbackQueue ros_publish_queue_;
@@ -62,6 +67,10 @@ namespace control
 			void InitRosTopics();
 			void PublishQueueThread();
 			void ProcessQueueThread();
+
+			void OnGenCoordMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
 
 	};
 }
