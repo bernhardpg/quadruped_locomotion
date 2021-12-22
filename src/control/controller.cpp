@@ -6,11 +6,8 @@ namespace control {
 	Controller::Controller()
 	{
 		ROS_INFO("Running controller");
-
 		model_name_ = "anymal"; // TODO: Replace with node argument
-
 		InitRosTopics();
-
 		RunStandupSequence();
 	}
 

@@ -14,6 +14,8 @@
 
 #include <Eigen/Core>
 
+#include "dynamics/dynamics.hpp"
+
 namespace control
 {
 	class Controller
@@ -23,6 +25,8 @@ namespace control
 			~Controller();
 
 		private:
+			Dynamics robot_dynamics_;
+			
 			int n_legs_ = 4;
 			int n_dims_ = 3;
 			double swing_height_ = 0.2;

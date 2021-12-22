@@ -46,9 +46,11 @@ add_executable(controller_node src/control/controller_node.cpp src/control/contr
 target_link_libraries(controller_node drake::drake)
 target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(controller_node Eigen3::Eigen)
+target_link_libraries(controller_node dynamics)
+target_link_libraries(controller_node pinocchio::pinocchio)
 
 # Dynamics library
-add_executable(dynamics src/dynamics.cpp)
+add_executable(dynamics src/dynamics/dynamics.cpp)
 target_link_libraries(dynamics Eigen3::Eigen)
 target_link_libraries(dynamics pinocchio::pinocchio)
 
