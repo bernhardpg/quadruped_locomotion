@@ -67,11 +67,15 @@ target_link_libraries(anymal_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
 add_library(dynamics src/dynamics/dynamics.cpp)
 target_link_libraries(dynamics ${pinocchio_LIBRARIES})
 
+# Integrator library
+add_library(integrator src/control/integrator.cpp)
+
 # Controller 
 add_executable(controller_node src/control/controller_node.cpp src/control/controller.cpp)
 target_link_libraries(controller_node drake::drake)
 target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(controller_node dynamics)
+target_link_libraries(controller_node integrator)
 
 # Motion planner
 add_library(motion_planner src/planner/motion_planner.cpp)
