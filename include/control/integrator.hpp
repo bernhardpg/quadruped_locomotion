@@ -7,7 +7,7 @@
 class Integrator
 {
 	public:
-		Integrator() : last_timestamp_(0){};
+		Integrator(){};
 		Integrator(int rows);
 
 		void Integrate(Eigen::VectorXd vec);
