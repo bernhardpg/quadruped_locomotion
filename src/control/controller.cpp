@@ -9,18 +9,22 @@ namespace control {
 		ROS_INFO("Running controller at %d Hz", frequency);
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		
+		// TODO: Move into function?
+		q_.setZero();
+		u_.setZero();
 		q_j_cmd_.setZero();
 		q_j_dot_cmd_.setZero();
 
 		InitRos();
 		SetStartTime();
 		SpinRosThreads();
-		CreateStandupTrajectory();
+
+		// Wait for state to get published
+		while (q_.isZero(0) || u_.isZero(0));
 
 		InitController();
-		controller_initialized_ = true;
-
-		ros::Duration(0.5).sleep(); // Wait before starting
+		CreateStandupTrajectory(); 
+		controller_initialized_ = true; // TODO: cleanup
 
 		RunStandupSequence();
 	}
@@ -190,7 +194,7 @@ namespace control {
 
 	void Controller::ProcessQueueThread()
 	{
-		static const double timeout = 0.01;
+		static const double timeout = 0.01; // TODO: I should check this number
 		while (ros_node_.ok())
 		{
 			ros_process_queue_.callAvailable(
@@ -206,9 +210,7 @@ namespace control {
 			if (!controller_initialized_)
 				continue;
 
-			//CalcJointCmd();
-
-			std::cout << q_j_cmd_.transpose() << std::endl << std::endl;
+			CalcJointCmd();
 
 			std_msgs::Float64MultiArray q_j_cmd_msg;
 			tf::matrixEigenToMsg(q_j_cmd_, q_j_cmd_msg);

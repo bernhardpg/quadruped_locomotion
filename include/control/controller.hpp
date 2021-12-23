@@ -62,8 +62,6 @@ namespace control
 			ros::Rate loop_rate_;
 
 			double k_pos_p_ = 0.1; // TODO: Tune these
-			double k_joints_p_= 0.1; // TODO: Tune these
-			double k_joints_d_ = 0.1; // TODO: Tune these
 
 			Eigen::Matrix<double,12,1> feet_pos_error_;
 			Eigen::Matrix<double,12,1> feet_vel_ff_;
