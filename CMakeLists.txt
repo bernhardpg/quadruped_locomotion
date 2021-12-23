@@ -77,6 +77,10 @@ target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(controller_node dynamics)
 target_link_libraries(controller_node integrator)
 
+# Joint controller
+add_executable(joint_controller src/control/joint_controller.cpp)
+target_link_libraries(joint_controller ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
+
 # Motion planner
 add_library(motion_planner src/planner/motion_planner.cpp)
 target_link_libraries(motion_planner drake::drake)
