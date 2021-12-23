@@ -4,6 +4,9 @@
 #include <Eigen/Core>
 #include <eigen_conversions/eigen_msg.h>
 
+#include <dynamic_reconfigure/server.h>
+#include <quadruped_locomotion/DynamicControlConfig.h>
+
 namespace control
 {
 	const int kNumJoints = 12;
@@ -58,5 +61,20 @@ namespace control
 			void OnJointVelCmdMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
+
+			// Dynamic reconfiguration of parameters
+			dynamic_reconfigure::Server
+				<quadruped_locomotion::DynamicControlConfig>
+				dc_server_;
+			dynamic_reconfigure::Server
+				<quadruped_locomotion::DynamicControlConfig>
+				::CallbackType dc_callback_;
+
+			void InitDynamicReconfigureRos();
+			void DynamicConfigureCallback(
+					quadruped_locomotion::DynamicControlConfig &config,
+					uint32_t level
+					);
 	};
 }
+

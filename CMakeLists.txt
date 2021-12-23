@@ -13,12 +13,16 @@ find_package(Boost REQUIRED COMPONENTS)
 find_package(pinocchio REQUIRED COMPONENTS)
 
 find_package(
-	catkin REQUIRED COMPONENTS
+	catkin REQUIRED COMPONENTS dynamic_reconfigure
 	roscpp REQUIRED
 	std_msgs REQUIRED
 	gazebo REQUIRED
 	Eigen3 REQUIRED
 	drake CONFIG REQUIRED PATHS /opt/drake
+)
+
+generate_dynamic_reconfigure_options(
+	config/DynamicControl.cfg
 )
 
 # Declare catkin package
@@ -49,6 +53,8 @@ include_directories(
 	${drake_INCLUDE_DIRS}
 	include)
 
+# For pinocchio
+# NOTE: not sure if all of these are needed
 set(FLAGS ${pinocchio_CFLAGS_OTHER} -Wno-ignored-attributes -Wno-invalid-partial-specialization -DPINOCCHIO_URDFDOM_TYPEDEF_SHARED_PTR -DPINOCCHIO_URDFDOM_USE_STD_SHARED_PTR)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
@@ -80,6 +86,7 @@ target_link_libraries(controller_node integrator)
 # Joint controller
 add_executable(joint_controller src/control/joint_controller.cpp)
 target_link_libraries(joint_controller ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
+add_dependencies(joint_controller ${PROJECT_NAME}_gencfg)
 
 # Motion planner
 add_library(motion_planner src/planner/motion_planner.cpp)

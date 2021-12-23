@@ -18,14 +18,12 @@ namespace control
 		q_j_dot_cmd_.setZero();
 		tau_cmd_.setZero();
 
+		InitDynamicReconfigureRos();
 		InitRos();
 	}
-
+		
 	void JointController::InitRos()
 	{
-		int argc = 0;
-		char **argv = NULL;
-
 		torque_cmd_pub_ = node_handle_
 			.advertise<std_msgs::Float64MultiArray>(
 					"/" + model_name_ + "/torque_cmd", 1
@@ -70,6 +68,27 @@ namespace control
 			loop_rate_.sleep();
 		}
 	}
+
+	void JointController::InitDynamicReconfigureRos()
+	{
+		dc_callback_ = boost::bind(
+				&JointController::DynamicConfigureCallback, this, _1, _2
+				);
+		dc_server_.setCallback(dc_callback_);
+	}
+
+
+	void JointController::DynamicConfigureCallback(
+			quadruped_locomotion::DynamicControlConfig &config,
+			uint32_t level
+			)
+	{
+		ROS_INFO("Reconfigure Request: %f %f",
+								config.k_joints_p, config.k_joints_d);
+
+		k_joints_p_ = config.k_joints_p;
+		k_joints_d_ = config.k_joints_d;
+	} 
 
 	void JointController::CalcJointTorques()
 	{
