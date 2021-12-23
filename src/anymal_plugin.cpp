@@ -60,6 +60,16 @@ namespace gazebo
 		this->InitJointControllers();
 	}
 
+	bool AnymalPlugin::ResetSimulation(
+					const std_srvs::Empty::Request &_req,
+					std_srvs::Empty::Response &_res
+			)
+	{
+		world_->Reset();
+		model_->GetJointController()->Reset();
+		return true;
+	}
+
 	void AnymalPlugin::InitJointControllers()
 	{
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
@@ -297,6 +307,17 @@ namespace gazebo
 
 		// Create ros node
 		this->ros_node_.reset(new ros::NodeHandle("gazebo_client"));
+
+		// Set up services
+		ros::AdvertiseServiceOptions reset_simulation_aso =
+			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
+            "/" + model_->GetName() + "/reset_simulation",
+            boost::bind(&AnymalPlugin::ResetSimulation, this, _1, _2),
+            ros::VoidPtr(),
+            &this->ros_process_queue_
+        );
+
+		reset_simulation_service_ = ros_node_->advertiseService(reset_simulation_aso);
 
 		// Set up advertisements
 		ros::AdvertiseOptions gen_coord_ao =

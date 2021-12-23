@@ -7,6 +7,7 @@
 #include "ros/ros.h"
 #include "ros/callback_queue.h"
 #include "ros/subscribe_options.h"
+#include "std_srvs/Empty.h"
 
 #include "eigen_conversions/eigen_msg.h"
 #include "std_msgs/Float64MultiArray.h"
@@ -22,6 +23,10 @@ namespace gazebo
 			~AnymalPlugin();
 
 			virtual void Load(physics::ModelPtr model, sdf::ElementPtr sdf);
+			bool ResetSimulation(
+					const std_srvs::Empty::Request &_req,
+					std_srvs::Empty::Response &_res
+					);
 
 			// Setters
 			void SetJointVelocity(
@@ -67,6 +72,9 @@ namespace gazebo
 			std::map<std::string, physics::JointPtr> joints_;
 
 			std::unique_ptr<ros::NodeHandle> ros_node_;
+
+			// Services
+			ros::ServiceServer reset_simulation_service_;	
 
 			// Subscriptions
 			ros::Subscriber vel_cmd_sub_;

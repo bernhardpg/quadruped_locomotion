@@ -148,36 +148,53 @@ namespace control {
 		std::cout << "pre_standup_config:\n";
 		std::cout << pre_standup_config.transpose() << std::endl << std::endl;
 
-		const std::vector<double> breaks = { 0.0, 5.0, 15.0};
+		const std::vector<double> breaks = {
+			standup_start_time_,
+			standup_end_time_
+		};
 		std::vector<Eigen::MatrixXd> samples;
-		samples.push_back(curr_config);
 		samples.push_back(curr_config);
 		samples.push_back(pre_standup_config);
 
 		q_j_ref_traj_ =
-			drake::trajectories::PiecewisePolynomial<double>::FirstOrderHold(
+			drake::trajectories::PiecewisePolynomial<double>
+			::FirstOrderHold(
 					breaks, samples
 					);
-		for (double t = 0.0; t < 15.0; t += 0.2)
-		{
-			std::cout << std::fixed << std::setprecision(2)
-				<< q_j_ref_traj_.value(t).transpose() << std::endl;
-		}
-		q_j_dot_ref_traj_ = q_j_ref_traj_.derivative(1);
+
+//		std::cout << "Joint pos traj:\n";
+//		for (double t = standup_start_time_; t < standup_end_time_; t += 0.2)
+//		{
+//			std::cout << std::fixed << std::setprecision(2)
+//				<< q_j_ref_traj_.value(t).transpose() << std::endl;
+//		}
+//		q_j_dot_ref_traj_ = q_j_ref_traj_.derivative(1);
+//		std::cout << "Joint vel traj:\n";
+//		for (double t = standup_start_time_; t < standup_end_time_; t += 0.2)
+//		{
+//			std::cout << std::fixed << std::setprecision(2)
+//				<< q_j_dot_ref_traj_.value(t).transpose() << std::endl;
+//		}
 	}
 
 	void Controller::CalcJointCmd()
 	{
 		t_ = GetElapsedTimeSince(start_time_);
-		if (t_ < 15.0)
+		if (t_ < standup_start_time_)
 		{
-			q_j_cmd_ = q_j_ref_traj_.value(t_);
-			q_j_dot_cmd_ = q_j_dot_ref_traj_.value(t_);
+			q_j_cmd_ = q_j_ref_traj_.value(standup_start_time_);
+			q_j_dot_cmd_.setZero();
+
+		}
+		else if (t_ > standup_end_time_)
+		{
+			q_j_cmd_ = q_j_ref_traj_.value(standup_end_time_);
+			q_j_dot_cmd_.setZero();
 		} 
 		else
 		{
-			q_j_cmd_ = q_j_ref_traj_.value(15.0);
-			q_j_dot_cmd_.setZero();
+			q_j_cmd_ = q_j_ref_traj_.value(t_);
+			q_j_dot_cmd_ = q_j_dot_ref_traj_.value(t_);
 		}
 	}
 
@@ -268,6 +285,11 @@ namespace control {
 
 			//CalcJointCmdStandup();
 			CalcJointCmd();
+
+			std::cout << std::fixed << std::setprecision(2)
+				<< q_j_cmd_.transpose() << std::endl;
+			std::cout << std::fixed << std::setprecision(2)
+				<< q_j_dot_cmd_.transpose() << std::endl;
 
 			std_msgs::Float64MultiArray q_j_cmd_msg;
 			tf::matrixEigenToMsg(q_j_cmd_, q_j_cmd_msg);

@@ -1,0 +1,4 @@
+<launch>
+	<node pkg="quadruped_locomotion" type="controller_node" output="screen" name="controller_node"/>
+	<node pkg="quadruped_locomotion" type="joint_controller" output="screen" name="joint_controller"/>
+</launch>
