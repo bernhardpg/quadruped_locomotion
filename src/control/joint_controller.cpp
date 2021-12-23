@@ -60,7 +60,7 @@ namespace control
 			CalcJointTorques();
 
 			std_msgs::Float64MultiArray torque_cmd_msg;
-			tau_cmd_.block<9,1>(0,0).setZero();
+			//tau_cmd_.block<9,1>(3,0).setZero(); // TODO
 			tf::matrixEigenToMsg(tau_cmd_, torque_cmd_msg);
 
 			torque_cmd_pub_.publish(torque_cmd_msg);

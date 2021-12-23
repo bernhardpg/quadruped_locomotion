@@ -6,7 +6,12 @@
 	<include file="$(find anymal_c_simple_description)/launch/load.launch"/>
 
 	<!-- Spawn anymal into Gazebo -->
-	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param anymal_description -urdf -model anymal -z 5"/>
+	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model"
+		args="-param anymal_description -urdf -model anymal -z 5 -R 3.1416
+			-J LF_HAA 0.0 -J LF_HFE 2.0 -J LF_KFE -2.5
+			-J LH_HAA 0.0 -J LH_HFE -2.0 -J LH_KFE 2.5
+			-J RF_HAA 0.0 -J RF_HFE 2.0 -J RF_KFE -2.5
+			-J RH_HAA 0.0 -J RH_HFE -2.0 -J RH_KFE 2.5"/>
 
 	<!--<node name="anymal_controller" pkg="quadruped_locomotion" type="controller_node"/>-->
 </launch>

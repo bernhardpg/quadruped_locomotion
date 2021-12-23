@@ -1,0 +1,13 @@
+<launch>
+	<!-- Spawn plot nodes -->
+	<node pkg="rqt_plot" type="rqt_plot" output="screen" name="LF_HAA" args="/anymal/gen_coord/data[7] /anymal/torque_cmd/data[7] /q_j_cmd/data[0]"/>
+	<node pkg="rqt_plot" type="rqt_plot" output="screen" name="LF_HFE" args="/anymal/gen_coord/data[8] /anymal/torque_cmd/data[8] /q_j_cmd/data[1]"/>
+	<node pkg="rqt_plot" type="rqt_plot" output="screen" name="LF_HKE" args="/anymal/gen_coord/data[9] /anymal/torque_cmd/data[2] /q_j_cmd/data[2]"/>
+
+	<!--<node pkg="quadruped_locomotion" type="controller_node" output="screen" name="controller_node"/>-->
+	<node pkg="quadruped_locomotion" type="joint_controller" output="screen" name="joint_controller"/>
+
+	<node pkg="rqt_reconfigure" type="rqt_reconfigure" output="screen" name="joint_controller_tuning" args="joint_controller"/>
+
+	<!--<node name="anymal_controller" pkg="quadruped_locomotion" type="controller_node"/>-->
+</launch>

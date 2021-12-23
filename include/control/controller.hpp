@@ -36,7 +36,7 @@ namespace control
 			Eigen::Matrix<double, 18, 1> u_;
 			Dynamics robot_dynamics_;
 			ros::Time start_time_;
-			bool controller_initialized_ = false;
+			bool controller_ready_ = false;
 			
 			int n_legs_ = 4;
 			int n_dims_ = 3;
@@ -50,8 +50,17 @@ namespace control
 				standup_pos_traj_;
 			drake::trajectories::PiecewisePolynomial<double>
 				standup_vel_traj_;
+
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_ref_traj_;
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_dot_ref_traj_;
+
 			void CreateStandupTrajectory();
 			void RunStandupSequence();
+
+			void CalcJointCmd();
+			void CreateStandupJointTraj();
 
 			// ********** //
 			// CONTROLLER //
@@ -69,7 +78,7 @@ namespace control
 			Eigen::MatrixXd J_feet_pos_;
 
 			void InitController();
-			void CalcJointCmd();
+			void JacobianController(); // TODO: Rename
 
 			void CalcFeetTrackingError();
 

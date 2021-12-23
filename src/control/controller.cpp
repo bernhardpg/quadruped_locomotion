@@ -23,10 +23,13 @@ namespace control {
 		while (q_.isZero(0) || u_.isZero(0));
 
 		InitController();
-		CreateStandupTrajectory(); 
-		controller_initialized_ = true; // TODO: cleanup
 
-		RunStandupSequence();
+		
+		CreateStandupJointTraj();
+		controller_ready_ = true; // TODO: cleanup
+
+		//CreateStandupTrajectory(); 
+		//RunStandupSequence();
 	}
 
 	Controller::~Controller()
@@ -63,6 +66,7 @@ namespace control {
 		ROS_INFO("Starting standup sequence");
 	}
 
+	//////
 	void Controller::CreateStandupTrajectory()
 	{
 		// Three standup steps 
@@ -98,7 +102,7 @@ namespace control {
 		standup_vel_traj_ = standup_pos_traj_.derivative(1);
 	}
 
-	void Controller::CalcJointCmd()
+	void Controller::JacobianController()
 	{
 		t_ = GetElapsedTimeSince(start_time_);
 		CalcFeetTrackingError();
@@ -123,6 +127,58 @@ namespace control {
 			- robot_dynamics_.GetFeetPositions(q_);
 
 		feet_vel_ff_ = standup_vel_traj_.value(t_);
+	}
+	//////
+
+	void Controller::CreateStandupJointTraj()
+	{
+		Eigen::MatrixXd curr_config(12,1); // LF LH RF RH
+		curr_config = q_.block<12,1>(7,0);
+
+		Eigen::MatrixXd pre_standup_config(12,1);
+		pre_standup_config <<
+			0, 2, -2.5,
+			0, -2, 2.5,
+			0, 2, -2.5,
+			0, -2, 2.5;
+
+		std::cout << std::fixed << std::setprecision(2)
+			<< "curr_config:\n";
+		std::cout << curr_config.transpose() << std::endl << std::endl;
+		std::cout << "pre_standup_config:\n";
+		std::cout << pre_standup_config.transpose() << std::endl << std::endl;
+
+		const std::vector<double> breaks = { 0.0, 5.0, 15.0};
+		std::vector<Eigen::MatrixXd> samples;
+		samples.push_back(curr_config);
+		samples.push_back(curr_config);
+		samples.push_back(pre_standup_config);
+
+		q_j_ref_traj_ =
+			drake::trajectories::PiecewisePolynomial<double>::FirstOrderHold(
+					breaks, samples
+					);
+		for (double t = 0.0; t < 15.0; t += 0.2)
+		{
+			std::cout << std::fixed << std::setprecision(2)
+				<< q_j_ref_traj_.value(t).transpose() << std::endl;
+		}
+		q_j_dot_ref_traj_ = q_j_ref_traj_.derivative(1);
+	}
+
+	void Controller::CalcJointCmd()
+	{
+		t_ = GetElapsedTimeSince(start_time_);
+		if (t_ < 15.0)
+		{
+			q_j_cmd_ = q_j_ref_traj_.value(t_);
+			q_j_dot_cmd_ = q_j_dot_ref_traj_.value(t_);
+		} 
+		else
+		{
+			q_j_cmd_ = q_j_ref_traj_.value(15.0);
+			q_j_dot_cmd_.setZero();
+		}
 	}
 
 	// *** //
@@ -207,9 +263,10 @@ namespace control {
 	{
 		while (ros_node_.ok())
 		{
-			if (!controller_initialized_)
+			if (!controller_ready_)
 				continue;
 
+			//CalcJointCmdStandup();
 			CalcJointCmd();
 
 			std_msgs::Float64MultiArray q_j_cmd_msg;

@@ -30,7 +30,7 @@ namespace control
 			Eigen::Matrix<double, kNumJoints, 1> q_j_dot_cmd_;
 			Eigen::Matrix<double, kNumJoints, 1> tau_cmd_;
 
-			double k_joints_p_= 0.1; // TODO: Tune these
+			double k_joints_p_= 1; // TODO: Tune these
 			double k_joints_d_ = 0.1; // TODO: Tune these
 
 			void CalcJointTorques();

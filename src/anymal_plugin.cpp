@@ -45,6 +45,12 @@ namespace gazebo
 		for(auto it = this->joints_.begin(); it != this->joints_.end(); ++it)
 			this->joint_names_.push_back(it->first);
 
+		// Print joint order for convenience
+		for (auto it = joint_names_.begin(); it != joint_names_.end(); ++it)
+		{
+			std::cout << *it << std::endl;
+		}
+
 		this->InitRosTopics();
     if (!LoadParametersFromRos())
     {
