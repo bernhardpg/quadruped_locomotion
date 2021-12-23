@@ -1,6 +1,7 @@
 #include "control/integrator.hpp"
 
 Integrator::Integrator(int rows)
+	: last_timestamp_(0)
 {
 	SetSize(rows);
 	Reset();

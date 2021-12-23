@@ -1,5 +1,5 @@
-#include "ros/ros.h"
-#include "ros/console.h"
+#include <ros/ros.h>
+#include <ros/console.h>
 #include <Eigen/Core>
 
 //TODO: Move this to another folder when used by anything else than controller
@@ -7,7 +7,7 @@
 class Integrator
 {
 	public:
-		Integrator(){};
+		Integrator() : last_timestamp_(0){};
 		Integrator(int rows);
 
 		void Integrate(Eigen::VectorXd vec);

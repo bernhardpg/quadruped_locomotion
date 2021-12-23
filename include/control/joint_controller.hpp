@@ -32,6 +32,7 @@ namespace control
 
 			double k_joints_p_= 0.1; // TODO: Tune these
 			double k_joints_d_ = 0.1; // TODO: Tune these
+
 			void CalcJointTorques();
 
 			// *** //

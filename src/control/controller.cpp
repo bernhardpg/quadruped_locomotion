@@ -3,11 +3,17 @@
 // TODO: remove all 'this' references
 
 namespace control {
-	Controller::Controller()
+	Controller::Controller(int frequency)
+		: loop_rate_(frequency)
 	{
-		ROS_INFO("Running controller");
+		ROS_INFO("Running controller at %d Hz", frequency);
 		model_name_ = "anymal"; // TODO: Replace with node argument
-		InitRosTopics();
+		
+		q_j_cmd_.setZero();
+		q_j_dot_cmd_.setZero();
+
+		InitRos();
+		SetStartTime();
 		SpinRosThreads();
 		CreateStandupTrajectory();
 
@@ -21,7 +27,7 @@ namespace control {
 
 	Controller::~Controller()
 	{
-			ros_node_->shutdown();
+			ros_node_.shutdown();
 
 			ros_process_queue_.clear();
 			ros_process_queue_.disable();
@@ -34,8 +40,6 @@ namespace control {
 
 	void Controller::InitController()
 	{
-		SetStartTime();
-
 		feet_pos_error_.setZero();
 		feet_vel_ff_.setZero();
 
@@ -58,7 +62,7 @@ namespace control {
 	void Controller::CreateStandupTrajectory()
 	{
 		// Three standup steps 
-		const std::vector<double> breaks = { 0.0, 5.0, 10.0 };
+		const std::vector<double> breaks = { 0.0, 10.0};
 		std::vector<Eigen::MatrixXd> samples;
 
 		Eigen::MatrixXd start_conf(12,1);
@@ -80,7 +84,7 @@ namespace control {
 
 		samples.push_back(start_conf);
 		samples.push_back(apex_conf);
-		samples.push_back(touchdown_conf);
+		//samples.push_back(touchdown_conf); // TODO: Only lift legs for now
 
 		// Use drake piecewise polynomials for easy trajectory construction
 		standup_pos_traj_ =
@@ -90,7 +94,7 @@ namespace control {
 		standup_vel_traj_ = standup_pos_traj_.derivative(1);
 	}
 
-	void Controller::RunController()
+	void Controller::CalcJointCmd()
 	{
 		t_ = GetElapsedTimeSince(start_time_);
 		CalcFeetTrackingError();
@@ -106,8 +110,6 @@ namespace control {
 
 		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-
-		CalcTorqueCmd();
 	}
 
 	void Controller::CalcFeetTrackingError()
@@ -119,44 +121,18 @@ namespace control {
 		feet_vel_ff_ = standup_vel_traj_.value(t_);
 	}
 
-	// TODO: Move this into its own ROS node
-	void Controller::CalcTorqueCmd()
-	{
-		Eigen::Matrix<double,12,1> tau_cmd;
-		tau_cmd.setZero();
-
-		tau_cmd = k_joints_p_ * (q_j_cmd_ - q_.block<12,1>(7,0))
-			+ k_joints_d_ * (q_j_dot_cmd_ - u_.block<12,1>(6,0));
-					
-		std_msgs::Float64MultiArray torque_cmd_msg;
-		tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
-
-		this->torque_cmd_pub_.publish(torque_cmd_msg);
-	}
-
 	// *** //
 	// ROS //
 	// *** //
 
-	void Controller::InitRosTopics()
+	void Controller::InitRos()
 	{
-		if (!ros::isInitialized())
-    {
-        int argc = 0;
-        char **argv = NULL;
-        ros::init(
-            argc,
-            argv,
-            "controller_node",
-            ros::init_options::NoSigintHandler
-        );
-    }
-		ros_node_.reset(new ros::NodeHandle("controller_node"));
+		ROS_INFO("Initialized controller node");
 
 		// Set up advertisements
-		ros::AdvertiseOptions pos_cmd_ao =
+		ros::AdvertiseOptions q_j_cmd_ao =
 			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model_name_ + "/pos_cmd",
+					"/q_j_cmd",
 					1,
 					ros::SubscriberStatusCallback(),
 					ros::SubscriberStatusCallback(),
@@ -164,9 +140,9 @@ namespace control {
 					&this->ros_publish_queue_
 					);
 
-		ros::AdvertiseOptions vel_cmd_ao =
+		ros::AdvertiseOptions q_j_dot_cmd_ao =
 			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model_name_ + "/vel_cmd",
+					"/q_j_dot_cmd",
 					1,
 					ros::SubscriberStatusCallback(),
 					ros::SubscriberStatusCallback(),
@@ -174,19 +150,8 @@ namespace control {
 					&this->ros_publish_queue_
 					);
 
-		ros::AdvertiseOptions torque_cmd_ao =
-			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model_name_ + "/torque_cmd",
-					1,
-					ros::SubscriberStatusCallback(),
-					ros::SubscriberStatusCallback(),
-					ros::VoidPtr(),
-					&this->ros_publish_queue_
-					);
-
-		this->pos_cmd_pub_ = this->ros_node_->advertise(pos_cmd_ao);
-		this->vel_cmd_pub_ = this->ros_node_->advertise(vel_cmd_ao);
-		this->torque_cmd_pub_ = this->ros_node_->advertise(torque_cmd_ao);
+		q_j_cmd_pub_= ros_node_.advertise(q_j_cmd_ao);
+		q_j_dot_cmd_pub_= ros_node_.advertise(q_j_dot_cmd_ao);
 
 		// Set up subscriptions
 		ros::SubscribeOptions gen_coord_so =
@@ -207,8 +172,8 @@ namespace control {
 					&this->ros_process_queue_
 					);
 
-		gen_coord_sub_ = ros_node_->subscribe(gen_coord_so);
-		gen_vel_sub_ = ros_node_->subscribe(gen_vel_so);
+		gen_coord_sub_ = ros_node_.subscribe(gen_coord_so);
+		gen_vel_sub_ = ros_node_.subscribe(gen_vel_so);
 
 		ROS_INFO("Finished setting up ros topics");
 	}
@@ -226,9 +191,9 @@ namespace control {
 	void Controller::ProcessQueueThread()
 	{
 		static const double timeout = 0.01;
-		while (this->ros_node_->ok())
+		while (ros_node_.ok())
 		{
-			this->ros_process_queue_.callAvailable(
+			ros_process_queue_.callAvailable(
 					ros::WallDuration(timeout)
 					);
 		}
@@ -236,15 +201,24 @@ namespace control {
 
 	void Controller::PublishQueueThread()
 	{
-		ros::Rate loop_rate(10);
-
-		while (this->ros_node_->ok())
+		while (ros_node_.ok())
 		{
 			if (!controller_initialized_)
 				continue;
 
-			RunController();
-			loop_rate.sleep();	
+			//CalcJointCmd();
+
+			std::cout << q_j_cmd_.transpose() << std::endl << std::endl;
+
+			std_msgs::Float64MultiArray q_j_cmd_msg;
+			tf::matrixEigenToMsg(q_j_cmd_, q_j_cmd_msg);
+			q_j_cmd_pub_.publish(q_j_cmd_msg);
+
+			std_msgs::Float64MultiArray q_j_dot_cmd_msg;
+			tf::matrixEigenToMsg(q_j_dot_cmd_, q_j_dot_cmd_msg);
+			q_j_dot_cmd_pub_.publish(q_j_dot_cmd_msg);
+
+			loop_rate_.sleep();	
 		}
 	}
 
@@ -303,59 +277,5 @@ namespace control {
 		Eigen:: MatrixXd pseudo_inverse =
 			A.transpose() * (A * A.transpose()).inverse();
 		return pseudo_inverse;
-	}
-
-
-	// ****************
-// TODO: REMOVE
-	// ****************
-	//
-	//
-	//
-	//
-	void Controller::PublishJointVelCmd(double vel_cmd)
-	{
-			Eigen::Matrix<double,12,1> q_cmd;
-			q_cmd.setZero();
-			q_cmd(2) = vel_cmd;
-			q_cmd(5) = vel_cmd;
-			q_cmd(8) = vel_cmd;
-			q_cmd(11) = vel_cmd;
-
-			std_msgs::Float64MultiArray pos_cmd_msg;
-			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
-
-			this->vel_cmd_pub_.publish(pos_cmd_msg);
-	}
-	// TODO: Remove
-	void Controller::PublishIdlePositionCmd()
-	{
-			Eigen::Matrix<double,12,1> q_cmd;
-			for (int i = 0; i < 12; ++i)
-			{
-				q_cmd(i) = 0.0;
-			}
-
-			std_msgs::Float64MultiArray pos_cmd_msg;
-			tf::matrixEigenToMsg(q_cmd, pos_cmd_msg);
-
-			this->pos_cmd_pub_.publish(pos_cmd_msg);
-			ROS_INFO("Published idle joint position command");
-	}
-
-	// TODO: Remove
-	void Controller::PublishTestTorqueCmd()
-	{
-			Eigen::Matrix<double,12,1> tau_cmd;
-			for (int i = 0; i < 12; ++i)
-			{
-				tau_cmd(i) = 20.0;
-			}
-
-			std_msgs::Float64MultiArray torque_cmd_msg;
-			tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
-
-			this->torque_cmd_pub_.publish(torque_cmd_msg);
-			ROS_INFO("Published test torques");
 	}
 }

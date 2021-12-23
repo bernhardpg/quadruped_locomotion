@@ -23,10 +23,12 @@ namespace control
 	class Controller // TODO: Rename this class, it will not actually be a controller
 	{
 		public:
-			Controller();
+			Controller(int frequency);
 			~Controller();
 
 		private:
+			ros::NodeHandle ros_node_;
+
 			std::string model_name_;
 			const int kNumGenCoords_ = 19; // TODO: Not currently used everywhere
 			const int kNumJoints_ = 12; // TODO: Not currently used everywhere
@@ -38,7 +40,7 @@ namespace control
 			
 			int n_legs_ = 4;
 			int n_dims_ = 3;
-			double swing_height_ = 0.2;
+			double swing_height_ = 0.6;
 
 			// **************** //
 			// STANDUP SEQUENCE //
@@ -57,6 +59,8 @@ namespace control
 
 			double t_ = 0;
 
+			ros::Rate loop_rate_;
+
 			double k_pos_p_ = 0.1; // TODO: Tune these
 			double k_joints_p_= 0.1; // TODO: Tune these
 			double k_joints_d_ = 0.1; // TODO: Tune these
@@ -67,7 +71,7 @@ namespace control
 			Eigen::MatrixXd J_feet_pos_;
 
 			void InitController();
-			void RunController();
+			void CalcJointCmd();
 
 			void CalcFeetTrackingError();
 
@@ -76,18 +80,13 @@ namespace control
 
 			Integrator q_j_dot_cmd_integrator_;
 
-			void CalcTorqueCmd(); // TODO: cleanup
-	
 			// *** //
 			// ROS //
 			// *** //
 
-			std::unique_ptr<ros::NodeHandle> ros_node_;
-
 			// Advertisements
-			ros::Publisher pos_cmd_pub_;
-			ros::Publisher vel_cmd_pub_;
-			ros::Publisher torque_cmd_pub_;
+			ros::Publisher q_j_cmd_pub_;
+			ros::Publisher q_j_dot_cmd_pub_;
 
 			// Subscriptions
 			ros::Subscriber gen_coord_sub_;
@@ -99,7 +98,7 @@ namespace control
 			std::thread ros_process_queue_thread_;
 			std::thread ros_publish_queue_thread_;
 
-			void InitRosTopics();
+			void InitRos();
 			void SpinRosThreads();
 			void PublishQueueThread();
 			void ProcessQueueThread();
@@ -126,9 +125,5 @@ namespace control
 			void SetStartTime();
 			double GetElapsedTimeSince(ros::Time t);
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
-
-			// TODO: Remove
-			void PublishIdlePositionCmd();
-			void PublishTestTorqueCmd();
 	};
 }
