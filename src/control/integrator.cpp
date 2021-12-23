@@ -28,6 +28,7 @@ void Integrator::SetIntegral(Eigen::VectorXd target)
 
 void Integrator::Integrate(Eigen::VectorXd vec)
 {
+	dt_ = GetElapsedTimeSince(last_timestamp_);
 	integral_ += dt_ * vec;
 }
 

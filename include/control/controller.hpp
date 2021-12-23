@@ -1,15 +1,16 @@
 #pragma once
 
 #include "dynamics/dynamics.hpp"
+#include "control/integrator.hpp"
 
 #include <thread>
-#include "ros/ros.h"
-#include "ros/console.h"
-#include "ros/callback_queue.h"
-#include "ros/subscribe_options.h"
+#include <ros/ros.h>
+#include <ros/console.h>
+#include <ros/callback_queue.h>
+#include <ros/subscribe_options.h>
 
-#include "std_msgs/Float64MultiArray.h"
-#include "eigen_conversions/eigen_msg.h"
+#include <std_msgs/Float64MultiArray.h>
+#include <eigen_conversions/eigen_msg.h>
 
 #include <drake/solvers/mathematical_program.h>
 #include <drake/common/trajectories/piecewise_polynomial.h>
@@ -19,7 +20,7 @@
 
 namespace control
 {
-	class Controller
+	class Controller // TODO: Rename this class, it will not actually be a controller
 	{
 		public:
 			Controller();
@@ -28,6 +29,7 @@ namespace control
 		private:
 			std::string model_name_;
 			const int kNumGenCoords_ = 19; // TODO: Not currently used everywhere
+			const int kNumJoints_ = 12; // TODO: Not currently used everywhere
 			Eigen::Matrix<double, 19, 1> q_;
 			Eigen::Matrix<double, 18, 1> u_;
 			Dynamics robot_dynamics_;
@@ -49,18 +51,32 @@ namespace control
 			void CreateStandupTrajectory();
 			void RunStandupSequence();
 
+			// ********** //
+			// CONTROLLER //
+			// ********** //
+
+			double t_ = 0;
+
+			double k_pos_p_ = 0.1; // TODO: Tune these
+			double k_joints_p_= 0.1; // TODO: Tune these
+			double k_joints_d_ = 0.1; // TODO: Tune these
+
+			Eigen::Matrix<double,12,1> feet_pos_error_;
+			Eigen::Matrix<double,12,1> feet_vel_ff_;
+
+			Eigen::MatrixXd J_feet_pos_;
+
+			void InitController();
 			void RunController();
 
-			Eigen::VectorXd integral_;
-			double t_ = 0;
-			double dt_ = 0;
-			ros::Time last_run_; // TODO: change name
+			void CalcFeetTrackingError();
 
-			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
 			Eigen::Matrix<double,12,1> q_j_cmd_;
+			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
+
+			Integrator q_j_dot_cmd_integrator_;
 
 			void CalcTorqueCmd(); // TODO: cleanup
-			void Integrate(Eigen::VectorXd vec); // TODO: cleanup, make this able to integrate anything
 	
 			// *** //
 			// ROS //

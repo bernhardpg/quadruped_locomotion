@@ -9,14 +9,13 @@ namespace control {
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		InitRosTopics();
 		SpinRosThreads();
-		SetStartTime();
 		CreateStandupTrajectory();
+
+		InitController();
+		controller_initialized_ = true;
+
 		ros::Duration(0.5).sleep(); // Wait before starting
 
-		integral_.resize(12); // TODO: move
-		integral_.setZero();
-
-		controller_initialized_ = true;
 		RunStandupSequence();
 	}
 
@@ -31,6 +30,20 @@ namespace control {
 			ros_publish_queue_.clear();
 			ros_publish_queue_.disable();
 			ros_publish_queue_thread_.join();
+	}
+
+	void Controller::InitController()
+	{
+		SetStartTime();
+
+		feet_pos_error_.setZero();
+		feet_vel_ff_.setZero();
+
+		q_j_cmd_.setZero();
+		q_j_dot_cmd_.setZero();
+
+		q_j_dot_cmd_integrator_ = Integrator(kNumJoints_);
+		q_j_dot_cmd_integrator_.Reset();
 	}
 
 	// **************** //
@@ -80,43 +93,40 @@ namespace control {
 	void Controller::RunController()
 	{
 		t_ = GetElapsedTimeSince(start_time_);
-		dt_ = GetElapsedTimeSince(last_run_);
+		CalcFeetTrackingError();
 
-		Eigen::VectorXd pos_error(12);
-		pos_error.setZero();
-		Eigen::MatrixXd curr_pos = robot_dynamics_.GetFeetPositions(q_);
-		pos_error = standup_pos_traj_.value(t_) - curr_pos;
-
-		Eigen::VectorXd vel_feedforward(12);
-		vel_feedforward = standup_vel_traj_.value(t_);
-
-		Eigen::MatrixXd J_feet_pos
-			= robot_dynamics_.GetStackedFeetJacobianPos(q_)
-			.block(0,6,12,12); // Only get jacobian for joints
-		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_feet_pos);
+		J_feet_pos_ = robot_dynamics_
+			.GetStackedFeetJacobianPos(q_)
+			.block(0,6,12,12); // Get rid of jacobian for body
+		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_feet_pos_);
 		
-		Eigen::VectorXd q_dot_cmd(12);
-		q_dot_cmd = J_inv * (0.1 * pos_error + vel_feedforward);
+		// Position controller
+		q_j_dot_cmd_ = J_inv
+			* (k_pos_p_ * feet_pos_error_ + feet_vel_ff_);
 
-		last_run_ = ros::Time::now();
-
-		Integrate(q_dot_cmd);
-
-		q_j_dot_cmd_ = q_dot_cmd;
-		q_j_cmd_ = integral_; // TODO: clean up this
+		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
+		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
 
 		CalcTorqueCmd();
 	}
 
+	void Controller::CalcFeetTrackingError()
+	{
+		feet_pos_error_ =
+			standup_pos_traj_.value(t_)
+			- robot_dynamics_.GetFeetPositions(q_);
 
+		feet_vel_ff_ = standup_vel_traj_.value(t_);
+	}
+
+	// TODO: Move this into its own ROS node
 	void Controller::CalcTorqueCmd()
 	{
 		Eigen::Matrix<double,12,1> tau_cmd;
 		tau_cmd.setZero();
 
-		// TODO: Fix gains
-		tau_cmd = 5 * (q_j_cmd_ - q_.block<12,1>(7,0))
-			+ 1 * (q_j_dot_cmd_ - u_.block<12,1>(6,0));
+		tau_cmd = k_joints_p_ * (q_j_cmd_ - q_.block<12,1>(7,0))
+			+ k_joints_d_ * (q_j_dot_cmd_ - u_.block<12,1>(6,0));
 					
 		std_msgs::Float64MultiArray torque_cmd_msg;
 		tf::matrixEigenToMsg(tau_cmd, torque_cmd_msg);
@@ -272,18 +282,12 @@ namespace control {
 	// **************** //
 	// HELPER FUNCTIONS //
 	// **************** //
-	
-	void Controller::Integrate(Eigen::VectorXd vec)
-	{
-		integral_ += dt_ * vec;
-	}
 
 	void Controller::SetStartTime()
 	{
 		// Wait for /clock to get published
 		while (ros::Time::now().toSec() == 0.0); 
 		start_time_ = ros::Time::now();
-		last_run_ = ros::Time::now();
 		ROS_INFO("Start time: %f", start_time_.toSec());
 	}
 
