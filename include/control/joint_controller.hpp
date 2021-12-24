@@ -23,6 +23,7 @@ namespace control
 			int frequency_;
 
 			std::string model_name_;
+			bool received_cmd_ = false;
 
 			Eigen::Matrix<double, kNumJoints, 1> q_j_;
 			Eigen::Matrix<double, kNumJoints, 1> q_j_dot_;
@@ -30,8 +31,8 @@ namespace control
 			Eigen::Matrix<double, kNumJoints, 1> q_j_dot_cmd_;
 			Eigen::Matrix<double, kNumJoints, 1> tau_cmd_;
 
-			double k_joints_p_= 1.5; // TODO: Tune these
-			double k_joints_d_ = 0.1; // TODO: Tune these
+			double k_joints_p_= 100; // TODO: Tune these
+			double k_joints_d_ = 5; // TODO: Tune these
 
 			void CalcJointTorques();
 

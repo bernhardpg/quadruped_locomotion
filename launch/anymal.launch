@@ -7,7 +7,7 @@
 
 	<!-- Spawn anymal into Gazebo -->
 	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model"
-		args="-param anymal_description -urdf -model anymal -z 0.5 -R 3.1416
+		args="-param anymal_description -urdf -model anymal -z 1 -R 0
 			-J LF_HAA 0.0 -J LF_HFE 2.0 -J LF_KFE -2.5
 			-J LH_HAA 0.0 -J LH_HFE -2.0 -J LH_KFE 2.5
 			-J RF_HAA 0.0 -J RF_HFE 2.0 -J RF_KFE -2.5

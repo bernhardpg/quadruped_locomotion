@@ -56,13 +56,15 @@ namespace control
 		// Single threaded
 		while(ros::ok())
 		{
-			ros::spinOnce(); // spin once to fetch newest messages
+			ros::spinOnce(); // fetch messages
+
+			// do not run controller before first cmd message
+			if (!received_cmd_) continue;
+
 			CalcJointTorques();
 
 			std_msgs::Float64MultiArray torque_cmd_msg;
-			//tau_cmd_.block<9,1>(3,0).setZero(); // TODO
 			tf::matrixEigenToMsg(tau_cmd_, torque_cmd_msg);
-
 			torque_cmd_pub_.publish(torque_cmd_msg);
 
 			ros::spinOnce(); // publish messages
@@ -97,11 +99,6 @@ namespace control
 		Eigen::VectorXd q_j_dot_error = q_j_dot_cmd_ - q_j_dot_;
 		tau_cmd_ = k_joints_p_ * (q_j_cmd_ - q_j_)
 			+ k_joints_d_ * (q_j_dot_cmd_ - q_j_dot_);
-
-		std::cout << std::fixed << std::setprecision(2)
-			<< q_j_error.transpose() << std::endl;
-		std::cout << std::fixed << std::setprecision(2)
-			<< q_j_dot_error.transpose() << std::endl << std::endl;
 	}
 
 	void JointController::OnGenCoordMsg(
@@ -128,6 +125,7 @@ namespace control
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
+		if (!received_cmd_) received_cmd_ = true;	
 		for (size_t i = 0; i < kNumJoints; ++i)
 		{
 			q_j_cmd_(i)	 = msg->data[i];
@@ -138,6 +136,7 @@ namespace control
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
+		if (!received_cmd_) received_cmd_ = true;	
 		for (size_t i = 0; i < kNumJoints; ++i)
 		{
 			q_j_dot_cmd_(i)	 = msg->data[i];

@@ -46,8 +46,8 @@ namespace control
 			// STANDUP SEQUENCE //
 			// **************** //
 
-			double standup_start_time_ = 5.0;
-			double standup_end_time_ = 15.0;
+			double standup_start_time_ = 0.0;
+			double standup_end_time_ = 2.5;
 
 			drake::trajectories::PiecewisePolynomial<double>
 				standup_pos_traj_;
