@@ -40,7 +40,6 @@ namespace control
 			
 			int n_legs_ = 4;
 			int n_dims_ = 3;
-			double swing_height_ = 0.6;
 
 			// **************** //
 			// STANDUP SEQUENCE //
@@ -48,22 +47,28 @@ namespace control
 
 			double standup_start_time_ = 0.0;
 			double standup_end_time_ = 2.5;
+			double standup_final_time_ = 7.5; // TODO: rename
+			double standing_height_ = 0.6;
+
+			Eigen::MatrixXd pre_standup_config_;
+
+			// TODO: rename these!
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_ref_traj_;
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_dot_ref_traj_;
 
 			drake::trajectories::PiecewisePolynomial<double>
 				standup_pos_traj_;
 			drake::trajectories::PiecewisePolynomial<double>
 				standup_vel_traj_;
 
-			drake::trajectories::PiecewisePolynomial<double>
-				q_j_ref_traj_;
-			drake::trajectories::PiecewisePolynomial<double>
-				q_j_dot_ref_traj_;
+			bool created_standup_traj_ = false;
 
-			void CreateStandupTrajectory();
-			void RunStandupSequence();
+			void CreatePreStandupTraj();
+			void CreateStandupTraj();
 
 			void CalcJointCmd();
-			void CreateStandupJointTraj();
 
 			// ********** //
 			// CONTROLLER //
@@ -73,7 +78,7 @@ namespace control
 
 			ros::Rate loop_rate_;
 
-			double k_pos_p_ = 0.1; // TODO: Tune these
+			double k_pos_p_ = 0.001; // TODO: Tune these
 
 			Eigen::Matrix<double,12,1> feet_pos_error_;
 			Eigen::Matrix<double,12,1> feet_vel_ff_;
@@ -82,8 +87,6 @@ namespace control
 
 			void InitController();
 			void JacobianController(); // TODO: Rename
-
-			void CalcFeetTrackingError();
 
 			Eigen::Matrix<double,12,1> q_j_cmd_;
 			Eigen::Matrix<double,12,1> q_j_dot_cmd_;

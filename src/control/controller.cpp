@@ -24,11 +24,8 @@ namespace control {
 
 		InitController();
 
-		CreateStandupJointTraj();
+		CreatePreStandupTraj();
 		controller_ready_ = true; // TODO: cleanup
-
-		//CreateStandupTrajectory(); 
-		//RunStandupSequence();
 	}
 
 	Controller::~Controller()
@@ -60,38 +57,59 @@ namespace control {
 	// STANDUP SEQUENCE //
 	// **************** //
 
-	void Controller::RunStandupSequence()
+	void Controller::CreatePreStandupTraj()
 	{
-		ROS_INFO("Starting standup sequence");
+		Eigen::MatrixXd curr_config(12,1); // LF LH RF RH
+		curr_config = q_.block<12,1>(7,0);
+
+		// TODO: Clean up here
+		pre_standup_config_.resize(12,1);
+		pre_standup_config_ <<
+			0, 2, -2.5,
+			0, -2, 2.5,
+			0, 2, -2.5,
+			0, -2, 2.5;
+
+		q_j_dot_cmd_integrator_.SetIntegral(pre_standup_config_); // TODO: Move this to some state handler
+
+		const std::vector<double> breaks = {
+			standup_start_time_, standup_end_time_
+		};
+
+		std::vector<Eigen::MatrixXd> samples;
+		samples.push_back(curr_config);
+		samples.push_back(pre_standup_config_);
+
+		q_j_ref_traj_ =
+			drake::trajectories::PiecewisePolynomial<double>
+			::FirstOrderHold(
+					breaks, samples
+					);
+		q_j_dot_ref_traj_ = q_j_ref_traj_.derivative(1);
 	}
 
-	//////
-	void Controller::CreateStandupTrajectory()
+	void Controller::CreateStandupTraj()
 	{
-		// Three standup steps 
-		const std::vector<double> breaks = { 0.0, 10.0};
-		std::vector<Eigen::MatrixXd> samples;
+		const std::vector<double> breaks = {
+			standup_end_time_ + 2, standup_final_time_ + 2
+		};
 
 		Eigen::MatrixXd start_conf(12,1);
 		start_conf = robot_dynamics_.GetFeetPositions(q_);
 
-		Eigen::MatrixXd neutral_conf(12,1);
-		Eigen::Matrix<double, 19, 1> q_neutral;
-		q_neutral.block<7,1>(0,0) = q_.block<7,1>(0,0);
-		q_neutral.block<12,1>(7,0) = Eigen::VectorXd::Zero(12);
-		neutral_conf = robot_dynamics_.GetFeetPositions(q_neutral);
-
-		Eigen::MatrixXd apex_conf = neutral_conf;
+		Eigen::MatrixXd standing_conf = start_conf;
 		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
-			apex_conf(2 + leg_i * n_dims_) = swing_height_;
+			standing_conf(2 + leg_i * n_dims_) = standing_height_;
 
-		Eigen::MatrixXd touchdown_conf = neutral_conf;
-		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
-			touchdown_conf(2 + leg_i * n_dims_) = 0.0;
+		std::cout << "start_conf:" << std::endl;
+		std::cout << start_conf.transpose() << std::endl << std::endl;
 
+		std::cout << "standing_conf:" << std::endl;
+		std::cout << standing_conf.transpose() << std::endl << std::endl;
+
+		std::vector<Eigen::MatrixXd> samples;
 		samples.push_back(start_conf);
-		samples.push_back(apex_conf);
-		//samples.push_back(touchdown_conf); // TODO: Only lift legs for now
+		samples.push_back(standing_conf);
 
 		// Use drake piecewise polynomials for easy trajectory construction
 		standup_pos_traj_ =
@@ -99,12 +117,24 @@ namespace control {
 					breaks, samples
 					);
 		standup_vel_traj_ = standup_pos_traj_.derivative(1);
+
+		for (double t = standup_end_time_; t < standup_final_time_; t+=0.5)
+		{
+			std::cout << std::fixed << std::setprecision(2)
+				<< standup_pos_traj_.value(t).transpose() << std::endl << std::endl;
+		}
+		created_standup_traj_ = true;
 	}
 
 	void Controller::JacobianController()
 	{
 		t_ = GetElapsedTimeSince(start_time_);
-		CalcFeetTrackingError();
+
+		feet_pos_error_ =
+			standup_pos_traj_.value(t_)
+			- robot_dynamics_.GetFeetPositions(q_);
+
+		feet_vel_ff_ = standup_vel_traj_.value(t_);
 
 		J_feet_pos_ = robot_dynamics_
 			.GetStackedFeetJacobianPos(q_)
@@ -117,59 +147,32 @@ namespace control {
 
 		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-	}
-
-	void Controller::CalcFeetTrackingError()
-	{
-		feet_pos_error_ =
-			standup_pos_traj_.value(t_)
-			- robot_dynamics_.GetFeetPositions(q_);
-
-		feet_vel_ff_ = standup_vel_traj_.value(t_);
-	}
-	//////
-
-	void Controller::CreateStandupJointTraj()
-	{
-		Eigen::MatrixXd curr_config(12,1); // LF LH RF RH
-		curr_config = q_.block<12,1>(7,0);
-
-		Eigen::MatrixXd pre_standup_config(12,1);
-		pre_standup_config <<
-			0, 2, -2.5,
-			0, -2, 2.5,
-			0, 2, -2.5,
-			0, -2, 2.5;
-
-		const std::vector<double> breaks = {
-			standup_start_time_, standup_end_time_
-		};
-
-		std::vector<Eigen::MatrixXd> samples;
-		samples.push_back(curr_config);
-		samples.push_back(pre_standup_config);
-
-		q_j_ref_traj_ =
-			drake::trajectories::PiecewisePolynomial<double>
-			::FirstOrderHold(
-					breaks, samples
-					);
-		q_j_dot_ref_traj_ = q_j_ref_traj_.derivative(1);
+		std::cout << std::fixed << std::setprecision(2)
+			<< feet_pos_error_.transpose() << std::endl 
+			<< feet_vel_ff_.transpose() << std::endl
+			<< q_j_cmd_.transpose() << std::endl
+			<< q_j_dot_cmd_.transpose() << std::endl << std::endl;
 	}
 
 	void Controller::CalcJointCmd()
 	{
 		t_ = GetElapsedTimeSince(start_time_);
+		// TODO: clean up this
 		if (t_ < standup_start_time_)
 		{
 			q_j_cmd_ = q_j_ref_traj_.value(standup_start_time_);
 			q_j_dot_cmd_.setZero();
-
 		}
-		else if (t_ > standup_end_time_)
+		else if (t_ > standup_end_time_ + 2) // TODO: wait two seconds
 		{
-			q_j_cmd_ = q_j_ref_traj_.value(standup_end_time_);
-			q_j_dot_cmd_.setZero();
+			if (!created_standup_traj_)
+			{
+				CreateStandupTraj(); 
+			}
+			if (created_standup_traj_)	
+			{
+				JacobianController();
+			}
 		} 
 		else
 		{
@@ -328,9 +331,13 @@ namespace control {
 
 	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
 	{
+		Eigen::MatrixXd eye =
+			Eigen::MatrixXd::Identity(A.rows(), A.cols());
+		double damping = 1;
+
 		// Moore-Penrose right inverse: A^t (A A^t)
 		Eigen:: MatrixXd pseudo_inverse =
-			A.transpose() * (A * A.transpose()).inverse();
+			A.transpose() * (A * A.transpose() + damping * eye).inverse();
 		return pseudo_inverse;
 	}
 }
