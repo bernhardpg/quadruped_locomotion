@@ -20,11 +20,13 @@ namespace control {
 		SpinRosThreads();
 
 		// Wait for state to get published
-		while (q_.isZero(0) || u_.isZero(0));
+		while (q_.isZero(0) || u_.isZero(0))
+		{
+			std::cout << "Waiting for state to get published\n";
+		};
 
 		InitController();
 
-		
 		CreateStandupJointTraj();
 		controller_ready_ = true; // TODO: cleanup
 
@@ -281,7 +283,10 @@ namespace control {
 		while (ros_node_.ok())
 		{
 			if (!controller_ready_)
+			{
+				std::cout << "Controller not ready\n";
 				continue;
+			}
 
 			//CalcJointCmdStandup();
 			CalcJointCmd();

@@ -43,13 +43,13 @@ namespace control
 
 		gen_coord_sub_ = node_handle_
 			.subscribe<std_msgs::Float64MultiArray>(
-					"/gen_coord", 1,
+					"/" + model_name_ + "/gen_coord", 1,
 					boost::bind(&JointController::OnGenCoordMsg, this, _1)
 					);
 
 		gen_vel_sub_ = node_handle_
 			.subscribe<std_msgs::Float64MultiArray>(
-					"/gen_vel", 1,
+					"/" + model_name_ + "/gen_vel", 1,
 					boost::bind(&JointController::OnGenVelMsg, this, _1)
 					);
 
@@ -93,18 +93,24 @@ namespace control
 
 	void JointController::CalcJointTorques()
 	{
+		Eigen::VectorXd q_j_error = q_j_cmd_ - q_j_;
+		Eigen::VectorXd q_j_dot_error = q_j_dot_cmd_ - q_j_dot_;
 		tau_cmd_ = k_joints_p_ * (q_j_cmd_ - q_j_)
 			+ k_joints_d_ * (q_j_dot_cmd_ - q_j_dot_);
-					
+
+		std::cout << std::fixed << std::setprecision(2)
+			<< q_j_error.transpose() << std::endl;
+		std::cout << std::fixed << std::setprecision(2)
+			<< q_j_dot_error.transpose() << std::endl << std::endl;
 	}
 
 	void JointController::OnGenCoordMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		for (size_t i = kNumGenCoords - kNumJoints; i < kNumGenCoords; ++i)
+		for (size_t i = 0; i < kNumJoints; ++i)
 		{
-			q_j_(i)	 = msg->data[i]; // Only store joint positions
+			q_j_(i)	 = msg->data[i + kNumGenCoords - kNumJoints]; // Only store joint data
 		}
 	}
 
@@ -112,9 +118,9 @@ namespace control
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		for (size_t i = kNumGenVels - kNumJoints; i < kNumGenVels; ++i)
+		for (size_t i = 0; i < kNumJoints; ++i)
 		{
-			q_j_dot_(i)	 = msg->data[i]; // Only store joint positions
+			q_j_dot_(i)	 = msg->data[i + kNumGenVels - kNumJoints]; // Only store joint data 
 		}
 	}
 
