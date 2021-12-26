@@ -88,6 +88,10 @@ add_executable(joint_controller src/control/joint_controller.cpp)
 target_link_libraries(joint_controller ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 add_dependencies(joint_controller ${PROJECT_NAME}_gencfg)
 
+# Joint state publisher
+add_executable(joint_state_publisher src/visualize/joint_state_publisher.cpp)
+target_link_libraries(joint_state_publisher ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
+
 # Motion planner
 add_library(motion_planner src/planner/motion_planner.cpp)
 target_link_libraries(motion_planner drake::drake)

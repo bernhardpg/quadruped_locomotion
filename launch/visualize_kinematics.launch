@@ -14,8 +14,10 @@
     <arg name="description_file" value="$(arg description_file)"/>
   </include>
 
-	<node pkg="quadruped_locomotion" type="controller_node" output="screen" name="controller_node">
-		<remap from="joint_states" to="$(arg joint_states_topic)"/>
+	<node pkg="quadruped_locomotion" type="controller_node" output="screen" name="controller_node"/>
+
+	<node pkg="quadruped_locomotion" type="joint_state_publisher" output="screen" name="joint_state_publisher">
+		<remap from="joint_positions" to="q_j_cmd"/>
 	</node>
 
   <!-- Robot state publisher -->

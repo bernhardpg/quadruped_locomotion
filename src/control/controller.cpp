@@ -206,18 +206,6 @@ namespace control {
 		ROS_INFO("Initialized controller node");
 
 		// TODO: All of these constructions can be moved into their own functions, this is essentially just repeated code.
-		// TODO: Move this joint_state publisher into its own node
-		ros::AdvertiseOptions joint_state_ao =
-			ros::AdvertiseOptions::create<sensor_msgs::JointState>(
-					"/joint_states",
-					1,
-					ros::SubscriberStatusCallback(),
-					ros::SubscriberStatusCallback(),
-					ros::VoidPtr(),
-					&this->ros_publish_queue_
-					);
-
-		joint_state_pub_ = ros_node_.advertise(joint_state_ao);
 
 		// Set up advertisements
 		ros::AdvertiseOptions q_j_cmd_ao =
@@ -306,25 +294,8 @@ namespace control {
 			tf::matrixEigenToMsg(q_j_dot_cmd_, q_j_dot_cmd_msg);
 			q_j_dot_cmd_pub_.publish(q_j_dot_cmd_msg);
 
-			PublishJointState();
 			loop_rate_.sleep();	
-
-			// TODO: move to its own node
 		}
-	}
-
-	void Controller::PublishJointState()
-	{
-		sensor_msgs::JointState joint_state_msg;
-
-		joint_state_msg.header.stamp = ros::Time::now();
-		for(int i = 0; i < 12; i++)
-		{
-				joint_state_msg.name.push_back(joint_names_[i]);
-				joint_state_msg.position.push_back(q_j_cmd_(i));
-		}
-
-		joint_state_pub_.publish(joint_state_msg);
 	}
 
 

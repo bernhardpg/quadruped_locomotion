@@ -17,7 +17,6 @@
 
 #include <Eigen/Core>
 
-#include "sensor_msgs/JointState.h"
 
 namespace control
 {
@@ -29,21 +28,6 @@ namespace control
 
 		private:
 			ros::NodeHandle ros_node_;
-
-			std::vector<std::string> joint_names_ = {
-				"LF_HAA",
-				"LF_HFE",
-				"LF_KFE",
-				"LH_HAA",
-				"LH_HFE",
-				"LH_KFE",
-				"RF_HAA",
-				"RF_HFE",
-				"RF_KFE",
-				"RH_HAA",
-				"RH_HFE",
-				"RH_KFE"
-			};
 
 			std::string model_name_;
 			const int kNumGenCoords_ = 19; // TODO: Not currently used everywhere
@@ -118,10 +102,6 @@ namespace control
 			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
 			ros::Publisher q_j_dot_cmd_pub_;
-
-			// TODO: move to own node
-			ros::Publisher joint_state_pub_;
-			void PublishJointState();
 
 			// Subscriptions
 			ros::Subscriber gen_coord_sub_;

@@ -6,13 +6,10 @@
 
 #include <dynamic_reconfigure/server.h>
 #include <quadruped_locomotion/DynamicControlConfig.h>
+#include "anymal_constants.hpp"
 
 namespace control
 {
-	const int kNumJoints = 12;
-	const int kNumGenCoords = 19;
-	const int kNumGenVels = 18;
-
 	class JointController
 	{
 		public:
