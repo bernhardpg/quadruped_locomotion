@@ -1,6 +1,5 @@
 #include "anymal_plugin.hpp"
 
-// TODO: Replace all 12 with a constant?
 // TODO: Replace all unecessary instances of this
 
 namespace gazebo
@@ -226,9 +225,9 @@ namespace gazebo
 		return torque;
 	}
 
-	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointPositions()
+	joint_vector_t AnymalPlugin::GetJointPositions()
 	{
-		Eigen::Matrix<double,12,1> q_j;
+		joint_vector_t q_j;
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
 			q_j(i) = this->GetJointPosition(this->joint_names_[i]);
@@ -237,9 +236,9 @@ namespace gazebo
 		return q_j;
 	}
 
-	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointVelocities()
+	joint_vector_t AnymalPlugin::GetJointVelocities()
 	{
-		Eigen::Matrix<double,12,1> v_j;
+		joint_vector_t v_j;
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
 			v_j(i) = this->GetJointVelocity(this->joint_names_[i]);
@@ -248,9 +247,9 @@ namespace gazebo
 		return v_j;
 	}
 
-	Eigen::Matrix<double,12,1> AnymalPlugin::GetJointTorques()
+	joint_vector_t AnymalPlugin::GetJointTorques()
 	{
-		Eigen::Matrix<double,12,1> tau_j;
+		joint_vector_t tau_j;
 		for (size_t i = 0; i < this->joint_names_.size(); ++i)
 		{
 			tau_j(i) = this->GetJointTorque(this->joint_names_[i]);
@@ -417,23 +416,23 @@ namespace gazebo
 		{
 			Eigen::Matrix<double, 7, 1> q_b;
 			q_b = GetBasePose();
-			Eigen::Matrix<double, 12, 1> q_j; // generalized coordinates
+			joint_vector_t q_j; // generalized coordinates
 			q_j = this->GetJointPositions();
 
-			Eigen::Matrix<double, 19, 1> q;
+			gen_coord_vector_t q;
 			q.block<7,1>(0,0) = q_b;
-			q.block<12,1>(7,0) = q_j;
+			q.block<kNumJoints,1>(kJointIndexInGenCoords,0) = q_j;
 
 			Eigen::Matrix<double, 6, 1> u_b;
 			u_b = GetBaseTwist();
-			Eigen::Matrix<double, 12, 1> u_j; // generalized velocities
+			joint_vector_t u_j;
 			u_j = this->GetJointVelocities();
-
-			Eigen::Matrix<double, 18, 1> u;
+			
+			gen_vel_vector_t	u;
 			u.block<6,1>(0,0) = u_b;
-			u.block<12,1>(6,0) = u_j;
+			u.block<kNumJoints,1>(6,0) = u_j;
 
-			Eigen::Matrix<double, 12, 1> tau; // joint torques
+			joint_vector_t tau; // joint torques
 			tau = this->GetJointTorques();
 
 			std_msgs::Float64MultiArray gen_coord_msg;

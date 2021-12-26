@@ -4,15 +4,15 @@
 #include <gazebo/physics/physics.hh>
 
 #include <thread>
-#include "ros/ros.h"
-#include "ros/callback_queue.h"
-#include "ros/subscribe_options.h"
-#include "std_srvs/Empty.h"
-
-#include "eigen_conversions/eigen_msg.h"
-#include "std_msgs/Float64MultiArray.h"
-
+#include <ros/ros.h>
+#include <ros/callback_queue.h>
+#include <ros/subscribe_options.h>
+#include <std_srvs/Empty.h>
+#include <eigen_conversions/eigen_msg.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <Eigen/Core>
+
+#include "anymal_constants.h"
 
 namespace gazebo
 {
@@ -47,9 +47,9 @@ namespace gazebo
 			double GetJointPosition(const std::string &joint_name);
 			double GetJointVelocity(const std::string &joint_name);
 			double GetJointTorque(const std::string &joint_name);
-			Eigen::Matrix<double,12,1> GetJointPositions();
-			Eigen::Matrix<double,12,1> GetJointVelocities();
-			Eigen::Matrix<double,12,1> GetJointTorques();
+			joint_vector_t GetJointPositions();
+			joint_vector_t GetJointVelocities();
+			joint_vector_t GetJointTorques();
 
 			Eigen::Matrix<double, 7, 1> GetBasePose();
 			Eigen::Matrix<double, 6, 1> GetBaseTwist();
