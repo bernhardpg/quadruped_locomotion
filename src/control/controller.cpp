@@ -9,12 +9,7 @@ namespace control {
 		ROS_INFO("Running controller at %d Hz", frequency);
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		
-		// TODO: Move into function?
-		q_.setZero();
-		q_(3) = 1; // quaternions, TODO: only temp
-		u_.setZero();
-		q_j_cmd_.setZero();
-		q_j_dot_cmd_.setZero();
+		SetStateVariablesToZero();
 
 		InitRos();
 		SetStartTime();
@@ -24,8 +19,7 @@ namespace control {
 		//while (q_.isZero(0) || u_.isZero(0))
 
 		InitController();
-
-		CreatePreStandupTraj();
+		CreateInitialConfigTraj();
 		controller_ready_ = true; // TODO: cleanup
 	}
 
@@ -47,10 +41,11 @@ namespace control {
 		feet_pos_error_.setZero();
 		feet_vel_ff_.setZero();
 
+		// TODO: Move this? This is duplicated right now
 		q_j_cmd_.setZero();
 		q_j_dot_cmd_.setZero();
 
-		q_j_dot_cmd_integrator_ = Integrator(kNumJoints_);
+		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
 		q_j_dot_cmd_integrator_.Reset();
 	}
 
@@ -58,73 +53,47 @@ namespace control {
 	// STANDUP SEQUENCE //
 	// **************** //
 
-	void Controller::CreatePreStandupTraj()
+	void Controller::CreateInitialConfigTraj()
 	{
-		Eigen::MatrixXd curr_config(12,1); // LF LH RF RH
-		curr_config = q_.block<12,1>(7,0);
-
-		// TODO: Clean up here
-		pre_standup_config_.resize(12,1);
-		pre_standup_config_ <<
-			0, 2, -2.5,
-			0, -2, 2.5,
-			0, 2, -2.5,
-			0, -2, 2.5;
-
-		q_j_dot_cmd_integrator_.SetIntegral(pre_standup_config_); // TODO: Move this to some state handler
 
 		const std::vector<double> breaks = {
-			standup_start_time_, standup_end_time_
+			0.0, seconds_to_initial_config_
 		};
 
 		std::vector<Eigen::MatrixXd> samples;
-		samples.push_back(curr_config);
-		samples.push_back(pre_standup_config_);
+		samples.push_back(q_j_);
+		samples.push_back(initial_joint_config);
 
-		q_j_ref_traj_ =
-			drake::trajectories::PiecewisePolynomial<double>
-			::FirstOrderHold(
-					breaks, samples
-					);
-		q_j_dot_ref_traj_ = q_j_ref_traj_.derivative(1);
+		q_j_initial_config_traj_ = CreateFirstOrderHoldTraj(breaks, samples);
+		q_j_dot_initial_config_traj_ = q_j_initial_config_traj_.derivative(1);
 	}
 
 	void Controller::CreateStandupTraj()
 	{
+		// TODO: Move this to some state handler
+		q_j_dot_cmd_integrator_.SetIntegral(q_j_); // TODO: This should be set when initial config is reached
+
 		const std::vector<double> breaks = {
-			standup_end_time_ + 2, standup_final_time_ + 2
+			0.0, seconds_to_standup_config_
 		};
 
-		Eigen::MatrixXd start_conf(12,1);
-		start_conf = robot_dynamics_.GetFeetPositions(q_);
+		Eigen::MatrixXd feet_start_pos(kNumLegs * kNumPosDims,1);
+		feet_start_pos = robot_dynamics_.GetFeetPositions(q_);
 
-		Eigen::MatrixXd standing_conf = start_conf;
-		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)
-			standing_conf(2 + leg_i * n_dims_) = standing_height_;
-
-		std::cout << "start_conf:" << std::endl;
-		std::cout << start_conf.transpose() << std::endl << std::endl;
-
-		std::cout << "standing_conf:" << std::endl;
-		std::cout << standing_conf.transpose() << std::endl << std::endl;
+		Eigen::MatrixXd feet_standing_pos = feet_start_pos;
+		for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+		{
+			int foot_i_z_index = 2 + foot_i * kNumPosDims;
+			feet_standing_pos(foot_i_z_index) = standing_height_;
+		}
 
 		std::vector<Eigen::MatrixXd> samples;
-		samples.push_back(start_conf);
-		samples.push_back(standing_conf);
+		samples.push_back(feet_start_pos);
+		samples.push_back(feet_standing_pos);
 
-		// Use drake piecewise polynomials for easy trajectory construction
-		standup_pos_traj_ =
-			drake::trajectories::PiecewisePolynomial<double>::FirstOrderHold(
-					breaks, samples
-					);
-		standup_vel_traj_ = standup_pos_traj_.derivative(1);
-
-		for (double t = standup_end_time_; t < standup_final_time_; t+=0.5)
-		{
-			std::cout << std::fixed << std::setprecision(2)
-				<< standup_pos_traj_.value(t).transpose() << std::endl << std::endl;
-		}
-		created_standup_traj_ = true;
+		feet_standup_pos_traj_ = CreateFirstOrderHoldTraj(breaks, samples);
+		feet_standup_vel_traj_ = feet_standup_pos_traj_.derivative(1);
+		created_standup_traj_ = true; // TODO: Remove this?
 	}
 
 	void Controller::JacobianController()
@@ -132,10 +101,10 @@ namespace control {
 		t_ = GetElapsedTimeSince(start_time_);
 
 		feet_pos_error_ =
-			standup_pos_traj_.value(t_)
+			feet_standup_pos_traj_.value(t_)
 			- robot_dynamics_.GetFeetPositions(q_);
 
-		feet_vel_ff_ = standup_vel_traj_.value(t_);
+		feet_vel_ff_ = feet_standup_vel_traj_.value(t_);
 
 		J_feet_pos_ = robot_dynamics_
 			.GetStackedFeetJacobianPos(q_)
@@ -298,7 +267,6 @@ namespace control {
 		}
 	}
 
-
 	void Controller::OnGenCoordMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
@@ -318,22 +286,70 @@ namespace control {
 	// SETTERS & GETTERS //
 	// ***************** //
 
+	joint_vector_t Controller::GetJointsPos()
+	{
+		joint_vector_t q_j = 
+			q_.block<kNumJoints,1>(kJointIndexInGenCoords,0);
+		return q_j;
+	}
+
+	joint_vector_t Controller::GetJointsVel()
+	{
+		joint_vector_t q_j_dot = 
+			u_.block<kNumJoints,1>(kJointIndexInGenVels,0);
+		return q_j_dot;
+	}
+
 	void Controller::SetGenCoords(const std::vector<double> &gen_coords)
 	{
-		for (int i = 0; i < kNumGenCoords_; ++i)
+		for (int i = 0; i < kNumGenCoords; ++i)
 			q_(i) = gen_coords[i];
+
+		q_j_ = GetJointsPos();
 	}
 
 	void Controller::SetGenVels(const std::vector<double> &gen_vels)
 	{
 		for (int i = 0; i < 18; ++i)
 			u_(i) = gen_vels[i];
+
+		q_j_dot_ = GetJointsPos();
 	}
 
 	// **************** //
 	// HELPER FUNCTIONS //
 	// **************** //
 
+	drake::trajectories::PiecewisePolynomial<double>
+		Controller::CreateFirstOrderHoldTraj(
+			std::vector<double> breaks,
+			std::vector<Eigen::VectorXd> samples
+			)
+	{
+		drake::trajectories::PiecewisePolynomial traj
+			= drake::trajectories::PiecewisePolynomial<double>
+					::FirstOrderHold(breaks, samples);
+		return traj;
+	}
+
+	void Controller::SetStateVariablesToZero()
+	{
+		q_.setZero();
+		Eigen::Matrix<double,4,1> identity_quaternion;
+		identity_quaternion << 1, 0, 0, 0;
+		q_.block<4,1>(3,0) = identity_quaternion;
+
+		u_.setZero();
+
+		q_j_.resize(kNumJoints, 1);
+		q_j_.setZero();
+		q_j_dot_.resize(kNumJoints, 1);
+		q_j_dot_.setZero();
+
+		q_j_cmd_.setZero();
+		q_j_dot_cmd_.setZero();
+	}
+	
 	void Controller::SetStartTime()
 	{
 		// Wait for /clock to get published

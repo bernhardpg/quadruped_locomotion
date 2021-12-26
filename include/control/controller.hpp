@@ -2,6 +2,7 @@
 
 #include "dynamics/dynamics.hpp"
 #include "control/integrator.hpp"
+#include "anymal_constants.hpp" // TODO Use this everywhere instead of numbers
 
 #include <thread>
 #include <ros/ros.h>
@@ -28,46 +29,40 @@ namespace control
 
 		private:
 			ros::NodeHandle ros_node_;
-
 			std::string model_name_;
-			const int kNumGenCoords_ = 19; // TODO: Not currently used everywhere
-			const int kNumJoints_ = 12; // TODO: Not currently used everywhere
-			Eigen::Matrix<double, 19, 1> q_;
-			Eigen::Matrix<double, 18, 1> u_;
+
+			gen_coord_vector_t q_;
+			gen_vel_vector_t u_;
+			Eigen::MatrixXd q_j_;
+			Eigen::MatrixXd q_j_dot_;
+
 			Dynamics robot_dynamics_;
 			ros::Time start_time_;
 			bool controller_ready_ = false;
 			
-			int n_legs_ = 4;
-			int n_dims_ = 3;
-
 			void SetStateToCmd();
 
 			// **************** //
 			// STANDUP SEQUENCE //
 			// **************** //
 
-			double standup_start_time_ = 0.0;
-			double standup_end_time_ = 2.5;
-			double standup_final_time_ = 7.5; // TODO: rename
+			double seconds_to_initial_config_ = 2.5; 
+			double seconds_to_standup_config_ = 10.0;
 			double standing_height_ = 0.6;
 
-			Eigen::MatrixXd pre_standup_config_;
-
-			// TODO: rename these!
 			drake::trajectories::PiecewisePolynomial<double>
-				q_j_ref_traj_;
+				q_j_initial_config_traj_;
 			drake::trajectories::PiecewisePolynomial<double>
-				q_j_dot_ref_traj_;
+				q_j_dot_initial_config_traj_;
 
 			drake::trajectories::PiecewisePolynomial<double>
-				standup_pos_traj_;
+				feet_standup_pos_traj_;
 			drake::trajectories::PiecewisePolynomial<double>
-				standup_vel_traj_;
+				feet_standup_vel_traj_;
 
 			bool created_standup_traj_ = false;
 
-			void CreatePreStandupTraj();
+			void CreateInitialConfigTraj();
 			void CreateStandupTraj();
 
 			void CalcJointCmd();
@@ -130,6 +125,8 @@ namespace control
 			// SETTERS & GETTERS //
 			// ***************** //
 
+			joint_vector_t GetJointsPos();
+			joint_vector_t GetJointsVel();
 			void SetGenCoords(const std::vector<double> &gen_coords);
 			void SetGenVels(const std::vector<double> &gen_vels);
 
@@ -137,6 +134,12 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			drake::trajectories::PiecewisePolynomial<double>
+				CreateFirstOrderHoldTraj(
+						std::vector<double> breaks,
+						std::vector<Eigen::MatrixXd> samples
+						);
+			void SetStateVariablesToZero();
 			void SetStartTime();
 			double GetElapsedTimeSince(ros::Time t);
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);

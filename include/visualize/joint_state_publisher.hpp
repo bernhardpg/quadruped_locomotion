@@ -20,7 +20,7 @@ class JointStatePublisher
 		ros::Publisher joint_state_pub_;
 		ros::Subscriber joint_positions_sub_; // For now, this only reads positions. Expand to velocities and efforts when needed.
 
-		Eigen::Matrix<double, kNumJoints, 1> joint_positions_;
+		joint_vector_t joint_positions_;
 
 		void InitRos();
 		void PublishJointState();
