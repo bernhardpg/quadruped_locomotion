@@ -66,7 +66,7 @@ link_directories(
 
 
 # Anymal gazebo plugin
-add_library(anymal_plugin SHARED src/anymal_plugin.cpp)
+add_library(anymal_plugin SHARED src/gazebo/anymal_plugin.cpp)
 target_link_libraries(anymal_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
 
 # Dynamics library
