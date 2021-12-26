@@ -11,6 +11,7 @@ namespace control {
 		
 		// TODO: Move into function?
 		q_.setZero();
+		q_(3) = 1; // quaternions, TODO: only temp
 		u_.setZero();
 		q_j_cmd_.setZero();
 		q_j_dot_cmd_.setZero();
@@ -20,7 +21,7 @@ namespace control {
 		SpinRosThreads();
 
 		// Wait for state to get published
-		while (q_.isZero(0) || u_.isZero(0))
+		//while (q_.isZero(0) || u_.isZero(0))
 
 		InitController();
 
@@ -152,6 +153,21 @@ namespace control {
 			<< feet_vel_ff_.transpose() << std::endl
 			<< q_j_cmd_.transpose() << std::endl
 			<< q_j_dot_cmd_.transpose() << std::endl << std::endl;
+
+		SetStateToCmd();
+	}
+
+	// TODO: only for testing
+	void Controller::SetStateToCmd()
+	{
+		q_.block<3,1>(0,0).setZero();
+		q_(3) = 1;
+		q_.block<3,1>(4,0).setZero();
+		q_.block<12,1>(7,0) = q_j_cmd_;
+
+		u_.block<3,1>(0,0).setZero();
+		u_.block<3,1>(3,0).setZero();
+		u_.block<12,1>(6,0) = q_j_dot_cmd_;
 	}
 
 	void Controller::CalcJointCmd()
@@ -188,6 +204,20 @@ namespace control {
 	void Controller::InitRos()
 	{
 		ROS_INFO("Initialized controller node");
+
+		// TODO: All of these constructions can be moved into their own functions, this is essentially just repeated code.
+		// TODO: Move this joint_state publisher into its own node
+		ros::AdvertiseOptions joint_state_ao =
+			ros::AdvertiseOptions::create<sensor_msgs::JointState>(
+					"/joint_states",
+					1,
+					ros::SubscriberStatusCallback(),
+					ros::SubscriberStatusCallback(),
+					ros::VoidPtr(),
+					&this->ros_publish_queue_
+					);
+
+		joint_state_pub_ = ros_node_.advertise(joint_state_ao);
 
 		// Set up advertisements
 		ros::AdvertiseOptions q_j_cmd_ao =
@@ -276,9 +306,27 @@ namespace control {
 			tf::matrixEigenToMsg(q_j_dot_cmd_, q_j_dot_cmd_msg);
 			q_j_dot_cmd_pub_.publish(q_j_dot_cmd_msg);
 
+			PublishJointState();
 			loop_rate_.sleep();	
+
+			// TODO: move to its own node
 		}
 	}
+
+	void Controller::PublishJointState()
+	{
+		sensor_msgs::JointState joint_state_msg;
+
+		joint_state_msg.header.stamp = ros::Time::now();
+		for(int i = 0; i < 12; i++)
+		{
+				joint_state_msg.name.push_back(joint_names_[i]);
+				joint_state_msg.position.push_back(q_j_cmd_(i));
+		}
+
+		joint_state_pub_.publish(joint_state_msg);
+	}
+
 
 	void Controller::OnGenCoordMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
@@ -332,7 +380,7 @@ namespace control {
 	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
 	{
 		Eigen::MatrixXd eye =
-			Eigen::MatrixXd::Identity(A.rows(), A.cols());
+			Eigen::MatrixXd::Identity(A.rows(), A.rows()); // same size as A*A^t
 		double damping = 1;
 
 		// Moore-Penrose right inverse: A^t (A A^t)
