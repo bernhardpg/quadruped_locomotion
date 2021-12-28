@@ -15,6 +15,11 @@ JointStatePublisher::JointStatePublisher(int frequency_)
 
 void JointStatePublisher::InitRos()
 {
+	gen_coord_pub_ = node_handle_
+		.advertise<std_msgs::Float64MultiArray>(
+				"/anymal/gen_coord/", 1
+				);
+
 	joint_state_pub_ = node_handle_
 		.advertise<sensor_msgs::JointState>(
 				"/joint_states", 1
@@ -30,10 +35,37 @@ void JointStatePublisher::InitRos()
 	while(ros::ok())
 	{
 		ros::spinOnce(); // fetch messages
+
+		if (publish_cmd_as_state_)
+			PublishGenCoords();
+
 		PublishJointState();
 		ros::spinOnce(); // publish messages
 		loop_rate_.sleep();
 	}
+}
+
+void JointStatePublisher::PublishGenCoords()
+{
+	joint_vector_t q_j; // generalized coordinates
+	q_j = joint_positions_;
+
+	gen_coord_vector_t q;
+	q.block<7,1>(0,0) = GetDefaultBodyPose();
+	q.block<kNumJoints,1>(kJointIndexInGenCoords,0) = q_j;
+
+	std_msgs::Float64MultiArray gen_coord_msg;
+	tf::matrixEigenToMsg(q, gen_coord_msg);
+
+	gen_coord_pub_.publish(gen_coord_msg);
+}
+
+Eigen::Matrix<double, 7, 1> JointStatePublisher::GetDefaultBodyPose()
+{
+	Eigen::Matrix<double, 7, 1> q_b;
+	q_b << 0, 0, 0, // pos
+			1, 0, 0, 0; // identity quaternion
+	return q_b;
 }
 
 void JointStatePublisher::PublishJointState()
