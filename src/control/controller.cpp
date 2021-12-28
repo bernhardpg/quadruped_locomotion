@@ -38,7 +38,7 @@ namespace control {
 	void Controller::SetJointInitialConfigTraj()
 	{
 		const std::vector<double> breaks = {
-			0.0, seconds_to_initial_config_
+			0.0, seconds_to_initial_config_ 
 		};
 
 		std::vector<Eigen::MatrixXd> samples;
@@ -52,6 +52,7 @@ namespace control {
 
 		q_j_cmd_traj_ = initial_config_pos_traj;
 		q_j_dot_cmd_traj_ = initial_config_vel_traj;
+		traj_end_time_s_ = seconds_to_initial_config_;
 	}
 
 	void Controller::SetFeetStandupTraj()
@@ -81,6 +82,7 @@ namespace control {
 
 		feet_cmd_pos_traj_ = feet_standup_pos_traj;
 		feet_cmd_vel_traj_ = feet_standup_vel_traj;
+		traj_end_time_s_ = seconds_to_standup_config_;
 	}
 
 	// ********** //
@@ -111,15 +113,31 @@ namespace control {
 
 	void Controller::FeetPosControl()
 	{
-		feet_vector_t feet_pos_error =
-			feet_cmd_pos_traj_.value(seconds_in_mode_)
-			- robot_dynamics_.GetFeetPositions(q_);
-		ROS_INFO_STREAM(
-				"feet_pos_error: " << std::setprecision(2) << std::fixed
-				<< feet_pos_error.transpose() << std::endl);
+		gen_coord_vector_t q_with_standard_body_config;
+		q_with_standard_body_config
+			.block<kNumPoseCoords,1>(0,0) << 0,0,0,1,0,0,0;
+		q_with_standard_body_config.block<kNumJoints,1>(kNumPoseCoords,0)
+			= q_j_; // TODO: not currently using body pose feedback
 
-		feet_vector_t feet_vel_ff
-			= feet_cmd_vel_traj_.value(seconds_in_mode_);
+		feet_vector_t feet_pos_desired =
+			EvalPosTrajAtTime(
+					feet_cmd_pos_traj_, seconds_in_mode_, traj_end_time_s_
+					);
+
+		feet_vector_t feet_vel_desired = 
+			EvalVelTrajAtTime(
+					feet_cmd_vel_traj_, seconds_in_mode_, traj_end_time_s_
+					);
+
+		feet_vector_t curr_feet_pos =
+			robot_dynamics_.GetFeetPositions(q_with_standard_body_config);
+		feet_vector_t feet_pos_error = feet_pos_desired - curr_feet_pos;
+		
+//		ROS_INFO_STREAM(
+//				"feet_pos_error: " << std::setprecision(2) << std::fixed
+//				<< feet_pos_error.transpose() << std::endl);
+
+		feet_vector_t feet_vel_ff = feet_vel_desired;
 //		ROS_INFO_STREAM(
 //				"feet_vel_ff: " << std::setprecision(2) << std::fixed
 //				<< feet_vel_ff.transpose() << std::endl << std::endl);
@@ -353,6 +371,30 @@ namespace control {
 	// HELPER FUNCTIONS //
 	// **************** //
 
+	Eigen::MatrixXd Controller::EvalPosTrajAtTime(
+			drake::trajectories::PiecewisePolynomial<double> traj,
+			double curr_time,
+			double end_time)
+	{
+		if (curr_time > end_time)
+		{
+			return traj.value(end_time);
+		}
+		return traj.value(curr_time);
+	}
+
+	Eigen::MatrixXd Controller::EvalVelTrajAtTime(
+			drake::trajectories::PiecewisePolynomial<double> traj,
+			double curr_time,
+			double end_time)
+	{
+		if (curr_time > end_time)
+		{
+			return Eigen::MatrixXd::Zero(traj.rows(), traj.cols());
+		}
+		return traj.value(curr_time);
+	}
+
 	void Controller::WaitForPublishedTime()
 	{
 		while (ros::Time::now().toSec() == 0.0); 
@@ -407,11 +449,20 @@ namespace control {
 
 	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
 	{
+		// Moore-Penrose right inverse: A^t (A A^t)
+		Eigen:: MatrixXd pseudo_inverse =
+			A.transpose() * (A * A.transpose()).inverse();
+		return pseudo_inverse;
+	}
+
+	Eigen::MatrixXd Controller::CalcPseudoInverse(
+			Eigen::MatrixXd A, double damping
+			)
+	{
 		// TODO: Test condition number!
 		// Same size as A*A^t
 		Eigen::MatrixXd eye =
 			Eigen::MatrixXd::Identity(A.rows(), A.rows());
-		double damping = 1;
 
 		// Moore-Penrose right inverse: A^t (A A^t)
 		Eigen:: MatrixXd pseudo_inverse =

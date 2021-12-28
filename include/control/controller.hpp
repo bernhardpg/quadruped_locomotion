@@ -45,6 +45,7 @@ namespace control
 
 			double seconds_to_initial_config_ = 2.5; 
 			double seconds_to_standup_config_ = 2.0;
+			double traj_end_time_s_ = 2.0;
 			double standing_height_ = 0.5;
 
 			void SetJointInitialConfigTraj();
@@ -70,7 +71,7 @@ namespace control
 
 			ros::Rate loop_rate_;
 
-			double k_pos_p_ = 100.0;
+			double k_pos_p_ = 1.0;
 			bool controller_ready_ = false;
 
 			void UpdateJointCommand();
@@ -153,6 +154,15 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			Eigen::MatrixXd EvalPosTrajAtTime(
+					drake::trajectories::PiecewisePolynomial<double> traj,
+					double curr_time,
+					double end_time);
+			Eigen::MatrixXd EvalVelTrajAtTime(
+					drake::trajectories::PiecewisePolynomial<double> traj,
+					double curr_time,
+					double end_time);
+
 			void WaitForPublishedTime();
 			void WaitForPublishedState();
 
@@ -164,5 +174,8 @@ namespace control
 			void SetVariablesToZero();
 			double GetElapsedTimeSince(ros::Time t);
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
+			Eigen::MatrixXd CalcPseudoInverse(
+					Eigen::MatrixXd A, double damping
+					);
 	};
 }
