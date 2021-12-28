@@ -50,13 +50,14 @@ namespace control
 
 			void SetJointInitialConfigTraj();
 			void SetFeetStandupTraj();
+			void SetComStandupTraj();
 
 			// ********** //
 			// CONTROLLER //
 			// ********** //
 
 			enum ControlMode {
-				kJointTracking, kFeetTracking
+				kJointTracking, kFeetTracking, kSupportConsistentTracking
 			} control_mode_;
 
 			drake::trajectories::PiecewisePolynomial<double>
@@ -69,13 +70,19 @@ namespace control
 			drake::trajectories::PiecewisePolynomial<double>
 				feet_cmd_vel_traj_;
 
+			Eigen::MatrixXd J_task_;
+			drake::trajectories::PiecewisePolynomial<double>
+				task_vel_traj_;
+
 			ros::Rate loop_rate_;
 
 			double k_pos_p_ = 1.0;
 			bool controller_ready_ = false;
 
 			void UpdateJointCommand();
+			void DirectJointControl();
 			void FeetPosControl();
+			void SupportConsistentControl();
 
 			Eigen::Matrix<double,12,1> q_j_cmd_;
 			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
@@ -154,14 +161,13 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			void PrintMatrix(Eigen::MatrixXd matr);
 			Eigen::MatrixXd EvalPosTrajAtTime(
 					drake::trajectories::PiecewisePolynomial<double> traj,
-					double curr_time,
-					double end_time);
+					double curr_time);
 			Eigen::MatrixXd EvalVelTrajAtTime(
 					drake::trajectories::PiecewisePolynomial<double> traj,
-					double curr_time,
-					double end_time);
+					double curr_time);
 
 			void WaitForPublishedTime();
 			void WaitForPublishedState();
@@ -173,9 +179,15 @@ namespace control
 						);
 			void SetVariablesToZero();
 			double GetElapsedTimeSince(ros::Time t);
+
+			// **** //
+			// MATH //
+			// **** //
+			
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
 			Eigen::MatrixXd CalcPseudoInverse(
 					Eigen::MatrixXd A, double damping
 					);
+			Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A);
 	};
 }

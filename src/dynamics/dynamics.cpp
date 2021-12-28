@@ -39,14 +39,14 @@ Eigen::MatrixXd Dynamics::GetContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 		)
 {
-	Eigen::MatrixXd J(kNumTwistCoords,kNumGenVels);
-	J.setZero();
+	Eigen::MatrixXd J_with_floating_body(kNumTwistCoords,kNumGenVels);
+	J_with_floating_body.setZero();
 	pinocchio::computeFrameJacobian(
 			model_, data_, q, model_.getFrameId(kFeetFrames[foot_i]), 
-			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J
-			);
+			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_with_floating_body
+			); // TODO: For some reason, this works with LOCAL_WORLD_ALIGNED, but not WORLD. Why is that?
 
-	return J;
+	return J_with_floating_body;
 }
 
 Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(
@@ -59,10 +59,10 @@ Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(
 
 	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
 	{
-		Eigen::MatrixXd J_i = GetContactJacobian(q, foot_i);
-		auto J_i_pos = J_i.block<kNumPosDims,kNumGenVels>(0,0);
+		Eigen::MatrixXd J_foot_i = GetContactJacobian(q, foot_i);
+		auto J_foot_i_pos = J_foot_i.block<kNumPosDims,kNumGenVels>(0,0);
 		J.block<kNumPosDims,kNumGenVels>(kNumPosDims * foot_i,0)
-			= J_i_pos;
+			= J_foot_i_pos;
 	}
 	return J;
 }

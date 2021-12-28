@@ -55,6 +55,7 @@ namespace control {
 		traj_end_time_s_ = seconds_to_initial_config_;
 	}
 
+	// TODO: unused, remove
 	void Controller::SetFeetStandupTraj()
 	{
 		const std::vector<double> breaks = {
@@ -85,6 +86,39 @@ namespace control {
 		traj_end_time_s_ = seconds_to_standup_config_;
 	}
 
+	void Controller::SetComStandupTraj()
+	{
+		J_task_.resize(1,kNumGenVels);
+		J_task_.setZero();
+		int z_index = 2;
+		J_task_(0, z_index) = 1;
+
+		const std::vector<double> breaks =
+		{
+			0.0, seconds_to_standup_config_
+		};
+
+		Eigen::MatrixXd curr_pose(1,1);
+		double curr_height = q_(z_index);
+		curr_pose << curr_height;
+
+		Eigen::MatrixXd target_pose(1,1);
+		target_pose << standing_height_;
+
+		std::vector<Eigen::MatrixXd> samples =
+		{
+			curr_pose, target_pose	
+		};
+
+		auto com_pos_standup_traj
+			= CreateFirstOrderHoldTraj(breaks, samples);
+		auto com_vel_standup_traj
+			= com_pos_standup_traj.derivative(1);
+
+		task_vel_traj_ = com_vel_standup_traj;
+		traj_end_time_s_ = seconds_to_standup_config_;
+	}
+
 	// ********** //
 	// CONTROLLER //
 	// ********** //
@@ -96,19 +130,27 @@ namespace control {
 		switch(control_mode_)	
 		{
 			case kJointTracking:
-				q_j_cmd_ = q_j_cmd_traj_.value(seconds_in_mode_);
-				q_j_dot_cmd_ = q_j_dot_cmd_traj_.value(seconds_in_mode_);
+				DirectJointControl();
 				break;
 			case kFeetTracking:
 				FeetPosControl();
 				break;
+			case kSupportConsistentTracking:
+				SupportConsistentControl();
+				break;
 			default:
 				break;
 		}
+	}
 
-//		std::cout << std::fixed << std::setprecision(2)
-//			<< q_j_cmd_.transpose() << std::endl;
-			//<< q_j_dot_cmd_.transpose() << std::endl << std::endl;
+	void Controller::DirectJointControl()
+	{
+		q_j_cmd_ = EvalPosTrajAtTime(
+				q_j_cmd_traj_, seconds_in_mode_
+				);
+		q_j_dot_cmd_ = EvalPosTrajAtTime(
+				q_j_dot_cmd_traj_, seconds_in_mode_
+				);
 	}
 
 	void Controller::FeetPosControl()
@@ -121,33 +163,25 @@ namespace control {
 
 		feet_vector_t feet_pos_desired =
 			EvalPosTrajAtTime(
-					feet_cmd_pos_traj_, seconds_in_mode_, traj_end_time_s_
+					feet_cmd_pos_traj_, seconds_in_mode_
 					);
 
 		feet_vector_t feet_vel_desired = 
 			EvalVelTrajAtTime(
-					feet_cmd_vel_traj_, seconds_in_mode_, traj_end_time_s_
+					feet_cmd_vel_traj_, seconds_in_mode_
 					);
 
 		feet_vector_t curr_feet_pos =
 			robot_dynamics_.GetFeetPositions(q_with_standard_body_config);
 		feet_vector_t feet_pos_error = feet_pos_desired - curr_feet_pos;
-		
-//		ROS_INFO_STREAM(
-//				"feet_pos_error: " << std::setprecision(2) << std::fixed
-//				<< feet_pos_error.transpose() << std::endl);
 
 		feet_vector_t feet_vel_ff = feet_vel_desired;
-//		ROS_INFO_STREAM(
-//				"feet_vel_ff: " << std::setprecision(2) << std::fixed
-//				<< feet_vel_ff.transpose() << std::endl << std::endl);
 
-		Eigen::Matrix<double,kNumFeetCoords,kNumJoints> J_feet =
-			robot_dynamics_
-			.GetStackedFeetJacobianPos(q_)
-			.block(0,kNumTwistCoords,kNumFeetCoords,kNumJoints);
-			// Get rid of Jacobian for body
-		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_feet);
+		Eigen::MatrixXd J_contact_with_floating_base = robot_dynamics_
+			.GetStackedContactJacobianPos(q_);
+		Eigen::MatrixXd J_contact_joints = J_contact_with_floating_base
+			.block<kNumFeetCoords,kNumJoints>(0,kNumTwistCoords);
+		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_contact_joints);
 		
 		// Feet position controller
 		q_j_dot_cmd_ = J_inv
@@ -157,6 +191,26 @@ namespace control {
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
 	}
 
+	void Controller::SupportConsistentControl()
+	{
+		Eigen::MatrixXd J_constraint = robot_dynamics_
+			.GetStackedContactJacobianPos(q_);
+		Eigen::MatrixXd N_constraint =
+			CalcNullSpaceProjMatrix(J_constraint);
+		
+		Eigen::MatrixXd w_task = EvalVelTrajAtTime(
+				task_vel_traj_, seconds_in_mode_
+				);
+
+		Eigen::MatrixXd u_0_cmd
+			= CalcPseudoInverse(J_task_ * N_constraint) * w_task;
+		Eigen::MatrixXd u_cmd = N_constraint * u_0_cmd;
+
+		q_j_dot_cmd_ = u_cmd.block<kNumJoints,1>(kNumTwistCoords,0);
+
+		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
+		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
+	}
 
 	// ************* //
 	// STATE MACHINE // 
@@ -175,8 +229,10 @@ namespace control {
 			case kStandup:
 				ROS_INFO("Setting mode to STANDUP");
 				q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-				SetFeetStandupTraj();
-				control_mode_ = kFeetTracking; 
+				//SetFeetStandupTraj();
+				//control_mode_ = kFeetTracking; 
+				SetComStandupTraj();
+				control_mode_ = kSupportConsistentTracking;
 				break;
 			case kWalk:
 				break;
@@ -370,25 +426,30 @@ namespace control {
 	// **************** //
 	// HELPER FUNCTIONS //
 	// **************** //
+	
+	// TODO: For debugging
+	void Controller::PrintMatrix(Eigen::MatrixXd matr)
+	{
+		std::cout << std::setprecision(2) << std::fixed
+			<< matr << std::endl << std::endl;	
+	}
 
 	Eigen::MatrixXd Controller::EvalPosTrajAtTime(
 			drake::trajectories::PiecewisePolynomial<double> traj,
-			double curr_time,
-			double end_time)
+			double curr_time)
 	{
-		if (curr_time > end_time)
+		if (curr_time > traj_end_time_s_)
 		{
-			return traj.value(end_time);
+			return traj.value(traj_end_time_s_);
 		}
 		return traj.value(curr_time);
 	}
 
 	Eigen::MatrixXd Controller::EvalVelTrajAtTime(
 			drake::trajectories::PiecewisePolynomial<double> traj,
-			double curr_time,
-			double end_time)
+			double curr_time)
 	{
-		if (curr_time > end_time)
+		if (curr_time > traj_end_time_s_)
 		{
 			return Eigen::MatrixXd::Zero(traj.rows(), traj.cols());
 		}
@@ -447,6 +508,10 @@ namespace control {
 		return elapsed_time; 
 	}
 
+	// **** //
+	// MATH //
+	// **** //
+
 	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
 	{
 		// Moore-Penrose right inverse: A^t (A A^t)
@@ -468,5 +533,15 @@ namespace control {
 		Eigen:: MatrixXd pseudo_inverse =
 			A.transpose() * (A * A.transpose() + damping * eye).inverse();
 		return pseudo_inverse;
+	}
+
+	Eigen::MatrixXd Controller::CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
+	{
+		Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
+		Eigen::MatrixXd eye =
+			Eigen::MatrixXd::Identity(A.cols(), A.cols());
+
+		Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
+		return null_space_projection_matrix;
 	}
 }
