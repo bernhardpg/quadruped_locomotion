@@ -4,6 +4,8 @@
 #include <drake/common/symbolic.h>
 #include <drake/solvers/solve.h>
 
+#include <ros/console.h>
+
 #include <Eigen/Core>
 
 #include "variable_types.hpp"
@@ -36,8 +38,15 @@ namespace control
 			std::vector<symbolic_vector_t> slack_variables_;
 
 			void PopulateVariables(); // TODO: Rename or replace 
-			void CreateQPWithIndex(int index);
-			void CreateDecisionVariables();
+			void InitializeQPAtIndex(int index);
+			symbolic_vector_t CreateDecisionVariables(
+					std::unique_ptr<drake::solvers::MathematicalProgram> &prog
+					);
+			symbolic_vector_t CreateSlackVariables(
+					std::unique_ptr<drake::solvers::MathematicalProgram> &prog,
+					int num_slack_variables
+					);
+
 			void AddEqConstraint(
 					Eigen::MatrixXd A,
 					Eigen::VectorXd b,

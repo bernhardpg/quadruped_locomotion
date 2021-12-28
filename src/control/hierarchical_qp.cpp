@@ -8,32 +8,23 @@ namespace control
 
 	HierarchicalQP::HierarchicalQP(int num_tasks)
 		: num_tasks_(num_tasks),
+			quadratic_progs_(num_tasks),
 			decision_variables_(num_tasks_),
-			 eq_const_matrices_(num_tasks_),
-			 eq_const_vectors_(num_tasks_),
-			 ineq_const_matrices_(num_tasks_),
-			 ineq_const_vectors_(num_tasks_),
-			 slack_variables_(num_tasks_)
+		  eq_const_matrices_(num_tasks_),
+		  eq_const_vectors_(num_tasks_),
+		  ineq_const_matrices_(num_tasks_),
+		  ineq_const_vectors_(num_tasks_),
+		  slack_variables_(num_tasks_)
 	{
 		num_contacts_ = 4; // TODO: generalize this
 
 		num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
-		PopulateVariables();
-		CreateQPWithIndex(0);
-		//CreateDecisionVariables();
-	}
+		PopulateVariables(); // TODO: Only for testing
 
-	void HierarchicalQP::CreateDecisionVariables()
-	{
-//		for (int task_i = 0; task_i < num_tasks_; ++task_i)
-//		{
-//			symbolic_vector_t u_dot = quadratic_progs_[task_i]
-//				.NewContinuousVariables(kNumGenVels, 1, "u_dot");
-//			symbolic_vector_t lambda = quadratic_progs_[task_i]
-//				.NewContinuousVariables(kNumPosDims * num_contacts_, 1, "lambda");
-//			symbolic_vector_t task_i_vars(num_decision_vars_);
-//			task_i_vars << u_dot, lambda;
-//		}
+		for (int task_i = 0; task_i < num_tasks_; ++task_i)
+		{
+			InitializeQPAtIndex(task_i);
+		}
 	}
 
 	void HierarchicalQP::PopulateVariables()
@@ -60,20 +51,53 @@ namespace control
 		ineq_const_vectors_[2] = b;
 	}
 
-	void HierarchicalQP::CreateQPWithIndex(int index)
+	void HierarchicalQP::InitializeQPAtIndex(int index)
 	{
-		// TODO: How to make a new prog every time?
-		drake::solvers::MathematicalProgram new_prog;
-
-		symbolic_vector_t u_dot = new_prog
-			.NewContinuousVariables(kNumGenVels, 1, "u_dot");
-		symbolic_vector_t lambda = new_prog
-			.NewContinuousVariables(kNumPosDims * num_contacts_, 1, "lambda");
-		symbolic_vector_t task_i_vars(num_decision_vars_);
-		task_i_vars << u_dot, lambda;
+		ROS_INFO("Creating QP");
+		std::unique_ptr<drake::solvers::MathematicalProgram>
+			prog_ptr (new drake::solvers::MathematicalProgram);
+		ROS_INFO("Created pointer");
+		quadratic_progs_[index] = std::move(prog_ptr);
+		ROS_INFO("Moved pointer");
+		decision_variables_[index] = CreateDecisionVariables(
+				quadratic_progs_[index]
+				);
+		ROS_INFO("Created dec variables");
+		// TODO: 10 only for testing
+		slack_variables_[index] = CreateSlackVariables(
+				quadratic_progs_[index], 10
+				);
+		ROS_INFO("Created slack variables");
 	}
 
-	symbolic_vector_t HierarchicalQP::Create
+	symbolic_vector_t HierarchicalQP::CreateDecisionVariables(
+			std::unique_ptr<drake::solvers::MathematicalProgram> &prog
+			)
+	{
+		symbolic_vector_t u_dot =
+			prog->NewContinuousVariables(kNumGenVels, 1, "u_dot");
+		symbolic_vector_t lambda =
+			prog->NewContinuousVariables(
+					kNumPosDims * num_contacts_, 1, "lambda"
+					);
+		symbolic_vector_t decision_vars(num_decision_vars_);
+		decision_vars << u_dot, lambda;
+
+		return decision_vars;
+	}
+
+	symbolic_vector_t HierarchicalQP::CreateSlackVariables(
+			std::unique_ptr<drake::solvers::MathematicalProgram> &prog,
+			int num_slack_variables
+			)
+	{
+		symbolic_vector_t slack_variables =
+			prog->NewContinuousVariables(
+					num_slack_variables, 1, "v"
+					);
+
+		return slack_variables;
+	}
 
 	void HierarchicalQP::AddEqConstraint(
 			Eigen::MatrixXd A,
