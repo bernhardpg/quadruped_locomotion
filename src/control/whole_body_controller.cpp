@@ -172,11 +172,7 @@ namespace control {
 	{
 		seconds_in_mode_ = GetElapsedTimeSince(mode_start_time_);
 
-		if (!controller_ready_)
-		{
-			ROS_INFO("Controller not ready");
-			return;
-		}
+		if (!controller_ready_) return;
 
 		switch(control_mode_)	
 		{

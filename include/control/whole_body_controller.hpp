@@ -21,8 +21,7 @@
 
 namespace control
 {
-
-	class WholeBodyController// TODO: Rename this class to reflect that it is actually joint motion planner or whole body controller
+	class WholeBodyController
 	{
 		public:
 			WholeBodyController(int frequency);
