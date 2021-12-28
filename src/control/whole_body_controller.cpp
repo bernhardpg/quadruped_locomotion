@@ -1,7 +1,7 @@
-#include "control/controller.hpp"
+#include "control/whole_body_controller.hpp"
 
 namespace control {
-	Controller::Controller(int frequency)
+	WholeBodyController::WholeBodyController(int frequency)
 		: loop_rate_(frequency)
 	{
 		ROS_INFO("Running controller at %d Hz", frequency);
@@ -18,7 +18,7 @@ namespace control {
 		SetRobotMode(kIdle);
 	}
 
-	Controller::~Controller()
+	WholeBodyController::~WholeBodyController()
 	{
 			ros_node_.shutdown();
 
@@ -35,7 +35,7 @@ namespace control {
 	// STANDUP SEQUENCE //
 	// **************** //
 
-	void Controller::SetJointInitialConfigTraj()
+	void WholeBodyController::SetJointInitialConfigTraj()
 	{
 		const std::vector<double> breaks = {
 			0.0, seconds_to_initial_config_ 
@@ -56,7 +56,7 @@ namespace control {
 	}
 
 	// TODO: unused, remove
-	void Controller::SetFeetStandupTraj()
+	void WholeBodyController::SetFeetStandupTraj()
 	{
 		const std::vector<double> breaks = {
 			0.0, seconds_to_standup_config_
@@ -86,7 +86,7 @@ namespace control {
 		traj_end_time_s_ = seconds_to_standup_config_;
 	}
 
-	void Controller::SetComStandupTraj()
+	void WholeBodyController::SetComStandupTraj()
 	{
 		J_task_.resize(1,kNumGenVels);
 		J_task_.setZero();
@@ -119,7 +119,7 @@ namespace control {
 		traj_end_time_s_ = seconds_to_standup_config_;
 	}
 
-	void Controller::SetDanceTraj()
+	void WholeBodyController::SetDanceTraj()
 	{
 		J_task_.resize(3,kNumGenVels);
 		J_task_.setZero();
@@ -168,7 +168,7 @@ namespace control {
 	// CONTROLLER //
 	// ********** //
 
-	void Controller::UpdateJointCommand()
+	void WholeBodyController::UpdateJointCommand()
 	{
 		seconds_in_mode_ = GetElapsedTimeSince(mode_start_time_);
 
@@ -194,7 +194,7 @@ namespace control {
 		}
 	}
 
-	void Controller::DirectJointControl()
+	void WholeBodyController::DirectJointControl()
 	{
 		q_j_cmd_ = EvalPosTrajAtTime(
 				q_j_cmd_traj_, seconds_in_mode_
@@ -204,7 +204,7 @@ namespace control {
 				);
 	}
 
-	void Controller::FeetPosControl()
+	void WholeBodyController::FeetPosControl()
 	{
 		gen_coord_vector_t q_with_standard_body_config;
 		q_with_standard_body_config
@@ -242,7 +242,7 @@ namespace control {
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
 	}
 
-	void Controller::SupportConsistentControl()
+	void WholeBodyController::SupportConsistentControl()
 	{
 		Eigen::MatrixXd J_constraint = robot_dynamics_
 			.GetStackedContactJacobianPos(q_);
@@ -269,7 +269,7 @@ namespace control {
 	// STATE MACHINE // 
 	// ************* //
 
-	void Controller::SetRobotMode(RobotMode target_mode)
+	void WholeBodyController::SetRobotMode(RobotMode target_mode)
 	{
 		controller_ready_ = false;
 		switch(target_mode)
@@ -304,7 +304,7 @@ namespace control {
 	// ROS //
 	// *** //
 
-	void Controller::SetupRosTopics()
+	void WholeBodyController::SetupRosTopics()
 	{
 		ROS_INFO("Initialized controller node");
 
@@ -339,7 +339,7 @@ namespace control {
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/" + model_name_ + "/gen_coord",
 					1,
-					boost::bind(&Controller::OnGenCoordMsg, this, _1),
+					boost::bind(&WholeBodyController::OnGenCoordMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
@@ -348,7 +348,7 @@ namespace control {
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/" + model_name_ + "/gen_vel",
 					1,
-					boost::bind(&Controller::OnGenVelMsg, this, _1),
+					boost::bind(&WholeBodyController::OnGenVelMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
@@ -359,12 +359,12 @@ namespace control {
 		ROS_INFO("Finished setting up ROS topics");
 	}
 
-	void Controller::SetupRosServices()
+	void WholeBodyController::SetupRosServices()
 	{
 		ros::AdvertiseServiceOptions cmd_standup_aso =
 			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
             "/" + model_name_ + "/standup",
-            boost::bind(&Controller::CmdStandupService, this, _1, _2),
+            boost::bind(&WholeBodyController::CmdStandupService, this, _1, _2),
             ros::VoidPtr(),
             &this->ros_process_queue_
         );
@@ -374,7 +374,7 @@ namespace control {
 		ros::AdvertiseServiceOptions cmd_dance_aso =
 			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
             "/" + model_name_ + "/dance",
-            boost::bind(&Controller::CmdDanceService, this, _1, _2),
+            boost::bind(&WholeBodyController::CmdDanceService, this, _1, _2),
             ros::VoidPtr(),
             &this->ros_process_queue_
         );
@@ -382,7 +382,7 @@ namespace control {
 		cmd_dance_service_ = ros_node_.advertiseService(cmd_dance_aso);
 	}
 
-	bool Controller::CmdStandupService(
+	bool WholeBodyController::CmdStandupService(
 					const std_srvs::Empty::Request &_req,
 					std_srvs::Empty::Response &_res
 			)
@@ -391,7 +391,7 @@ namespace control {
 		return true;
 	}
 
-	bool Controller::CmdDanceService(
+	bool WholeBodyController::CmdDanceService(
 					const std_srvs::Empty::Request &_req,
 					std_srvs::Empty::Response &_res
 			)
@@ -400,17 +400,17 @@ namespace control {
 		return true;
 	}
 
-	void Controller::SpinRosThreads()
+	void WholeBodyController::SpinRosThreads()
 	{
 		ros_process_queue_thread_ = std::thread(
-				std::bind(&Controller::ProcessQueueThread, this)
+				std::bind(&WholeBodyController::ProcessQueueThread, this)
 				);
 		ros_publish_queue_thread_ = std::thread(
-				std::bind(&Controller::PublishQueueThread, this)
+				std::bind(&WholeBodyController::PublishQueueThread, this)
 				);
 	}
 
-	void Controller::ProcessQueueThread()
+	void WholeBodyController::ProcessQueueThread()
 	{
 		static const double timeout = 0.01; // TODO: I should check this number
 		while (ros_node_.ok())
@@ -421,7 +421,7 @@ namespace control {
 		}
 	}
 
-	void Controller::PublishQueueThread()
+	void WholeBodyController::PublishQueueThread()
 	{
 		while (ros_node_.ok())
 		{
@@ -432,21 +432,21 @@ namespace control {
 		}
 	}
 
-	void Controller::PublishJointPosCmd()
+	void WholeBodyController::PublishJointPosCmd()
 	{
 		std_msgs::Float64MultiArray q_j_cmd_msg;
 		tf::matrixEigenToMsg(q_j_cmd_, q_j_cmd_msg);
 		q_j_cmd_pub_.publish(q_j_cmd_msg);
 	}
 	
-	void Controller::PublishJointVelCmd()
+	void WholeBodyController::PublishJointVelCmd()
 	{
 		std_msgs::Float64MultiArray q_j_dot_cmd_msg;
 		tf::matrixEigenToMsg(q_j_dot_cmd_, q_j_dot_cmd_msg);
 		q_j_dot_cmd_pub_.publish(q_j_dot_cmd_msg);
 	}
 
-	void Controller::OnGenCoordMsg(
+	void WholeBodyController::OnGenCoordMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
@@ -454,7 +454,7 @@ namespace control {
 		SetGenCoords(msg->data);
 	}
 
-	void Controller::OnGenVelMsg(
+	void WholeBodyController::OnGenVelMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
@@ -467,21 +467,21 @@ namespace control {
 	// SETTERS & GETTERS //
 	// ***************** //
 
-	joint_vector_t Controller::GetJointsPos()
+	joint_vector_t WholeBodyController::GetJointsPos()
 	{
 		joint_vector_t q_j = 
 			q_.block<kNumJoints,1>(kNumPoseCoords,0);
 		return q_j;
 	}
 
-	joint_vector_t Controller::GetJointsVel()
+	joint_vector_t WholeBodyController::GetJointsVel()
 	{
 		joint_vector_t q_j_dot = 
 			u_.block<kNumJoints,1>(kNumTwistCoords,0);
 		return q_j_dot;
 	}
 
-	void Controller::SetGenCoords(const std::vector<double> &gen_coords)
+	void WholeBodyController::SetGenCoords(const std::vector<double> &gen_coords)
 	{
 		for (int i = 0; i < kNumGenCoords; ++i)
 			q_(i) = gen_coords[i];
@@ -489,7 +489,7 @@ namespace control {
 		q_j_ = GetJointsPos();
 	}
 
-	void Controller::SetGenVels(const std::vector<double> &gen_vels)
+	void WholeBodyController::SetGenVels(const std::vector<double> &gen_vels)
 	{
 		for (int i = 0; i < 18; ++i)
 			u_(i) = gen_vels[i];
@@ -502,13 +502,13 @@ namespace control {
 	// **************** //
 	
 	// TODO: For debugging
-	void Controller::PrintMatrix(Eigen::MatrixXd matr)
+	void WholeBodyController::PrintMatrix(Eigen::MatrixXd matr)
 	{
 		std::cout << std::setprecision(2) << std::fixed
 			<< matr << std::endl << std::endl;	
 	}
 
-	Eigen::MatrixXd Controller::EvalPosTrajAtTime(
+	Eigen::MatrixXd WholeBodyController::EvalPosTrajAtTime(
 			drake::trajectories::PiecewisePolynomial<double> traj,
 			double curr_time)
 	{
@@ -519,7 +519,7 @@ namespace control {
 		return traj.value(curr_time);
 	}
 
-	Eigen::MatrixXd Controller::EvalVelTrajAtTime(
+	Eigen::MatrixXd WholeBodyController::EvalVelTrajAtTime(
 			drake::trajectories::PiecewisePolynomial<double> traj,
 			double curr_time)
 	{
@@ -530,20 +530,20 @@ namespace control {
 		return traj.value(curr_time);
 	}
 
-	void Controller::WaitForPublishedTime()
+	void WholeBodyController::WaitForPublishedTime()
 	{
 		while (ros::Time::now().toSec() == 0.0); 
 		ROS_INFO("Received published time");
 	}
 
-	void Controller::WaitForPublishedState()
+	void WholeBodyController::WaitForPublishedState()
 	{
 		while (!received_first_state_msg_);
 		ROS_INFO("Received published state");
 	}
 
 	drake::trajectories::PiecewisePolynomial<double>
-		Controller::CreateFirstOrderHoldTraj(
+		WholeBodyController::CreateFirstOrderHoldTraj(
 			std::vector<double> breaks,
 			std::vector<Eigen::MatrixXd> samples
 			)
@@ -554,7 +554,7 @@ namespace control {
 		return traj;
 	}
 
-	void Controller::SetVariablesToZero()
+	void WholeBodyController::SetVariablesToZero()
 	{
 		q_.setZero(); // NOTE: sets quaternion to zero too!
 		u_.setZero();
@@ -571,12 +571,12 @@ namespace control {
 		q_j_dot_cmd_integrator_.Reset();
 	}
 	
-	void Controller::SetModeStartTime()
+	void WholeBodyController::SetModeStartTime()
 	{
 		mode_start_time_ = ros::Time::now();
 	}
 
-	double Controller::GetElapsedTimeSince(ros::Time t)
+	double WholeBodyController::GetElapsedTimeSince(ros::Time t)
 	{
 		double elapsed_time = (ros::Time::now() - t).toSec();
 		return elapsed_time; 
@@ -586,7 +586,7 @@ namespace control {
 	// MATH //
 	// **** //
 
-	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
+	Eigen::MatrixXd WholeBodyController::CalcPseudoInverse(Eigen::MatrixXd A)
 	{
 		// Moore-Penrose right inverse: A^t (A A^t)
 		Eigen:: MatrixXd pseudo_inverse =
@@ -594,7 +594,7 @@ namespace control {
 		return pseudo_inverse;
 	}
 
-	Eigen::MatrixXd Controller::CalcPseudoInverse(
+	Eigen::MatrixXd WholeBodyController::CalcPseudoInverse(
 			Eigen::MatrixXd A, double damping
 			)
 	{
@@ -609,7 +609,7 @@ namespace control {
 		return pseudo_inverse;
 	}
 
-	Eigen::MatrixXd Controller::CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
+	Eigen::MatrixXd WholeBodyController::CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
 	{
 		Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
 		Eigen::MatrixXd eye =
@@ -618,4 +618,17 @@ namespace control {
 		Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
 		return null_space_projection_matrix;
 	}
+}
+
+int main(int argc, char **argv)
+{
+	ros::init(argc, argv, "whole_body_controller",
+			ros::init_options::NoSigintHandler
+			);
+	ROS_INFO("Starting WholeBodyController");
+	int frequency = 400;
+	control::WholeBodyController whole_body_controller(frequency);
+	ros::spin();
+
+	return 0;
 }

@@ -22,11 +22,11 @@
 namespace control
 {
 
-	class Controller // TODO: Rename this class to reflect that it is actually joint motion planner or whole body controller
+	class WholeBodyController// TODO: Rename this class to reflect that it is actually joint motion planner or whole body controller
 	{
 		public:
-			Controller(int frequency);
-			~Controller();
+			WholeBodyController(int frequency);
+			~WholeBodyController();
 
 		private:
 			ros::NodeHandle ros_node_;

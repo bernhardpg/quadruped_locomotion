@@ -77,11 +77,11 @@ target_link_libraries(dynamics ${pinocchio_LIBRARIES})
 add_library(integrator src/control/integrator.cpp)
 
 # Controller 
-add_executable(controller_node src/control/controller_node.cpp src/control/controller.cpp)
-target_link_libraries(controller_node drake::drake)
-target_link_libraries(controller_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
-target_link_libraries(controller_node dynamics)
-target_link_libraries(controller_node integrator)
+add_executable(whole_body_controller src/control/whole_body_controller.cpp)
+target_link_libraries(whole_body_controller drake::drake)
+target_link_libraries(whole_body_controller ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(whole_body_controller dynamics)
+target_link_libraries(whole_body_controller integrator)
 
 # Joint controller
 add_executable(joint_controller src/control/joint_controller.cpp)
