@@ -9,7 +9,7 @@
 #include <ros/console.h>
 #include <ros/callback_queue.h>
 #include <ros/subscribe_options.h>
-
+#include <std_srvs/Empty.h>
 #include <std_msgs/Float64MultiArray.h>
 #include <eigen_conversions/eigen_msg.h>
 
@@ -101,6 +101,9 @@ namespace control
 
 			bool received_first_state_msg_ = false;
 
+			// Services
+			ros::ServiceServer cmd_standup_service_;	
+
 			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
 			ros::Publisher q_j_dot_cmd_pub_;
@@ -116,12 +119,18 @@ namespace control
 			std::thread ros_publish_queue_thread_;
 
 			void SetupRosTopics();
+			void SetupRosServices();
 			void SpinRosThreads();
 			void PublishQueueThread();
 			void ProcessQueueThread();
 
 			void PublishJointPosCmd();
 			void PublishJointVelCmd();
+
+			bool CmdStandupService(
+							const std_srvs::Empty::Request &_req,
+							std_srvs::Empty::Response &_res
+					);
 
 			void OnGenCoordMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg

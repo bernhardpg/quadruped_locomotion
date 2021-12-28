@@ -10,6 +10,7 @@ namespace control {
 		SetVariablesToZero();
 
 		SetupRosTopics();
+		SetupRosServices();
 		WaitForPublishedTime();
 		SpinRosThreads();
 		WaitForPublishedState();
@@ -221,6 +222,28 @@ namespace control {
 		gen_vel_sub_ = ros_node_.subscribe(gen_vel_so);
 
 		ROS_INFO("Finished setting up ROS topics");
+	}
+
+	void Controller::SetupRosServices()
+	{
+		ros::AdvertiseServiceOptions cmd_standup_aso =
+			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
+            "/" + model_name_ + "/standup",
+            boost::bind(&Controller::CmdStandupService, this, _1, _2),
+            ros::VoidPtr(),
+            &this->ros_process_queue_
+        );
+
+		cmd_standup_service_ = ros_node_.advertiseService(cmd_standup_aso);
+	}
+
+	bool Controller::CmdStandupService(
+					const std_srvs::Empty::Request &_req,
+					std_srvs::Empty::Response &_res
+			)
+	{
+		SetRobotMode(kStandup);
+		return true;
 	}
 
 	void Controller::SpinRosThreads()
