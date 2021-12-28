@@ -119,6 +119,51 @@ namespace control {
 		traj_end_time_s_ = seconds_to_standup_config_;
 	}
 
+	void Controller::SetDanceTraj()
+	{
+		J_task_.resize(3,kNumGenVels);
+		J_task_.setZero();
+		int z_index = 2;
+		int roll_index = 3;
+		int pitch_index = 4;
+		J_task_(0, z_index) = 1;
+		J_task_(1, roll_index) = 1;
+		J_task_(2, pitch_index) = 1;
+
+		const std::vector<double> breaks =
+		{
+			0.0, 1.0, 2.0, 3.0, 4.0
+		};
+
+		Eigen::MatrixXd curr_pose(3,1);
+		double curr_height = q_(z_index);
+		curr_pose << curr_height, 0, 0;
+
+		double dancing_height = 0.1;
+
+		Eigen::MatrixXd left_roll(3,1);
+		left_roll <<
+			standing_height_ - dancing_height, -3.14 / 8, -3.14 / 8;
+
+		Eigen::MatrixXd right_roll(3,1);
+		right_roll <<
+			standing_height_ - dancing_height, 3.14 / 8, 3.14 / 8;
+
+		std::vector<Eigen::MatrixXd> samples =
+		{
+			curr_pose, left_roll, curr_pose, right_roll,
+			curr_pose
+		};
+
+		auto com_dance_traj 
+			= CreateFirstOrderHoldTraj(breaks, samples);
+		auto com_vel_dance_traj 
+			= com_dance_traj.derivative(1);
+
+		task_vel_traj_ = com_vel_dance_traj;
+		traj_end_time_s_ = 4.0;
+	}
+
 	// ********** //
 	// CONTROLLER //
 	// ********** //
@@ -126,6 +171,12 @@ namespace control {
 	void Controller::UpdateJointCommand()
 	{
 		seconds_in_mode_ = GetElapsedTimeSince(mode_start_time_);
+
+		if (!controller_ready_)
+		{
+			ROS_INFO("Controller not ready");
+			return;
+		}
 
 		switch(control_mode_)	
 		{
@@ -197,10 +248,12 @@ namespace control {
 			.GetStackedContactJacobianPos(q_);
 		Eigen::MatrixXd N_constraint =
 			CalcNullSpaceProjMatrix(J_constraint);
-		
+
 		Eigen::MatrixXd w_task = EvalVelTrajAtTime(
 				task_vel_traj_, seconds_in_mode_
 				);
+
+		ROS_INFO("J_c Rows: %d, Cols: %d, w_task rows: %d", J_constraint.rows(), J_constraint.cols(), w_task.rows());
 
 		Eigen::MatrixXd u_0_cmd
 			= CalcPseudoInverse(J_task_ * N_constraint) * w_task;
@@ -229,9 +282,13 @@ namespace control {
 			case kStandup:
 				ROS_INFO("Setting mode to STANDUP");
 				q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-				//SetFeetStandupTraj();
-				//control_mode_ = kFeetTracking; 
 				SetComStandupTraj();
+				control_mode_ = kSupportConsistentTracking;
+				break;
+			case kDance:
+				ROS_INFO("Setting mode to DANCE");
+				q_j_dot_cmd_integrator_.SetIntegral(q_j_);
+				SetDanceTraj();
 				control_mode_ = kSupportConsistentTracking;
 				break;
 			case kWalk:
@@ -313,6 +370,16 @@ namespace control {
         );
 
 		cmd_standup_service_ = ros_node_.advertiseService(cmd_standup_aso);
+
+		ros::AdvertiseServiceOptions cmd_dance_aso =
+			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
+            "/" + model_name_ + "/dance",
+            boost::bind(&Controller::CmdDanceService, this, _1, _2),
+            ros::VoidPtr(),
+            &this->ros_process_queue_
+        );
+
+		cmd_dance_service_ = ros_node_.advertiseService(cmd_dance_aso);
 	}
 
 	bool Controller::CmdStandupService(
@@ -321,6 +388,15 @@ namespace control {
 			)
 	{
 		SetRobotMode(kStandup);
+		return true;
+	}
+
+	bool Controller::CmdDanceService(
+					const std_srvs::Empty::Request &_req,
+					std_srvs::Empty::Response &_res
+			)
+	{
+		SetRobotMode(kDance);
 		return true;
 	}
 
@@ -349,8 +425,6 @@ namespace control {
 	{
 		while (ros_node_.ok())
 		{
-			if (!controller_ready_) continue;
-
 			UpdateJointCommand();
 			PublishJointPosCmd();
 			PublishJointVelCmd();

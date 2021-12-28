@@ -15,6 +15,5 @@
 			-J RF_HAA 0.0 -J RF_HFE 2.0 -J RF_KFE -2.5
 			-J RH_HAA 0.0 -J RH_HFE -2.0 -J RH_KFE 2.5"/>
 
-	<node pkg="quadruped_locomotion" type="controller_node" output="screen" name="controller_node"/>
 	<node pkg="quadruped_locomotion" type="joint_controller" output="screen" name="joint_controller"/>
 </launch>

@@ -51,6 +51,7 @@ namespace control
 			void SetJointInitialConfigTraj();
 			void SetFeetStandupTraj();
 			void SetComStandupTraj();
+			void SetDanceTraj();
 
 			// ********** //
 			// CONTROLLER //
@@ -94,7 +95,7 @@ namespace control
 			// ************* //
 
 			enum RobotMode {
-				kIdle, kStandup, kWalk
+				kIdle, kStandup, kWalk, kDance
 			} robot_mode_;
 			
 			ros::Time mode_start_time_;
@@ -111,6 +112,7 @@ namespace control
 
 			// Services
 			ros::ServiceServer cmd_standup_service_;	
+			ros::ServiceServer cmd_dance_service_;	
 
 			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
@@ -136,6 +138,10 @@ namespace control
 			void PublishJointVelCmd();
 
 			bool CmdStandupService(
+							const std_srvs::Empty::Request &_req,
+							std_srvs::Empty::Response &_res
+					);
+			bool CmdDanceService(
 							const std_srvs::Empty::Request &_req,
 							std_srvs::Empty::Response &_res
 					);
