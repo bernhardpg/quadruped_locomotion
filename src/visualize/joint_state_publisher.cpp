@@ -52,7 +52,7 @@ void JointStatePublisher::PublishGenCoords()
 
 	gen_coord_vector_t q;
 	q.block<7,1>(0,0) = GetDefaultBodyPose();
-	q.block<kNumJoints,1>(kJointIndexInGenCoords,0) = q_j;
+	q.block<kNumJoints,1>(kNumPoseCoords,0) = q_j;
 
 	std_msgs::Float64MultiArray gen_coord_msg;
 	tf::matrixEigenToMsg(q, gen_coord_msg);

@@ -1,7 +1,5 @@
 #include "control/controller.hpp"
 
-// TODO: remove all 'this' references
-
 namespace control {
 	Controller::Controller(int frequency)
 		: loop_rate_(frequency)
@@ -9,18 +7,14 @@ namespace control {
 		ROS_INFO("Running controller at %d Hz", frequency);
 		model_name_ = "anymal"; // TODO: Replace with node argument
 		
-		SetStateVariablesToZero();
+		SetVariablesToZero();
 
-		InitRos();
-		SetStartTime();
+		SetupRosTopics();
+		WaitForPublishedTime();
 		SpinRosThreads();
+		WaitForPublishedState();
 
-		// Wait for state to get published
-		//while (q_.isZero(0) || u_.isZero(0))
-
-		InitController();
-		CreateInitialConfigTraj();
-		controller_ready_ = true; // TODO: cleanup
+		SetRobotMode(kIdle);
 	}
 
 	Controller::~Controller()
@@ -36,26 +30,12 @@ namespace control {
 			ros_publish_queue_thread_.join();
 	}
 
-	void Controller::InitController()
-	{
-		feet_pos_error_.setZero();
-		feet_vel_ff_.setZero();
-
-		// TODO: Move this? This is duplicated right now
-		q_j_cmd_.setZero();
-		q_j_dot_cmd_.setZero();
-
-		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
-		q_j_dot_cmd_integrator_.Reset();
-	}
-
 	// **************** //
 	// STANDUP SEQUENCE //
 	// **************** //
 
-	void Controller::CreateInitialConfigTraj()
+	void Controller::SetJointInitialConfigTraj()
 	{
-
 		const std::vector<double> breaks = {
 			0.0, seconds_to_initial_config_
 		};
@@ -64,15 +44,17 @@ namespace control {
 		samples.push_back(q_j_);
 		samples.push_back(initial_joint_config);
 
-		q_j_initial_config_traj_ = CreateFirstOrderHoldTraj(breaks, samples);
-		q_j_dot_initial_config_traj_ = q_j_initial_config_traj_.derivative(1);
+		auto initial_config_pos_traj
+			= CreateFirstOrderHoldTraj(breaks, samples);
+		auto initial_config_vel_traj
+			= initial_config_pos_traj.derivative(1);
+
+		q_j_cmd_traj_ = initial_config_pos_traj;
+		q_j_dot_cmd_traj_ = initial_config_vel_traj;
 	}
 
-	void Controller::CreateStandupTraj()
+	void Controller::SetFeetStandupTraj()
 	{
-		// TODO: Move this to some state handler
-		q_j_dot_cmd_integrator_.SetIntegral(q_j_); // TODO: This should be set when initial config is reached
-
 		const std::vector<double> breaks = {
 			0.0, seconds_to_standup_config_
 		};
@@ -91,86 +73,102 @@ namespace control {
 		samples.push_back(feet_start_pos);
 		samples.push_back(feet_standing_pos);
 
-		feet_standup_pos_traj_ = CreateFirstOrderHoldTraj(breaks, samples);
-		feet_standup_vel_traj_ = feet_standup_pos_traj_.derivative(1);
-		created_standup_traj_ = true; // TODO: Remove this?
+		auto feet_standup_pos_traj
+			= CreateFirstOrderHoldTraj(breaks, samples);
+		auto feet_standup_vel_traj
+			= feet_standup_pos_traj.derivative(1);
+
+		feet_cmd_pos_traj_ = feet_standup_pos_traj;
+		feet_cmd_vel_traj_ = feet_standup_vel_traj;
 	}
 
-	void Controller::JacobianController()
-	{
-		t_ = GetElapsedTimeSince(start_time_);
+	// ********** //
+	// CONTROLLER //
+	// ********** //
 
-		feet_pos_error_ =
-			feet_standup_pos_traj_.value(t_)
+	void Controller::UpdateJointCommand()
+	{
+		seconds_in_mode_ = GetElapsedTimeSince(mode_start_time_);
+
+		switch(control_mode_)	
+		{
+			case kJointTracking:
+				q_j_cmd_ = q_j_cmd_traj_.value(seconds_in_mode_);
+				q_j_dot_cmd_ = q_j_dot_cmd_traj_.value(seconds_in_mode_);
+				break;
+			case kFeetTracking:
+				FeetPosControl();
+				break;
+			default:
+				break;
+		}
+	}
+
+	void Controller::FeetPosControl()
+	{
+		feet_vector_t feet_pos_error =
+			feet_cmd_pos_traj_.value(seconds_in_mode_)
 			- robot_dynamics_.GetFeetPositions(q_);
 
-		feet_vel_ff_ = feet_standup_vel_traj_.value(t_);
+		feet_vector_t feet_vel_ff
+			= feet_cmd_vel_traj_.value(seconds_in_mode_);
 
-		J_feet_pos_ = robot_dynamics_
+		Eigen::Matrix<double,kNumFeetCoords,kNumJoints> J_feet =
+			robot_dynamics_
 			.GetStackedFeetJacobianPos(q_)
-			.block(0,6,12,12); // Get rid of jacobian for body
-		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_feet_pos_);
+			.block(0,kNumTwistCoords,kNumFeetCoords,kNumJoints);
+			// Get rid of Jacobian for body
+		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_feet);
 		
-		// Position controller
+		// Feet position controller
 		q_j_dot_cmd_ = J_inv
-			* (k_pos_p_ * feet_pos_error_ + feet_vel_ff_);
+			* (k_pos_p_ * feet_pos_error + feet_vel_ff);
 
 		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-		std::cout << std::fixed << std::setprecision(2)
-			<< feet_pos_error_.transpose() << std::endl 
-			<< feet_vel_ff_.transpose() << std::endl
-			<< q_j_cmd_.transpose() << std::endl
-			<< q_j_dot_cmd_.transpose() << std::endl << std::endl;
-
-		SetStateToCmd();
+//		// TODO: remove
+//		std::cout << std::fixed << std::setprecision(2)
+//			<< feet_pos_error.transpose() << std::endl 
+//			<< feet_vel_ff.transpose() << std::endl
+//			<< q_j_cmd_.transpose() << std::endl
+//			<< q_j_dot_cmd_.transpose() << std::endl << std::endl;
 	}
 
-	// TODO: only for testing
-	void Controller::SetStateToCmd()
-	{
-		q_.block<3,1>(0,0).setZero();
-		q_(3) = 1;
-		q_.block<3,1>(4,0).setZero();
-		q_.block<12,1>(7,0) = q_j_cmd_;
 
-		u_.block<3,1>(0,0).setZero();
-		u_.block<3,1>(3,0).setZero();
-		u_.block<12,1>(6,0) = q_j_dot_cmd_;
-	}
+	// ************* //
+	// STATE MACHINE // 
+	// ************* //
 
-	void Controller::CalcJointCmd()
+	void Controller::SetRobotMode(RobotMode target_mode)
 	{
-		t_ = GetElapsedTimeSince(start_time_);
-		// TODO: clean up this
-		if (t_ < standup_start_time_)
+		controller_ready_ = false;
+		switch(target_mode)
 		{
-			q_j_cmd_ = q_j_ref_traj_.value(standup_start_time_);
-			q_j_dot_cmd_.setZero();
+			case kIdle:
+				ROS_INFO("Setting mode to IDLE");
+				SetJointInitialConfigTraj();
+				control_mode_ = kJointTracking; 
+				break;
+			case kStandup:
+				ROS_INFO("Setting mode to STANDUP");
+				q_j_dot_cmd_integrator_.SetIntegral(q_j_); 
+				SetFeetStandupTraj();
+				control_mode_ = kFeetTracking; 
+				break;
+			case kWalk:
+				break;
+			default:
+				break;
 		}
-		else if (t_ > standup_end_time_ + 2) // TODO: wait two seconds
-		{
-			if (!created_standup_traj_)
-			{
-				CreateStandupTraj(); 
-			}
-			if (created_standup_traj_)	
-			{
-				JacobianController();
-			}
-		} 
-		else
-		{
-			q_j_cmd_ = q_j_ref_traj_.value(t_);
-			q_j_dot_cmd_ = q_j_dot_ref_traj_.value(t_);
-		}
+		SetModeStartTime();
+		controller_ready_ = true;
 	}
 
 	// *** //
 	// ROS //
 	// *** //
 
-	void Controller::InitRos()
+	void Controller::SetupRosTopics()
 	{
 		ROS_INFO("Initialized controller node");
 
@@ -203,7 +201,7 @@ namespace control {
 		// Set up subscriptions
 		ros::SubscribeOptions gen_coord_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model_name_ + "/gen_coord",
+					"/" + model_name_ + "/gen_coord",
 					1,
 					boost::bind(&Controller::OnGenCoordMsg, this, _1),
 					ros::VoidPtr(),
@@ -212,7 +210,7 @@ namespace control {
 
 		ros::SubscribeOptions gen_vel_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/" + this->model_name_ + "/gen_vel",
+					"/" + model_name_ + "/gen_vel",
 					1,
 					boost::bind(&Controller::OnGenVelMsg, this, _1),
 					ros::VoidPtr(),
@@ -222,15 +220,15 @@ namespace control {
 		gen_coord_sub_ = ros_node_.subscribe(gen_coord_so);
 		gen_vel_sub_ = ros_node_.subscribe(gen_vel_so);
 
-		ROS_INFO("Finished setting up ros topics");
+		ROS_INFO("Finished setting up ROS topics");
 	}
 
 	void Controller::SpinRosThreads()
 	{
-		this->ros_process_queue_thread_ = std::thread(
+		ros_process_queue_thread_ = std::thread(
 				std::bind(&Controller::ProcessQueueThread, this)
 				);
-		this->ros_publish_queue_thread_ = std::thread(
+		ros_publish_queue_thread_ = std::thread(
 				std::bind(&Controller::PublishQueueThread, this)
 				);
 	}
@@ -252,25 +250,32 @@ namespace control {
 		{
 			if (!controller_ready_) continue;
 
-			//CalcJointCmdStandup();
-			CalcJointCmd();
-
-			std_msgs::Float64MultiArray q_j_cmd_msg;
-			tf::matrixEigenToMsg(q_j_cmd_, q_j_cmd_msg);
-			q_j_cmd_pub_.publish(q_j_cmd_msg);
-
-			std_msgs::Float64MultiArray q_j_dot_cmd_msg;
-			tf::matrixEigenToMsg(q_j_dot_cmd_, q_j_dot_cmd_msg);
-			q_j_dot_cmd_pub_.publish(q_j_dot_cmd_msg);
-
+			UpdateJointCommand();
+			PublishJointPosCmd();
+			PublishJointVelCmd();
 			loop_rate_.sleep();	
 		}
+	}
+
+	void Controller::PublishJointPosCmd()
+	{
+		std_msgs::Float64MultiArray q_j_cmd_msg;
+		tf::matrixEigenToMsg(q_j_cmd_, q_j_cmd_msg);
+		q_j_cmd_pub_.publish(q_j_cmd_msg);
+	}
+	
+	void Controller::PublishJointVelCmd()
+	{
+		std_msgs::Float64MultiArray q_j_dot_cmd_msg;
+		tf::matrixEigenToMsg(q_j_dot_cmd_, q_j_dot_cmd_msg);
+		q_j_dot_cmd_pub_.publish(q_j_dot_cmd_msg);
 	}
 
 	void Controller::OnGenCoordMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
+		received_first_state_msg_ = true;
 		SetGenCoords(msg->data);
 	}
 
@@ -278,6 +283,7 @@ namespace control {
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
+		received_first_state_msg_ = true;
 		SetGenVels(msg->data);
 	}
 
@@ -289,14 +295,14 @@ namespace control {
 	joint_vector_t Controller::GetJointsPos()
 	{
 		joint_vector_t q_j = 
-			q_.block<kNumJoints,1>(kJointIndexInGenCoords,0);
+			q_.block<kNumJoints,1>(kNumPoseCoords,0);
 		return q_j;
 	}
 
 	joint_vector_t Controller::GetJointsVel()
 	{
 		joint_vector_t q_j_dot = 
-			u_.block<kNumJoints,1>(kJointIndexInGenVels,0);
+			u_.block<kNumJoints,1>(kNumTwistCoords,0);
 		return q_j_dot;
 	}
 
@@ -320,10 +326,22 @@ namespace control {
 	// HELPER FUNCTIONS //
 	// **************** //
 
+	void Controller::WaitForPublishedTime()
+	{
+		while (ros::Time::now().toSec() == 0.0); 
+		ROS_INFO("Received published time");
+	}
+
+	void Controller::WaitForPublishedState()
+	{
+		while (!received_first_state_msg_);
+		ROS_INFO("Received published state");
+	}
+
 	drake::trajectories::PiecewisePolynomial<double>
 		Controller::CreateFirstOrderHoldTraj(
 			std::vector<double> breaks,
-			std::vector<Eigen::VectorXd> samples
+			std::vector<Eigen::MatrixXd> samples
 			)
 	{
 		drake::trajectories::PiecewisePolynomial traj
@@ -332,13 +350,9 @@ namespace control {
 		return traj;
 	}
 
-	void Controller::SetStateVariablesToZero()
+	void Controller::SetVariablesToZero()
 	{
-		q_.setZero();
-		Eigen::Matrix<double,4,1> identity_quaternion;
-		identity_quaternion << 1, 0, 0, 0;
-		q_.block<4,1>(3,0) = identity_quaternion;
-
+		q_.setZero(); // NOTE: sets quaternion to zero too!
 		u_.setZero();
 
 		q_j_.resize(kNumJoints, 1);
@@ -348,14 +362,14 @@ namespace control {
 
 		q_j_cmd_.setZero();
 		q_j_dot_cmd_.setZero();
+
+		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
+		q_j_dot_cmd_integrator_.Reset();
 	}
 	
-	void Controller::SetStartTime()
+	void Controller::SetModeStartTime()
 	{
-		// Wait for /clock to get published
-		while (ros::Time::now().toSec() == 0.0); 
-		start_time_ = ros::Time::now();
-		ROS_INFO("Start time: %f", start_time_.toSec());
+		mode_start_time_ = ros::Time::now();
 	}
 
 	double Controller::GetElapsedTimeSince(ros::Time t)
@@ -366,8 +380,10 @@ namespace control {
 
 	Eigen::MatrixXd Controller::CalcPseudoInverse(Eigen::MatrixXd A)
 	{
+		// TODO: Test condition number!
+		// Same size as A*A^t
 		Eigen::MatrixXd eye =
-			Eigen::MatrixXd::Identity(A.rows(), A.rows()); // same size as A*A^t
+			Eigen::MatrixXd::Identity(A.rows(), A.rows());
 		double damping = 1;
 
 		// Moore-Penrose right inverse: A^t (A A^t)

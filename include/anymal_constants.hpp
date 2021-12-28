@@ -1,15 +1,16 @@
+const int kNumPoseCoords = 7;
+const int kNumTwistCoords = 6;
 const int kNumJoints = 12;
-const int kNumGenCoords = 19;
-const int kNumGenVels = 18;
+const int kNumGenCoords = kNumPoseCoords + kNumJoints;
+const int kNumGenVels = kNumTwistCoords + kNumJoints;
 const int kNumLegs = 4;
 const int kNumPosDims = 3;
-const int kJointIndexInGenVels = 6;
-const int kJointIndexInGenCoords = 7;
+const int kNumFeetCoords = kNumLegs * kNumPosDims;
 
 typedef Eigen::Matrix<double,kNumJoints,1> joint_vector_t;
 typedef Eigen::Matrix<double,kNumGenCoords,1> gen_coord_vector_t;
 typedef Eigen::Matrix<double,kNumGenVels,1> gen_vel_vector_t;
-typedef Eigen::Matrix<double,kNumLegs * kNumPosDims,1> feet_pos_vector_t;
+typedef Eigen::Matrix<double,kNumFeetCoords,1> feet_vector_t;
 
 const std::vector<std::string> kJointNames =
 {

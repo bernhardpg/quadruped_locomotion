@@ -12,7 +12,7 @@
 #include <std_msgs/Float64MultiArray.h>
 #include <Eigen/Core>
 
-#include "anymal_constants.h"
+#include "anymal_constants.hpp" // TODO Use this everywhere instead of numbers
 
 namespace gazebo
 {

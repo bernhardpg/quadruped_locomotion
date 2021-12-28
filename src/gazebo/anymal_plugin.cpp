@@ -1,4 +1,4 @@
-#include "anymal_plugin.hpp"
+#include "gazebo/anymal_plugin.hpp"
 
 // TODO: Replace all unecessary instances of this
 
@@ -421,7 +421,7 @@ namespace gazebo
 
 			gen_coord_vector_t q;
 			q.block<7,1>(0,0) = q_b;
-			q.block<kNumJoints,1>(kJointIndexInGenCoords,0) = q_j;
+			q.block<kNumJoints,1>(kNumPoseCoords,0) = q_j;
 
 			Eigen::Matrix<double, 6, 1> u_b;
 			u_b = GetBaseTwist();

@@ -2,7 +2,7 @@
 
 #include "dynamics/dynamics.hpp"
 #include "control/integrator.hpp"
-#include "anymal_constants.hpp" // TODO Use this everywhere instead of numbers
+#include "anymal_constants.hpp"
 
 #include <thread>
 #include <ros/ros.h>
@@ -21,7 +21,8 @@
 
 namespace control
 {
-	class Controller // TODO: Rename this class, it will not actually be a controller
+
+	class Controller // TODO: Rename this class to reflect that it is actually joint motion planner or whole body controller
 	{
 		public:
 			Controller(int frequency);
@@ -37,10 +38,6 @@ namespace control
 			Eigen::MatrixXd q_j_dot_;
 
 			Dynamics robot_dynamics_;
-			ros::Time start_time_;
-			bool controller_ready_ = false;
-			
-			void SetStateToCmd();
 
 			// **************** //
 			// STANDUP SEQUENCE //
@@ -50,49 +47,59 @@ namespace control
 			double seconds_to_standup_config_ = 10.0;
 			double standing_height_ = 0.6;
 
-			drake::trajectories::PiecewisePolynomial<double>
-				q_j_initial_config_traj_;
-			drake::trajectories::PiecewisePolynomial<double>
-				q_j_dot_initial_config_traj_;
-
-			drake::trajectories::PiecewisePolynomial<double>
-				feet_standup_pos_traj_;
-			drake::trajectories::PiecewisePolynomial<double>
-				feet_standup_vel_traj_;
-
-			bool created_standup_traj_ = false;
-
-			void CreateInitialConfigTraj();
-			void CreateStandupTraj();
-
-			void CalcJointCmd();
+			void SetJointInitialConfigTraj();
+			void SetFeetStandupTraj();
 
 			// ********** //
 			// CONTROLLER //
 			// ********** //
 
-			double t_ = 0;
+			enum ControlMode {
+				kJointTracking, kFeetTracking
+			} control_mode_;
+
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_cmd_traj_;
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_dot_cmd_traj_;
+
+			drake::trajectories::PiecewisePolynomial<double>
+				feet_cmd_pos_traj_;
+			drake::trajectories::PiecewisePolynomial<double>
+				feet_cmd_vel_traj_;
 
 			ros::Rate loop_rate_;
 
 			double k_pos_p_ = 0.001; // TODO: Tune these
+			bool controller_ready_ = false;
 
-			Eigen::Matrix<double,12,1> feet_pos_error_;
-			Eigen::Matrix<double,12,1> feet_vel_ff_;
-
-			Eigen::MatrixXd J_feet_pos_;
-
-			void InitController();
-			void JacobianController(); // TODO: Rename
+			void UpdateJointCommand();
+			void FeetPosControl();
 
 			Eigen::Matrix<double,12,1> q_j_cmd_;
 			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
 
 			Integrator q_j_dot_cmd_integrator_;
 
+			// ************* //
+			// STATE MACHINE // 
+			// ************* //
+
+			enum RobotMode {
+				kIdle, kStandup, kWalk
+			} robot_mode_;
+			
+			ros::Time mode_start_time_;
+			double seconds_in_mode_ = 0;
+
+			void SetRobotMode(RobotMode target_mode);
+			void SetModeStartTime();
+
 			// *** //
 			// ROS //
 			// *** //
+
+			bool received_first_state_msg_ = false;
 
 			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
@@ -108,10 +115,13 @@ namespace control
 			std::thread ros_process_queue_thread_;
 			std::thread ros_publish_queue_thread_;
 
-			void InitRos();
+			void SetupRosTopics();
 			void SpinRosThreads();
 			void PublishQueueThread();
 			void ProcessQueueThread();
+
+			void PublishJointPosCmd();
+			void PublishJointVelCmd();
 
 			void OnGenCoordMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
@@ -134,13 +144,15 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			void WaitForPublishedTime();
+			void WaitForPublishedState();
+
 			drake::trajectories::PiecewisePolynomial<double>
 				CreateFirstOrderHoldTraj(
 						std::vector<double> breaks,
 						std::vector<Eigen::MatrixXd> samples
 						);
-			void SetStateVariablesToZero();
-			void SetStartTime();
+			void SetVariablesToZero();
 			double GetElapsedTimeSince(ros::Time t);
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
 	};
