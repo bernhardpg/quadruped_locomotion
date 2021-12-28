@@ -1,11 +1,10 @@
 # Quadruped locomotion
 
 ## Todos
-- [x] Test joint control
-- [x] Tune position PIDs
-- [] Tune velocity PIDs
-- [] Add base pose and velocity to generalized coords and vels
-- [] Implement inverse kinematics trajectory optimization to make the robot stand up
+- [X] Test joint control
+- [X] Tune position PIDs
+- [X] Add base pose and velocity to generalized coords and vels
+- [X] Implement inverse kinematics trajectory optimization to make the robot stand up
 
 ## HO QP
 - [x] Download and install drake as a dependency
@@ -17,8 +16,8 @@
 - ... ?
 
 ## ZMP Motion planner
-- [x] Specify a format for gait sequence
-- [] Get polygons from vel_cmd and gait sequence
+- [X] Specify a format for gait sequence
+- [X] Get polygons from vel_cmd and gait sequence
 - [] Get A and b from polygon
 - [] Implement zmp constraints
 - [] Implement current position as constraint on first spline
