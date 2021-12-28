@@ -14,7 +14,8 @@ namespace control
 		  eq_const_vectors_(num_tasks_),
 		  ineq_const_matrices_(num_tasks_),
 		  ineq_const_vectors_(num_tasks_),
-		  slack_variables_(num_tasks_)
+		  slack_variables_(num_tasks_),
+			accumulated_As(num_tasks_)
 	{
 		num_contacts_ = 4; // TODO: generalize this
 
@@ -23,8 +24,10 @@ namespace control
 
 		for (int task_i = 0; task_i < num_tasks_; ++task_i)
 		{
-			InitializeQPAtIndex(task_i);
+			InitializeQPForTask(task_i);
 		}
+
+		CreateAccumulatedEqMatrices();
 	}
 
 	void HierarchicalQP::PopulateVariables()
@@ -51,18 +54,14 @@ namespace control
 		ineq_const_vectors_[2] = b;
 	}
 
-	void HierarchicalQP::InitializeQPAtIndex(int index)
+	void HierarchicalQP::InitializeQPForTask(int index)
 	{
-		ROS_INFO("Creating QP");
 		std::unique_ptr<drake::solvers::MathematicalProgram>
 			prog_ptr (new drake::solvers::MathematicalProgram);
-		ROS_INFO("Created pointer");
 		quadratic_progs_[index] = std::move(prog_ptr);
-		ROS_INFO("Moved pointer");
 		decision_variables_[index] = CreateDecisionVariables(
 				quadratic_progs_[index]
 				);
-		ROS_INFO("Created dec variables");
 		// TODO: 10 only for testing
 		slack_variables_[index] = CreateSlackVariables(
 				quadratic_progs_[index], 10
@@ -97,6 +96,24 @@ namespace control
 					);
 
 		return slack_variables;
+	}
+
+	void HierarchicalQP::CreateAccumulatedEqMatrices()
+	{
+		accumulated_As[0] = eq_const_matrices_[0];
+		int A_rows = eq_const_matrices_[0].rows();
+		int A_cols = num_decision_vars_;
+		for (int task_i = 1; task_i < num_tasks_; ++task_i)
+		{
+			A_rows += eq_const_matrices_[task_i].rows();	
+			std::cout << "number of rows: " << A_rows << std::endl;
+			Eigen::MatrixXd A_p(A_rows, A_cols);
+			A_p << accumulated_As[task_i - 1],
+						 eq_const_matrices_[task_i];
+			accumulated_As[task_i] = A_p;
+
+			std::cout << A_p << std::endl << std::endl;
+		}
 	}
 
 	void HierarchicalQP::AddEqConstraint(

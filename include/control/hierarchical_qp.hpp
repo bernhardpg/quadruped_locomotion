@@ -37,8 +37,12 @@ namespace control
 			std::vector<Eigen::VectorXd> ineq_const_vectors_;
 			std::vector<symbolic_vector_t> slack_variables_;
 
+			std::vector<Eigen::MatrixXd> accumulated_As;
+
 			void PopulateVariables(); // TODO: Rename or replace 
-			void InitializeQPAtIndex(int index);
+			void InitializeQPForTask(int index);
+			void CreateAccumulatedEqMatrices();
+
 			symbolic_vector_t CreateDecisionVariables(
 					std::unique_ptr<drake::solvers::MathematicalProgram> &prog
 					);
