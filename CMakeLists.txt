@@ -82,6 +82,11 @@ target_link_libraries(whole_body_controller drake::drake)
 target_link_libraries(whole_body_controller ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(whole_body_controller dynamics)
 target_link_libraries(whole_body_controller integrator)
+target_link_libraries(whole_body_controller hierarchical_qp)
+
+# Hierarchical QP
+add_library(hierarchical_qp src/control/hierarchical_qp.cpp)
+target_link_libraries(hierarchical_qp drake::drake)
 
 # Joint controller
 add_executable(joint_controller src/control/joint_controller.cpp)

@@ -2,6 +2,7 @@
 
 #include "dynamics/dynamics.hpp"
 #include "control/integrator.hpp"
+#include "control/hierarchical_qp.hpp"
 #include "anymal_constants.hpp"
 
 #include <thread>
@@ -13,7 +14,6 @@
 #include <std_msgs/Float64MultiArray.h>
 #include <eigen_conversions/eigen_msg.h>
 
-#include <drake/solvers/mathematical_program.h>
 #include <drake/common/trajectories/piecewise_polynomial.h>
 
 #include <Eigen/Core>
@@ -79,6 +79,8 @@ namespace control
 
 			double k_pos_p_ = 1.0;
 			bool controller_ready_ = false;
+
+			HierarchicalQP hqp_solver_;
 
 			void UpdateJointCommand();
 			void DirectJointControl();

@@ -253,7 +253,8 @@ namespace control {
 				task_vel_traj_, seconds_in_mode_
 				);
 
-		ROS_INFO("J_c Rows: %d, Cols: %d, w_task rows: %d", J_constraint.rows(), J_constraint.cols(), w_task.rows());
+		// TODO: remove
+		//ROS_INFO("J_c Rows: %d, Cols: %d, w_task rows: %d", J_constraint.rows(), J_constraint.cols(), w_task.rows());
 
 		Eigen::MatrixXd u_0_cmd
 			= CalcPseudoInverse(J_task_ * N_constraint) * w_task;
