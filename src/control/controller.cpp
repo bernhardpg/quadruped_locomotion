@@ -60,7 +60,7 @@ namespace control {
 			0.0, seconds_to_standup_config_
 		};
 
-		Eigen::MatrixXd feet_start_pos(kNumLegs * kNumPosDims,1);
+		Eigen::MatrixXd feet_start_pos(kNumFeetCoords,1);
 		feet_start_pos = robot_dynamics_.GetFeetPositions(q_);
 
 		Eigen::MatrixXd feet_standing_pos = feet_start_pos;
@@ -103,6 +103,10 @@ namespace control {
 			default:
 				break;
 		}
+
+//		std::cout << std::fixed << std::setprecision(2)
+//			<< q_j_cmd_.transpose() << std::endl;
+			//<< q_j_dot_cmd_.transpose() << std::endl << std::endl;
 	}
 
 	void Controller::FeetPosControl()
@@ -110,9 +114,15 @@ namespace control {
 		feet_vector_t feet_pos_error =
 			feet_cmd_pos_traj_.value(seconds_in_mode_)
 			- robot_dynamics_.GetFeetPositions(q_);
+		ROS_INFO_STREAM(
+				"feet_pos_error: " << std::setprecision(2) << std::fixed
+				<< feet_pos_error.transpose() << std::endl);
 
 		feet_vector_t feet_vel_ff
 			= feet_cmd_vel_traj_.value(seconds_in_mode_);
+//		ROS_INFO_STREAM(
+//				"feet_vel_ff: " << std::setprecision(2) << std::fixed
+//				<< feet_vel_ff.transpose() << std::endl << std::endl);
 
 		Eigen::Matrix<double,kNumFeetCoords,kNumJoints> J_feet =
 			robot_dynamics_
@@ -127,12 +137,6 @@ namespace control {
 
 		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-//		// TODO: remove
-//		std::cout << std::fixed << std::setprecision(2)
-//			<< feet_pos_error.transpose() << std::endl 
-//			<< feet_vel_ff.transpose() << std::endl
-//			<< q_j_cmd_.transpose() << std::endl
-//			<< q_j_dot_cmd_.transpose() << std::endl << std::endl;
 	}
 
 
@@ -152,7 +156,7 @@ namespace control {
 				break;
 			case kStandup:
 				ROS_INFO("Setting mode to STANDUP");
-				q_j_dot_cmd_integrator_.SetIntegral(q_j_); 
+				q_j_dot_cmd_integrator_.SetIntegral(q_j_);
 				SetFeetStandupTraj();
 				control_mode_ = kFeetTracking; 
 				break;

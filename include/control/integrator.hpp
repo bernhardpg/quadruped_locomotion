@@ -13,6 +13,7 @@ class Integrator
 		void Integrate(Eigen::VectorXd vec);
 		void SetSize(int rows);
 		void Reset();
+		void ResetTime();
 
 		Eigen::VectorXd GetIntegral();
 		void SetIntegral(Eigen::VectorXd target);

@@ -44,8 +44,8 @@ namespace control
 			// **************** //
 
 			double seconds_to_initial_config_ = 2.5; 
-			double seconds_to_standup_config_ = 10.0;
-			double standing_height_ = 0.6;
+			double seconds_to_standup_config_ = 2.0;
+			double standing_height_ = 0.5;
 
 			void SetJointInitialConfigTraj();
 			void SetFeetStandupTraj();
@@ -70,7 +70,7 @@ namespace control
 
 			ros::Rate loop_rate_;
 
-			double k_pos_p_ = 0.001; // TODO: Tune these
+			double k_pos_p_ = 100.0;
 			bool controller_ready_ = false;
 
 			void UpdateJointCommand();

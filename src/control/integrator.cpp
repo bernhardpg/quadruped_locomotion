@@ -14,7 +14,7 @@ void Integrator::SetSize(int rows)
 void Integrator::Reset()
 {
 	integral_.setZero();
-	last_timestamp_ = ros::Time::now();
+	ResetTime();
 }
 
 Eigen::VectorXd Integrator::GetIntegral()
@@ -25,12 +25,18 @@ Eigen::VectorXd Integrator::GetIntegral()
 void Integrator::SetIntegral(Eigen::VectorXd target)
 {
 	integral_ = target;
+	ResetTime();
 }
 
 void Integrator::Integrate(Eigen::VectorXd vec)
 {
 	dt_ = GetElapsedTimeSince(last_timestamp_);
 	integral_ += dt_ * vec;
+	ResetTime();
+}
+
+void Integrator::ResetTime()
+{
 	last_timestamp_ = ros::Time::now();
 }
 
