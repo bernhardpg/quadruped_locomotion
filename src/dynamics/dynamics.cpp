@@ -11,84 +11,59 @@ Dynamics::Dynamics()
 			); // Specify JointModelFreeFlyer to make root joint floating base
 	model_.names[1] = "base"; // Set name of floating base
 
-	// Reflects URDF
-	feet_frames_.push_back("LF_FOOT");
-	feet_frames_.push_back("LH_FOOT");
-	feet_frames_.push_back("RF_FOOT");
-	feet_frames_.push_back("RH_FOOT");
-
   // Create data required by the algorithms
 	data_ = pinocchio::Data(model_);
-
-  std::cout << "Loaded dynamics with model name: "
-		<< model_.name << std::endl;
-	std::cout << "	nq: " << model_.nq << std::endl;
-	std::cout << "	nv: " << model_.nv << std::endl;
 }
 
-Eigen::Matrix<double,12,1> Dynamics::GetFeetPositions(
-		Eigen::Matrix<double, 19, 1> q
+Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
+		Eigen::Matrix<double,kNumGenCoords, 1> q
 		)
 {
 	pinocchio::forwardKinematics(model_, data_, q);
 	pinocchio::updateFramePlacements(model_, data_);
 
-	Eigen::Matrix<double,12,1> feet_positions; // LF LH RF RH
+	Eigen::Matrix<double,kNumFeetCoords,1> feet_positions; // LF LH RF RH
 
-	for (int foot_i = 0; foot_i < feet_frames_.size(); ++foot_i)
+	for (int foot_i = 0; foot_i < kFeetFrames.size(); ++foot_i)
 	{
-		Eigen::Vector3d pos = data_.oMf[model_.getFrameId(feet_frames_[foot_i])]
+		Eigen::Vector3d pos =
+			data_.oMf[model_.getFrameId(kFeetFrames[foot_i])]
 			.translation().transpose();
-		feet_positions.block<3,1>(foot_i * 3, 0) = pos;
+		feet_positions.block<kNumPosDims,1>(foot_i * kNumPosDims, 0) = pos;
 	}
 
 	return feet_positions;
 }
 
-Eigen::MatrixXd Dynamics::GetFootJacobian(
-		Eigen::Matrix<double,19,1> q, int foot_i
+Eigen::MatrixXd Dynamics::GetContactJacobian(
+		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 		)
 {
-	Eigen::MatrixXd J(6, model_.nv);
+	Eigen::MatrixXd J(kNumTwistCoords,kNumGenVels);
 	J.setZero();
 	pinocchio::computeFrameJacobian(
-			model_, data_, q, model_.getFrameId(feet_frames_[foot_i]), 
+			model_, data_, q, model_.getFrameId(kFeetFrames[foot_i]), 
 			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J
 			);
 
 	return J;
 }
 
-Eigen::MatrixXd Dynamics::GetStackedFeetJacobian(
-		Eigen::Matrix<double,19,1> q
+Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(
+		Eigen::Matrix<double,kNumGenCoords,1> q
 		)
+		// TODO: For now this assumes that all legs are in contact
 {
-	Eigen::MatrixXd J(24, model_.nv);
+	Eigen::MatrixXd J(kNumFeetCoords,kNumGenVels);
 	J.setZero();
 
-	for (int foot_i = 0; foot_i < n_legs_; ++foot_i)
+	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
 	{
-		Eigen::MatrixXd J_i = GetFootJacobian(q, foot_i);
-		J.block<6,18>(6 * foot_i,0) = J_i;
+		Eigen::MatrixXd J_i = GetContactJacobian(q, foot_i);
+		auto J_i_pos = J_i.block<kNumPosDims,kNumGenVels>(0,0);
+		J.block<kNumPosDims,kNumGenVels>(kNumPosDims * foot_i,0)
+			= J_i_pos;
 	}
-
-	return J;
-}
-
-Eigen::MatrixXd Dynamics::GetStackedFeetJacobianPos(
-		Eigen::Matrix<double,19,1> q
-		)
-{
-	Eigen::MatrixXd J(12, model_.nv);
-	J.setZero();
-
-	for (int foot_i = 0; foot_i < n_legs_; ++foot_i)
-	{
-		Eigen::MatrixXd J_i = GetFootJacobian(q, foot_i);
-		J.block(3 * foot_i,0,3,model_.nv)
-			= J_i.block(0,0,3,model_.nv);
-	}
-
 	return J;
 }
 
@@ -97,7 +72,7 @@ void Dynamics::Test()
 	std::cout << std::fixed;
 	std::cout << std::setprecision(2);
 
-	Eigen::VectorXd q(19);
+	Eigen::VectorXd q(kNumGenCoords);
 	q << 0, 0, 0,  // fb pos
 			 1, 0, 0, 0, // fb attitude
 			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints

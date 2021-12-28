@@ -10,31 +10,26 @@
 #include <iostream>
 #include <iomanip>
 
+#include "anymal_constants.hpp"
+
 class Dynamics
 {
 	public:
 		Dynamics();
 
-		Eigen::Matrix<double,12,1> GetFeetPositions(
-				Eigen::Matrix<double, 19, 1> q
+		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
+				Eigen::Matrix<double,kNumGenCoords, 1> q
 				);
-		Eigen::MatrixXd GetFootJacobian(
-				Eigen::Matrix<double,19,1> q, int foot_i
+		Eigen::MatrixXd GetContactJacobian(
+				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 				);
-		Eigen::MatrixXd GetStackedFeetJacobian(
-				Eigen::Matrix<double,19,1> q
-				);
-		Eigen::MatrixXd GetStackedFeetJacobianPos(
-				Eigen::Matrix<double,19,1> q
+		Eigen::MatrixXd GetStackedContactJacobianPos(
+				Eigen::Matrix<double,kNumGenCoords,1> q
 				);
 		void Test(); // TODO: Remove
 
 	private:
-		int n_legs_ = 4;
-		int n_dims_ = 3;
-
 		std::string urdf_filename_;
-		std::vector<std::string> feet_frames_;
 		pinocchio::Model model_;
 		pinocchio::Data data_;
 };

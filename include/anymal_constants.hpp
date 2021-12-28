@@ -1,3 +1,5 @@
+#pragma once
+
 const int kNumPoseCoords = 7;
 const int kNumTwistCoords = 6;
 const int kNumJoints = 12;
@@ -11,6 +13,14 @@ typedef Eigen::Matrix<double,kNumJoints,1> joint_vector_t;
 typedef Eigen::Matrix<double,kNumGenCoords,1> gen_coord_vector_t;
 typedef Eigen::Matrix<double,kNumGenVels,1> gen_vel_vector_t;
 typedef Eigen::Matrix<double,kNumFeetCoords,1> feet_vector_t;
+
+const std::vector<std::string> kFeetFrames = 
+{
+	"LF_FOOT",
+	"LH_FOOT",
+	"RF_FOOT",
+	"RH_FOOT"
+};
 
 const std::vector<std::string> kJointNames =
 {
