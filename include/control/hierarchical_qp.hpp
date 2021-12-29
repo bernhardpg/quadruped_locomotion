@@ -30,11 +30,24 @@ namespace control
 		private:
 			int num_tasks_;
 			int num_contacts_;
+
+			// ******* //
+			// TESTING //
+			// ******* //
+
+			void PopulateTestVariables(); // TODO: Rename or replace 
+
+			// ******************** //
+			// OPTIMIZATION PROBLEM //
+			// ******************** //
+
 			int	num_decision_vars_;
 
 			std::vector<std::unique_ptr<
 				drake::solvers::MathematicalProgram>
 				> quadratic_progs_;
+
+			// Decision variables
 			std::vector<symbolic_vector_t> u_dots_;
 			std::vector<symbolic_vector_t> lambdas_;
 
@@ -51,27 +64,22 @@ namespace control
 			std::vector<Eigen::MatrixXd> D_matrices_;
 			std::vector<Eigen::VectorXd> f_vectors_;
 
-			// ******* //
-			// TESTING //
-			// ******* //
-
-			void PopulateTestVariables(); // TODO: Rename or replace 
-
-			// ******************** //
-			// OPTIMIZATION PROBLEM //
-			// ******************** //
+			std::vector<Eigen::MatrixXd> Z_matrices_;
 
 			void SetupQPs();
 			void CreateNewMathProgForTask(int task_i);
 			void CreateEmptyMathProgs(); // TODO: Rename, probably change what this does
 			void CreateDecisionVariablesForTask(int index);
-			void CreateSlackVariablesForTask(
-					int index, int num_slack_variables
-					);
+			void CreateSlackVariablesForTask(int index);
 
 			// Matrix creation
 			void AccumulateAMatrices();
 			void AccumulateBVectors();
+			void ConstructNullSpaceMatrices();
+			Eigen::MatrixXd ConstructNullSpaceMatrixFromPrevious(
+					int task_i
+					);
+			void ConstructDMatrices();
 
 			void AddEqConstraint(
 					Eigen::MatrixXd A,
@@ -88,7 +96,10 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			// TODO: It is now time to create a math library
 			Eigen::VectorXd CreateInfVector(int size);
+			Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A);
+			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
 
 	};
 }

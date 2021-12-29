@@ -19,7 +19,8 @@ namespace control
 			A_matrices_(num_tasks_),
 			b_vectors_(num_tasks_),
 			D_matrices_(num_tasks_),
-			f_vectors_(num_tasks_)
+			f_vectors_(num_tasks_),
+			Z_matrices_(num_tasks_)
 	{
 		num_contacts_ = 4; // TODO: generalize this
 
@@ -70,7 +71,9 @@ namespace control
 		CreateEmptyMathProgs();
 
 		AccumulateAMatrices();
+		ConstructNullSpaceMatrices();
 		AccumulateBVectors();
+		ConstructDMatrices();
 	}
 
 	void HierarchicalQP::CreateEmptyMathProgs() // TODO: renamce
@@ -79,7 +82,7 @@ namespace control
 		{
 			CreateNewMathProgForTask(task_i);
 			CreateDecisionVariablesForTask(task_i);
-			CreateSlackVariablesForTask(task_i, 10); // TODO: 10 is just a placeholder that should be removed
+			CreateSlackVariablesForTask(task_i); 
 		}
 	}
 
@@ -103,13 +106,13 @@ namespace control
 	}
 
 	void HierarchicalQP::CreateSlackVariablesForTask(
-			int task_i, int num_slack_variables
+			int task_i
 			)
 	{
 		task_ineq_slack_variables_[task_i] =
 			quadratic_progs_[task_i]
 				->NewContinuousVariables(
-						num_slack_variables, 1, "v"
+						num_decision_vars_, 1, "v"
 						);
 	}
 
@@ -119,7 +122,6 @@ namespace control
 		int number_of_rows = A_matrices_[0].rows();
 		int number_of_cols = num_decision_vars_;
 
-		std::cout << A_matrices_[0] << std::endl << std::endl;
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
 			number_of_rows += task_eq_const_As_[task_i].rows();	
@@ -128,7 +130,6 @@ namespace control
 			curr_A << prev_A,
 								task_eq_const_As_[task_i];
 			A_matrices_[task_i] = curr_A;
-			std::cout << curr_A << std::endl << std::endl;
 		}
 	}
 
@@ -137,7 +138,6 @@ namespace control
 		b_vectors_[0] = task_eq_const_bs_[0];
 		int number_of_rows = b_vectors_[0].rows();
 
-		std::cout << b_vectors_[0] << std::endl << std::endl;
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
 			number_of_rows += task_eq_const_bs_[task_i].rows();	
@@ -146,9 +146,36 @@ namespace control
 			curr_b << prev_b,
 								task_eq_const_bs_[task_i];
 			b_vectors_[task_i] = curr_b;
-
-			std::cout << curr_b << std::endl << std::endl;
 		}
+	}
+
+	void HierarchicalQP::ConstructNullSpaceMatrices()
+	{
+		Z_matrices_[0] = CalcNullSpaceProjMatrix(A_matrices_[0]);
+		std::cout << Z_matrices_[0] << std::endl << std::endl;
+
+		for (int task_i = 1; task_i < num_tasks_; ++task_i)
+		{
+			Z_matrices_[task_i] =
+				ConstructNullSpaceMatrixFromPrevious(task_i);
+			std::cout << Z_matrices_[task_i] << std::endl << std::endl;
+		}
+	}
+
+	Eigen::MatrixXd HierarchicalQP::ConstructNullSpaceMatrixFromPrevious(
+			int task_i
+			)
+	{
+			Eigen::MatrixXd Z_prev = Z_matrices_[task_i - 1];
+			Eigen::MatrixXd temp =
+				CalcNullSpaceProjMatrix(A_matrices_[task_i] * Z_prev);
+			Eigen::MatrixXd Z_task_i = Z_prev * temp;
+			return Z_task_i;
+	}
+
+	void HierarchicalQP::ConstructDMatrices()
+	{
+	
 	}
 
 	void HierarchicalQP::AddEqConstraint(
@@ -185,7 +212,6 @@ namespace control
 	// HELPER FUNCTIONS //
 	// **************** //
 
-
 	Eigen::VectorXd HierarchicalQP::CreateInfVector(int size)
 	{
 		Eigen::VectorXd inf_vec = Eigen::VectorXd::Zero(size);
@@ -195,5 +221,22 @@ namespace control
 		return inf_vec;
 	}
 
+	// TODO: Now this is used two places, so this should be its own library
+	Eigen::MatrixXd HierarchicalQP::CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
+	{
+		Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
+		Eigen::MatrixXd eye =
+			Eigen::MatrixXd::Identity(A.cols(), A.cols());
 
+		Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
+		return null_space_projection_matrix;
+	}
+
+	Eigen::MatrixXd HierarchicalQP::CalcPseudoInverse(Eigen::MatrixXd A)
+	{
+		// Moore-Penrose right inverse: A^t (A A^t)
+		Eigen:: MatrixXd pseudo_inverse =
+			A.transpose() * (A * A.transpose()).inverse();
+		return pseudo_inverse;
+	}
 }
