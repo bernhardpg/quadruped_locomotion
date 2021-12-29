@@ -3,12 +3,12 @@
 namespace control
 {
 	HierarchicalQP::HierarchicalQP()
-		: HierarchicalQP(3)
+		: HierarchicalQP(3) // TODO: Default number of tasks
 	{}
 
 	HierarchicalQP::HierarchicalQP(int num_tasks)
 		: num_tasks_(num_tasks),
-			quadratic_progs_(num_tasks),
+			quadratic_progs_(num_tasks_),
 			u_dots_(num_tasks_),
 			lambdas_(num_tasks_),
 		  task_eq_const_As_(num_tasks_),
@@ -34,32 +34,44 @@ namespace control
 	// TESTING //
 	// ******* //
 
+	// TODO: Just placeholder test code
 	void HierarchicalQP::PopulateTestVariables()
 	{
-		// TODO: Just placeholder test code
-		Eigen::MatrixXd A = Eigen::MatrixXd::Identity(num_decision_vars_, num_decision_vars_);
+		Eigen::MatrixXd A1 = Eigen::MatrixXd::Random(7,num_decision_vars_);
+		Eigen::VectorXd b1 = Eigen::VectorXd::Random(7);
 
-		Eigen::MatrixXd b = Eigen::MatrixXd::Zero(num_decision_vars_,1);
-		for (int i = 0; i < num_decision_vars_; ++i)
-			b(i) = (double) i;
+		Eigen::MatrixXd A2 = Eigen::MatrixXd::Random(5,num_decision_vars_);
+		Eigen::VectorXd b2 = Eigen::VectorXd::Random(5);
 
-		task_eq_const_As_[0] = A;
-		task_eq_const_bs_[0] = b;
+		Eigen::MatrixXd A3 = Eigen::MatrixXd::Random(10,num_decision_vars_);
+		Eigen::VectorXd b3 = Eigen::VectorXd::Random(10);
 
-		task_eq_const_As_[1] = A;
-		task_eq_const_bs_[1] = b;
+		task_eq_const_As_[0] = A1;
+		task_eq_const_bs_[0] = b1;
 
-		task_eq_const_As_[2] = A;
-		task_eq_const_bs_[2] = b;
+		task_eq_const_As_[1] = A2;
+		task_eq_const_bs_[1] = b2;
 
-		task_ineq_const_Ds_[0] = A;
-		task_ineq_const_fs_[0] = b;
+		task_eq_const_As_[2] = A3;
+		task_eq_const_bs_[2] = b3;
 
-		task_ineq_const_Ds_[1] = A;
-		task_ineq_const_fs_[1] = b;
+		Eigen::MatrixXd D1 = Eigen::MatrixXd::Random(3,num_decision_vars_);
+		Eigen::VectorXd f1 = Eigen::VectorXd::Random(3);
 
-		task_ineq_const_Ds_[2] = A;
-		task_ineq_const_fs_[2] = b;
+		Eigen::MatrixXd D2 = Eigen::MatrixXd::Random(6,num_decision_vars_);
+		Eigen::VectorXd f2 = Eigen::VectorXd::Random(6);
+
+		Eigen::MatrixXd D3 = Eigen::MatrixXd::Random(8,num_decision_vars_);
+		Eigen::VectorXd f3 = Eigen::VectorXd::Random(8);
+
+		task_ineq_const_Ds_[0] = D1;
+		task_ineq_const_fs_[0] = f1;
+
+		task_ineq_const_Ds_[1] = D2;
+		task_ineq_const_fs_[1] = f2;
+
+		task_ineq_const_Ds_[2] = D3;
+		task_ineq_const_fs_[2] = f3;
 	}
 
 	// ******************** //
@@ -159,7 +171,7 @@ namespace control
 		int number_of_rows = D_matrices_[0].rows();
 		int number_of_cols = num_decision_vars_;
 
-		std::cout << D_matrices_[0] << std::endl << std::endl;
+		PrintMatrix(D_matrices_[0]);
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
 			number_of_rows += task_ineq_const_Ds_[task_i].rows();	
@@ -168,7 +180,7 @@ namespace control
 			curr_D << prev_D,
 								task_ineq_const_Ds_[task_i];
 			D_matrices_[task_i] = curr_D;
-			std::cout << D_matrices_[task_i] << std::endl << std::endl;
+			PrintMatrix(D_matrices_[task_i]);
 		}
 	}
 
@@ -196,8 +208,10 @@ namespace control
 
 	void HierarchicalQP::ConstructDMatrices()
 	{
-		ConstructDMatrix(0);
-		ConstructDMatrix(1);
+		for (int task_i = 0; task_i < num_tasks_; ++task_i)
+		{
+			ConstructDMatrix(task_i);
+		}
 	}
 
 	void HierarchicalQP::ConstructDMatrix(int task_i)
@@ -223,7 +237,7 @@ namespace control
 					num_slack_vars_for_task, num_decision_vars_
 					);
 		Eigen::MatrixXd zero_for_all_tasks = Eigen::MatrixXd::Zero(
-					num_slack_vars_for_task, num_decision_vars_
+					total_num_slack_vars_so_far, num_slack_vars_for_task
 					);
 
 		if (task_i == 0)
@@ -233,30 +247,20 @@ namespace control
 		}
 		else
 		{
+			PrintMatrixSize("D",D);
+			PrintMatrixSize("zero_for_curr_task",zero_for_curr_task);
+			PrintMatrixSize("eye",eye);
+			PrintMatrixSize("D_matrix[i-1]",D_matrices_[task_i - 1]);
+			PrintMatrixSize("Z_matrix[i-1]",Z_matrices_[task_i - 1]);
+			PrintMatrixSize("zero_for_all_tasks",zero_for_all_tasks);
+			PrintMatrixSize("task_ineq_const_D[i]",task_ineq_const_Ds_[task_i]);
 			D << zero_for_curr_task, -eye,
-					 D_matrices_[task_i - 1] * Z_matrices_[task_i - 1], zero_for_all_tasks,
-					 task_ineq_const_Ds_[task_i] * Z_matrices_[task_i - 1], - eye;
+					 D_matrices_[task_i - 1], zero_for_all_tasks,
+					 task_ineq_const_Ds_[task_i], - eye;
 		}
-		std::cout << D << std::endl << std::endl;
-
-//		std::cout << "D rows: " << D.rows() << "cols: " << D.cols() << std:: endl; 
-//
-//		std::cout << "D_matrix[i - 1] rows: " << D_matrices_[task_i - 1].rows() 
-//			<< "cols: " << D_matrices_[task_i - 1].cols() <<
-//			std:: endl; 
-//
-//		std::cout << "Z_matrix[i-1] rows: " << Z_matrices_[task_i - 1].rows() 
-//			<< "cols: " << Z_matrices_[task_i - 1].cols() <<
-//			std:: endl; 
-//
-//		std::cout << "task_ineq_const_D[i] rows: " << task_ineq_const_Ds_[task_i].rows() 
-//			<< "cols: " << task_ineq_const_Ds_[task_i].cols() <<
-//			std:: endl; 
-//
-//		std::cout << D_matrices_[task_i - 1] * Z_matrices_[task_i - 1] << std::endl << std::endl;
-//
-//		std::cout << task_ineq_const_Ds_[task_i - 1] * Z_matrices_[task_i - 1] << std::endl << std::endl;
-	}
+		std::cout << "Constructed D matrix for " << task_i << std::endl;
+		PrintMatrix(D);
+}
 
 
 	void HierarchicalQP::AddEqConstraint(
@@ -319,5 +323,19 @@ namespace control
 		Eigen:: MatrixXd pseudo_inverse =
 			A.transpose() * (A * A.transpose()).inverse();
 		return pseudo_inverse;
+	}
+
+	void HierarchicalQP::PrintMatrix(Eigen::MatrixXd matr)
+	{
+		std::cout << std::setprecision(0) << std::fixed
+			<< matr << std::endl << std::endl;	
+	}
+
+	void HierarchicalQP::PrintMatrixSize(
+			std::string name, Eigen::MatrixXd matr
+			)
+	{
+		std::cout << name << ": " << matr.rows() << "x" << matr.cols()
+			<< std::endl << std::endl;	
 	}
 }

@@ -102,6 +102,9 @@ namespace control
 			Eigen::VectorXd CreateInfVector(int size);
 			Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A);
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
-
+			void PrintMatrix(Eigen::MatrixXd matr);
+			void PrintMatrixSize(
+					std::string name, Eigen::MatrixXd matr
+					);
 	};
 }
