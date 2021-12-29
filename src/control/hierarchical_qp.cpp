@@ -8,6 +8,7 @@ namespace control
 
 	HierarchicalQP::HierarchicalQP(int num_tasks)
 		: num_tasks_(num_tasks),
+			num_slack_vars_(num_tasks),
 			quadratic_progs_(num_tasks_),
 			u_dots_(num_tasks_),
 			lambdas_(num_tasks_),
@@ -15,12 +16,13 @@ namespace control
 		  task_eq_const_bs_(num_tasks_),
 		  task_ineq_const_Ds_(num_tasks_),
 		  task_ineq_const_fs_(num_tasks_),
-		  task_ineq_slack_variables_(num_tasks_),
-			A_matrices_(num_tasks_),
-			b_vectors_(num_tasks_),
-			D_matrices_(num_tasks_),
-			f_vectors_(num_tasks_),
-			Z_matrices_(num_tasks_)
+		  slack_vars_(num_tasks_),
+			A_matrs_accum_(num_tasks_),
+			b_vecs_accum_(num_tasks_),
+			D_matrs_accum_(num_tasks_),
+			f_vecs_accum_(num_tasks_),
+			Z_matrices_(num_tasks_),
+			D_matrs_(num_tasks_)
 	{
 		num_contacts_ = 4; // TODO: generalize this
 
@@ -61,8 +63,8 @@ namespace control
 		Eigen::MatrixXd D2 = Eigen::MatrixXd::Random(6,num_decision_vars_);
 		Eigen::VectorXd f2 = Eigen::VectorXd::Random(6);
 
-		Eigen::MatrixXd D3 = Eigen::MatrixXd::Random(8,num_decision_vars_);
-		Eigen::VectorXd f3 = Eigen::VectorXd::Random(8);
+		Eigen::MatrixXd D3 = Eigen::MatrixXd::Random(9,num_decision_vars_);
+		Eigen::VectorXd f3 = Eigen::VectorXd::Random(9);
 
 		task_ineq_const_Ds_[0] = D1;
 		task_ineq_const_fs_[0] = f1;
@@ -80,6 +82,12 @@ namespace control
 	
 	void HierarchicalQP::SetupQPs()
 	{
+		// TODO: Add a processing function for eq and ineq matrices
+		for (int task_i = 0; task_i < num_tasks_; ++task_i)
+		{
+			num_slack_vars_[task_i] = task_ineq_const_Ds_[task_i].rows();
+		}
+
 		CreateEmptyMathProgs();
 
 		AccumulateAMatrices();
@@ -89,15 +97,16 @@ namespace control
 
 		ConstructNullSpaceMatrices();
 		ConstructDMatrices();
+
+		AddIneqConstraintsForTask(0);
 	}
 
-	void HierarchicalQP::CreateEmptyMathProgs() // TODO: renamce
+	void HierarchicalQP::CreateEmptyMathProgs() // TODO:rename 
 	{
 		for (int task_i = 0; task_i < num_tasks_; ++task_i)
 		{
 			CreateNewMathProgForTask(task_i);
 			CreateDecisionVariablesForTask(task_i);
-			CreateSlackVariablesForTask(task_i); 
 		}
 	}
 
@@ -121,72 +130,101 @@ namespace control
 	}
 
 	void HierarchicalQP::CreateSlackVariablesForTask(
-			int task_i
+			int task_i, int num_slack_variables_for_task
 			)
 	{
-		task_ineq_slack_variables_[task_i] =
+		slack_vars_[task_i] =
 			quadratic_progs_[task_i]
 				->NewContinuousVariables(
-						num_decision_vars_, 1, "v"
+						num_slack_variables_for_task, 1, "v"
 						);
+	}
+
+	void HierarchicalQP::AddIneqConstraintsForTask(int task_i)
+	{
+		CreateSlackVariablesForTask(task_i, num_slack_vars_[task_i]);
+		std::cout << "Adding ineq constraints for task " << task_i << std::endl;
+		symbolic_vector_t decision_vars = GetAllDecisionVarsForTask(task_i);
+		std::cout << decision_vars.transpose() << std::endl;
+
+		PrintMatrixSize("D_matr", D_matrs_[task_i]);
+		PrintMatrixSize("decision_vars", decision_vars);
+		symbolic_vector_t constraint = D_matrs_[task_i] * decision_vars;
+		Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(constraint.rows());
+		Eigen::VectorXd inf_vec = CreateInfVector(constraint.rows());
+
+		quadratic_progs_[task_i]->AddLinearConstraint(
+				constraint, -inf_vec, zero_vec
+				);
+	}
+
+	symbolic_vector_t HierarchicalQP::GetAllDecisionVarsForTask(int task_i)
+	{
+		int tot_num_decision_vars = u_dots_[task_i].rows()
+			+ lambdas_[task_i].rows() + slack_vars_[task_i].rows();
+		symbolic_vector_t decision_vars(tot_num_decision_vars);
+		decision_vars << u_dots_[task_i],
+										 lambdas_[task_i],
+										 slack_vars_[task_i];
+		return decision_vars;
 	}
 
 	// TODO: can I generealize these functions into one? it is essentially the exact same functionality 
 	void HierarchicalQP::AccumulateAMatrices()
 	{
-		A_matrices_[0] = task_eq_const_As_[0];
-		int number_of_rows = A_matrices_[0].rows();
+		A_matrs_accum_[0] = task_eq_const_As_[0];
+		int number_of_rows = A_matrs_accum_[0].rows();
 		int number_of_cols = num_decision_vars_;
 
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
 			number_of_rows += task_eq_const_As_[task_i].rows();	
 			Eigen::MatrixXd curr_A(number_of_rows, number_of_cols);
-			Eigen::MatrixXd prev_A = A_matrices_[task_i - 1];
+			Eigen::MatrixXd prev_A = A_matrs_accum_[task_i - 1];
 			curr_A << prev_A,
 								task_eq_const_As_[task_i];
-			A_matrices_[task_i] = curr_A;
+			A_matrs_accum_[task_i] = curr_A;
 		}
 	}
 
 	void HierarchicalQP::AccumulateBVectors()
 	{
-		b_vectors_[0] = task_eq_const_bs_[0];
-		int number_of_rows = b_vectors_[0].rows();
+		b_vecs_accum_[0] = task_eq_const_bs_[0];
+		int number_of_rows = b_vecs_accum_[0].rows();
 
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
 			number_of_rows += task_eq_const_bs_[task_i].rows();	
 			Eigen::VectorXd curr_b(number_of_rows);
-			Eigen::VectorXd prev_b = b_vectors_[task_i - 1];
+			Eigen::VectorXd prev_b = b_vecs_accum_[task_i - 1];
 			curr_b << prev_b,
 								task_eq_const_bs_[task_i];
-			b_vectors_[task_i] = curr_b;
+			b_vecs_accum_[task_i] = curr_b;
 		}
 	}
 
 	void HierarchicalQP::AccumulateDMatrices()
 	{
-		D_matrices_[0] = task_ineq_const_Ds_[0];
-		int number_of_rows = D_matrices_[0].rows();
+		D_matrs_accum_[0] = task_ineq_const_Ds_[0];
+		int number_of_rows = D_matrs_accum_[0].rows();
 		int number_of_cols = num_decision_vars_;
 
-		PrintMatrix(D_matrices_[0]);
+		//PrintMatrix(D_matrs_accum_[0]);
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
 			number_of_rows += task_ineq_const_Ds_[task_i].rows();	
 			Eigen::MatrixXd curr_D(number_of_rows, number_of_cols);
-			Eigen::MatrixXd prev_D = D_matrices_[task_i - 1];
+			Eigen::MatrixXd prev_D = D_matrs_accum_[task_i - 1];
 			curr_D << prev_D,
 								task_ineq_const_Ds_[task_i];
-			D_matrices_[task_i] = curr_D;
-			PrintMatrix(D_matrices_[task_i]);
+			D_matrs_accum_[task_i] = curr_D;
+			PrintMatrix(D_matrs_accum_[task_i]);
 		}
 	}
 
 	void HierarchicalQP::ConstructNullSpaceMatrices()
 	{
-		Z_matrices_[0] = CalcNullSpaceProjMatrix(A_matrices_[0]);
+		Z_matrices_[0] = CalcNullSpaceProjMatrix(A_matrs_accum_[0]);
 
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
@@ -201,7 +239,7 @@ namespace control
 	{
 			Eigen::MatrixXd Z_prev = Z_matrices_[task_i - 1];
 			Eigen::MatrixXd temp =
-				CalcNullSpaceProjMatrix(A_matrices_[task_i] * Z_prev);
+				CalcNullSpaceProjMatrix(A_matrs_accum_[task_i] * Z_prev);
 			Eigen::MatrixXd Z_task_i = Z_prev * temp;
 			return Z_task_i;
 	}
@@ -216,28 +254,22 @@ namespace control
 
 	void HierarchicalQP::ConstructDMatrix(int task_i)
 	{
-		int num_slack_vars_for_task = task_ineq_const_Ds_[task_i].rows();
-		int total_num_slack_vars_so_far;
-		if (task_i == 0)
-		{
-			total_num_slack_vars_so_far = 0;
-		}
-		else
-		{
-			total_num_slack_vars_so_far = D_matrices_[task_i - 1].rows();
-		}
+		int total_num_slack_vars_so_far = 0;
+		if (task_i > 0)
+			total_num_slack_vars_so_far = D_matrs_accum_[task_i - 1].rows();
+
 		Eigen::MatrixXd D(
-				2 * num_slack_vars_for_task + total_num_slack_vars_so_far,
-				num_decision_vars_ + num_slack_vars_for_task 
+				2 * num_slack_vars_[task_i] + total_num_slack_vars_so_far,
+				num_decision_vars_ + num_slack_vars_[task_i]
 				);
 		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
-					num_slack_vars_for_task, num_slack_vars_for_task 
+					num_slack_vars_[task_i], num_slack_vars_[task_i]
 					);
 		Eigen::MatrixXd zero_for_curr_task = Eigen::MatrixXd::Zero(
-					num_slack_vars_for_task, num_decision_vars_
+					num_slack_vars_[task_i], num_decision_vars_
 					);
 		Eigen::MatrixXd zero_for_all_tasks = Eigen::MatrixXd::Zero(
-					total_num_slack_vars_so_far, num_slack_vars_for_task
+					total_num_slack_vars_so_far, num_slack_vars_[task_i]
 					);
 
 		if (task_i == 0)
@@ -247,19 +279,20 @@ namespace control
 		}
 		else
 		{
-			PrintMatrixSize("D",D);
-			PrintMatrixSize("zero_for_curr_task",zero_for_curr_task);
-			PrintMatrixSize("eye",eye);
-			PrintMatrixSize("D_matrix[i-1]",D_matrices_[task_i - 1]);
-			PrintMatrixSize("Z_matrix[i-1]",Z_matrices_[task_i - 1]);
-			PrintMatrixSize("zero_for_all_tasks",zero_for_all_tasks);
-			PrintMatrixSize("task_ineq_const_D[i]",task_ineq_const_Ds_[task_i]);
+//			PrintMatrixSize("zero_for_curr_task",zero_for_curr_task);
+//			PrintMatrixSize("eye",eye);
+//			PrintMatrixSize("D_matrix[i-1]",D_matrs_accum_[task_i - 1]);
+//			PrintMatrixSize("Z_matrix[i-1]",Z_matrices_[task_i - 1]);
+//			PrintMatrixSize("zero_for_all_tasks",zero_for_all_tasks);
+//			PrintMatrixSize("task_ineq_const_D[i]",task_ineq_const_Ds_[task_i]);
 			D << zero_for_curr_task, -eye,
-					 D_matrices_[task_i - 1], zero_for_all_tasks,
+					 D_matrs_accum_[task_i - 1], zero_for_all_tasks,
 					 task_ineq_const_Ds_[task_i], - eye;
 		}
 		std::cout << "Constructed D matrix for " << task_i << std::endl;
-		PrintMatrix(D);
+		PrintMatrixSize("D",D);
+		D_matrs_[task_i] = D;
+		//PrintMatrix(D);
 }
 
 
@@ -336,6 +369,13 @@ namespace control
 			)
 	{
 		std::cout << name << ": " << matr.rows() << "x" << matr.cols()
-			<< std::endl << std::endl;	
+			<< std::endl;
+	}
+	void HierarchicalQP::PrintMatrixSize(
+			std::string name, symbolic_vector_t matr
+			)
+	{
+		std::cout << name << ": " << matr.rows() << "x" << matr.cols()
+			<< std::endl;
 	}
 }

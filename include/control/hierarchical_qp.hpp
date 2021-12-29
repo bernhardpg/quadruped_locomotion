@@ -42,6 +42,7 @@ namespace control
 			// ******************** //
 
 			int	num_decision_vars_;
+			std::vector<int> num_slack_vars_;
 
 			std::vector<std::unique_ptr<
 				drake::solvers::MathematicalProgram>
@@ -50,19 +51,21 @@ namespace control
 			// Decision variables
 			std::vector<symbolic_vector_t> u_dots_;
 			std::vector<symbolic_vector_t> lambdas_;
+			std::vector<symbolic_vector_t> slack_vars_;
 
 			// Original task matrices
 			std::vector<Eigen::MatrixXd> task_eq_const_As_;
 			std::vector<Eigen::VectorXd> task_eq_const_bs_;
 			std::vector<Eigen::MatrixXd> task_ineq_const_Ds_;
 			std::vector<Eigen::VectorXd> task_ineq_const_fs_;
-			std::vector<symbolic_vector_t> task_ineq_slack_variables_;
 
-			// Matrices reformulated to optimization problem form
-			std::vector<Eigen::MatrixXd> A_matrices_;
-			std::vector<Eigen::VectorXd> b_vectors_;
-			std::vector<Eigen::MatrixXd> D_matrices_;
-			std::vector<Eigen::VectorXd> f_vectors_;
+			std::vector<Eigen::MatrixXd> A_matrs_accum_;
+			std::vector<Eigen::VectorXd> b_vecs_accum_;
+			std::vector<Eigen::MatrixXd> D_matrs_accum_;
+			std::vector<Eigen::VectorXd> f_vecs_accum_;
+
+			// Matrices for final optimization problem
+			std::vector<Eigen::MatrixXd> D_matrs_;
 
 			std::vector<Eigen::MatrixXd> Z_matrices_;
 
@@ -71,9 +74,12 @@ namespace control
 			void CreateEmptyMathProgs(); // TODO: Rename, probably change what this does
 			void CreateDecisionVariablesForTask(int index);
 			void CreateSlackVariablesForTask(int index);
+			void CreateSlackVariablesForTask(
+					int task_i, int num_slack_variables_for_task
+					);
 
 			// Matrix creation
-			void AccumulateAMatrices();
+			void AccumulateAMatrices(); // TODO: rename
 			void AccumulateBVectors();
 			void AccumulateDMatrices();
 			void ConstructNullSpaceMatrices();
@@ -82,6 +88,9 @@ namespace control
 					);
 			void ConstructDMatrices();
 			void ConstructDMatrix(int task_i);
+
+
+			void AddIneqConstraintsForTask(int task_i);
 
 			void AddEqConstraint(
 					Eigen::MatrixXd A,
@@ -98,6 +107,8 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			symbolic_vector_t GetAllDecisionVarsForTask(int task_i);
+
 			// TODO: It is now time to create a math library
 			Eigen::VectorXd CreateInfVector(int size);
 			Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A);
@@ -105,6 +116,9 @@ namespace control
 			void PrintMatrix(Eigen::MatrixXd matr);
 			void PrintMatrixSize(
 					std::string name, Eigen::MatrixXd matr
+					);
+			void PrintMatrixSize(
+					std::string name, symbolic_vector_t matr
 					);
 	};
 }
