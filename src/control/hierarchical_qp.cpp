@@ -71,8 +71,11 @@ namespace control
 		CreateEmptyMathProgs();
 
 		AccumulateAMatrices();
-		ConstructNullSpaceMatrices();
 		AccumulateBVectors();
+		AccumulateDMatrices();
+		std::cout << "Accumulated D matrices\n";
+
+		ConstructNullSpaceMatrices();
 		ConstructDMatrices();
 	}
 
@@ -116,6 +119,7 @@ namespace control
 						);
 	}
 
+	// TODO: can I generealize these functions into one? it is essentially the exact same functionality 
 	void HierarchicalQP::AccumulateAMatrices()
 	{
 		A_matrices_[0] = task_eq_const_As_[0];
@@ -149,16 +153,33 @@ namespace control
 		}
 	}
 
+	void HierarchicalQP::AccumulateDMatrices()
+	{
+		D_matrices_[0] = task_ineq_const_Ds_[0];
+		int number_of_rows = D_matrices_[0].rows();
+		int number_of_cols = num_decision_vars_;
+
+		std::cout << D_matrices_[0] << std::endl << std::endl;
+		for (int task_i = 1; task_i < num_tasks_; ++task_i)
+		{
+			number_of_rows += task_ineq_const_Ds_[task_i].rows();	
+			Eigen::MatrixXd curr_D(number_of_rows, number_of_cols);
+			Eigen::MatrixXd prev_D = D_matrices_[task_i - 1];
+			curr_D << prev_D,
+								task_ineq_const_Ds_[task_i];
+			D_matrices_[task_i] = curr_D;
+			std::cout << D_matrices_[task_i] << std::endl << std::endl;
+		}
+	}
+
 	void HierarchicalQP::ConstructNullSpaceMatrices()
 	{
 		Z_matrices_[0] = CalcNullSpaceProjMatrix(A_matrices_[0]);
-		std::cout << Z_matrices_[0] << std::endl << std::endl;
 
 		for (int task_i = 1; task_i < num_tasks_; ++task_i)
 		{
 			Z_matrices_[task_i] =
 				ConstructNullSpaceMatrixFromPrevious(task_i);
-			std::cout << Z_matrices_[task_i] << std::endl << std::endl;
 		}
 	}
 
@@ -175,8 +196,68 @@ namespace control
 
 	void HierarchicalQP::ConstructDMatrices()
 	{
-	
+		ConstructDMatrix(0);
+		ConstructDMatrix(1);
 	}
+
+	void HierarchicalQP::ConstructDMatrix(int task_i)
+	{
+		int num_slack_vars_for_task = task_ineq_const_Ds_[task_i].rows();
+		int total_num_slack_vars_so_far;
+		if (task_i == 0)
+		{
+			total_num_slack_vars_so_far = 0;
+		}
+		else
+		{
+			total_num_slack_vars_so_far = D_matrices_[task_i - 1].rows();
+		}
+		Eigen::MatrixXd D(
+				2 * num_slack_vars_for_task + total_num_slack_vars_so_far,
+				num_decision_vars_ + num_slack_vars_for_task 
+				);
+		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
+					num_slack_vars_for_task, num_slack_vars_for_task 
+					);
+		Eigen::MatrixXd zero_for_curr_task = Eigen::MatrixXd::Zero(
+					num_slack_vars_for_task, num_decision_vars_
+					);
+		Eigen::MatrixXd zero_for_all_tasks = Eigen::MatrixXd::Zero(
+					num_slack_vars_for_task, num_decision_vars_
+					);
+
+		if (task_i == 0)
+		{
+			D << zero_for_curr_task, -eye,
+					 task_ineq_const_Ds_[task_i], -eye;
+		}
+		else
+		{
+			D << zero_for_curr_task, -eye,
+					 D_matrices_[task_i - 1] * Z_matrices_[task_i - 1], zero_for_all_tasks,
+					 task_ineq_const_Ds_[task_i] * Z_matrices_[task_i - 1], - eye;
+		}
+		std::cout << D << std::endl << std::endl;
+
+//		std::cout << "D rows: " << D.rows() << "cols: " << D.cols() << std:: endl; 
+//
+//		std::cout << "D_matrix[i - 1] rows: " << D_matrices_[task_i - 1].rows() 
+//			<< "cols: " << D_matrices_[task_i - 1].cols() <<
+//			std:: endl; 
+//
+//		std::cout << "Z_matrix[i-1] rows: " << Z_matrices_[task_i - 1].rows() 
+//			<< "cols: " << Z_matrices_[task_i - 1].cols() <<
+//			std:: endl; 
+//
+//		std::cout << "task_ineq_const_D[i] rows: " << task_ineq_const_Ds_[task_i].rows() 
+//			<< "cols: " << task_ineq_const_Ds_[task_i].cols() <<
+//			std:: endl; 
+//
+//		std::cout << D_matrices_[task_i - 1] * Z_matrices_[task_i - 1] << std::endl << std::endl;
+//
+//		std::cout << task_ineq_const_Ds_[task_i - 1] * Z_matrices_[task_i - 1] << std::endl << std::endl;
+	}
+
 
 	void HierarchicalQP::AddEqConstraint(
 			Eigen::MatrixXd A,

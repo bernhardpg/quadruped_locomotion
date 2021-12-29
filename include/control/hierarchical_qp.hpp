@@ -75,11 +75,13 @@ namespace control
 			// Matrix creation
 			void AccumulateAMatrices();
 			void AccumulateBVectors();
+			void AccumulateDMatrices();
 			void ConstructNullSpaceMatrices();
 			Eigen::MatrixXd ConstructNullSpaceMatrixFromPrevious(
 					int task_i
 					);
 			void ConstructDMatrices();
+			void ConstructDMatrix(int task_i);
 
 			void AddEqConstraint(
 					Eigen::MatrixXd A,
