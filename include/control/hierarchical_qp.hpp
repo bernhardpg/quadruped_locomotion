@@ -13,6 +13,11 @@
 
 namespace control
 {
+	// USE OF NOTATION:
+	// This class definition more or less follows the notation from 
+	// 'Perception-less Terrain Adaptation through Whole
+	// Body Control and Hierarchical Optimization', Section III
+
 	const double kInf = 9999999; // TODO: move to another file
 
 	class HierarchicalQP
@@ -30,26 +35,43 @@ namespace control
 			std::vector<std::unique_ptr<
 				drake::solvers::MathematicalProgram>
 				> quadratic_progs_;
-			std::vector<symbolic_vector_t> decision_variables_;
-			std::vector<Eigen::MatrixXd> eq_const_matrices_;
-			std::vector<Eigen::VectorXd> eq_const_vectors_;
-			std::vector<Eigen::MatrixXd> ineq_const_matrices_;
-			std::vector<Eigen::VectorXd> ineq_const_vectors_;
-			std::vector<symbolic_vector_t> slack_variables_;
+			std::vector<symbolic_vector_t> u_dots_;
+			std::vector<symbolic_vector_t> lambdas_;
 
-			std::vector<Eigen::MatrixXd> accumulated_As;
+			// Original task matrices
+			std::vector<Eigen::MatrixXd> task_eq_const_As_;
+			std::vector<Eigen::VectorXd> task_eq_const_bs_;
+			std::vector<Eigen::MatrixXd> task_ineq_const_Ds_;
+			std::vector<Eigen::VectorXd> task_ineq_const_fs_;
+			std::vector<symbolic_vector_t> task_ineq_slack_variables_;
 
-			void PopulateVariables(); // TODO: Rename or replace 
-			void InitializeQPForTask(int index);
-			void CreateAccumulatedEqMatrices();
+			// Matrices reformulated to optimization problem form
+			std::vector<Eigen::MatrixXd> A_matrices_;
+			std::vector<Eigen::VectorXd> b_vectors_;
+			std::vector<Eigen::MatrixXd> D_matrices_;
+			std::vector<Eigen::VectorXd> f_vectors_;
 
-			symbolic_vector_t CreateDecisionVariables(
-					std::unique_ptr<drake::solvers::MathematicalProgram> &prog
+			// ******* //
+			// TESTING //
+			// ******* //
+
+			void PopulateTestVariables(); // TODO: Rename or replace 
+
+			// ******************** //
+			// OPTIMIZATION PROBLEM //
+			// ******************** //
+
+			void SetupQPs();
+			void CreateNewMathProgForTask(int task_i);
+			void CreateEmptyMathProgs(); // TODO: Rename, probably change what this does
+			void CreateDecisionVariablesForTask(int index);
+			void CreateSlackVariablesForTask(
+					int index, int num_slack_variables
 					);
-			symbolic_vector_t CreateSlackVariables(
-					std::unique_ptr<drake::solvers::MathematicalProgram> &prog,
-					int num_slack_variables
-					);
+
+			// Matrix creation
+			void AccumulateAMatrices();
+			void AccumulateBVectors();
 
 			void AddEqConstraint(
 					Eigen::MatrixXd A,
@@ -62,8 +84,11 @@ namespace control
 					symbolic_vector_t decision_variables
 					);
 
+			// **************** //
+			// HELPER FUNCTIONS //
+			// **************** //
+
 			Eigen::VectorXd CreateInfVector(int size);
 
-			void Test();
 	};
 }
