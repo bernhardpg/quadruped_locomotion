@@ -1,6 +1,7 @@
 #include "control/hierarchical_qp.hpp"
 
 // TODO: Remove all comments and print statements
+// TODO: Clean up this class
 
 namespace control
 {
@@ -19,16 +20,21 @@ namespace control
 		  D_matrs_orig_(num_tasks_),
 		  f_vecs_orig_(num_tasks_),
 		  slack_vars_(num_tasks_),
+		  slack_solutions_(num_tasks_),
+		  slack_solutions_accum_(num_tasks_),
 			A_matrs_accum_(num_tasks_),
 			b_vecs_accum_(num_tasks_),
 			D_matrs_accum_(num_tasks_),
 			f_vecs_accum_(num_tasks_),
 			Z_matrs_(num_tasks_),
-			D_matrs_(num_tasks_)
+			D_matrs_(num_tasks_),
+			f_vecs_(num_tasks_)
 	{
 		num_contacts_ = 4; // TODO: generalize this
 
 		num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
+		x_solution_.resize(num_decision_vars_); // TODO: move this?
+		x_solution_.setZero();
 
 		PopulateTestVariables(); // TODO: Only for testing
 		SetupQPs();
@@ -95,12 +101,30 @@ namespace control
 		AccumulateAMatrices();
 		AccumulateBVectors();
 		AccumulateDMatrices();
+		AccumulateFVecs();
 		std::cout << "Accumulated D matrices\n";
 
 		ConstructNullSpaceMatrices();
 		ConstructDMatrices();
+		SetSlackVarsToZero(); // TODO Placeholder for solving the previous problems
+		GetAccumulatedSlackSolutions();
+		// These must be called AFTER solving the previous tasks!
+		ConstructFVec(0);
+		ConstructFVec(1);
+		ConstructFVec(2);
 
 		AddIneqConstraintsForTask(0);
+		AddIneqConstraintsForTask(1);
+		AddIneqConstraintsForTask(2);
+	}
+
+	void HierarchicalQP::SetSlackVarsToZero()
+	{
+		for (int task_i = 0; task_i < num_tasks_; ++task_i)	
+		{
+			slack_solutions_[task_i].resize(num_slack_vars_[task_i]);
+			slack_solutions_[task_i].setZero();
+		}
 	}
 
 	void HierarchicalQP::CreateEmptyMathProgs() // TODO:rename 
@@ -150,8 +174,10 @@ namespace control
 		std::cout << decision_vars.transpose() << std::endl;
 
 		PrintMatrixSize("D_matr", D_matrs_[task_i]);
+		PrintMatrixSize("f_vec", f_vecs_[task_i]);
 		PrintMatrixSize("decision_vars", decision_vars);
-		symbolic_vector_t constraint = D_matrs_[task_i] * decision_vars;
+		symbolic_vector_t constraint =
+			D_matrs_[task_i] * decision_vars - f_vecs_[task_i];
 		Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(constraint.rows());
 		Eigen::VectorXd inf_vec = CreateInfVector(constraint.rows());
 
@@ -224,6 +250,44 @@ namespace control
 		}
 	}
 
+	void HierarchicalQP::AccumulateFVecs()
+	{
+		f_vecs_accum_[0] = f_vecs_orig_[0];
+		int number_of_rows = f_vecs_accum_[0].rows();
+
+		//PrintMatrix(f_vecs_accum_[0]);
+		for (int task_i = 1; task_i < num_tasks_; ++task_i)
+		{
+			number_of_rows += f_vecs_orig_[task_i].rows();	
+			Eigen::VectorXd curr_f(number_of_rows);
+			Eigen::VectorXd prev_f = f_vecs_accum_[task_i - 1];
+			curr_f << prev_f,
+								f_vecs_orig_[task_i];
+			f_vecs_accum_[task_i] = curr_f;
+			PrintMatrix(f_vecs_accum_[task_i]);
+		}
+	}
+
+	// TODO: This can be made more efficient by saving solutions between calls
+	void HierarchicalQP::GetAccumulatedSlackSolutions()
+	{
+		std::cout << "Accumulating slack solutions\n";
+		slack_solutions_accum_[0] = slack_solutions_[0];
+		int number_of_rows = slack_solutions_accum_[0].rows();
+
+		PrintMatrix(slack_solutions_accum_[0]);
+		for (int task_i = 1; task_i < num_tasks_; ++task_i)
+		{
+			number_of_rows += slack_solutions_[task_i].rows();	
+			Eigen::VectorXd curr_sol(number_of_rows);
+			Eigen::VectorXd prev_sol = slack_solutions_accum_[task_i - 1];
+			curr_sol << prev_sol,
+								slack_solutions_[task_i];
+			slack_solutions_accum_[task_i] = curr_sol;
+			PrintMatrix(slack_solutions_accum_[task_i]);
+		}
+	}
+
 	void HierarchicalQP::ConstructNullSpaceMatrices()
 	{
 		Z_matrs_[0] = CalcNullSpaceProjMatrix(A_matrs_accum_[0]);
@@ -256,6 +320,7 @@ namespace control
 
 	void HierarchicalQP::ConstructDMatrix(int task_i)
 	{
+		// TODO: Put into its own function
 		int total_num_slack_vars_so_far = 0;
 		if (task_i > 0)
 			total_num_slack_vars_so_far = D_matrs_accum_[task_i - 1].rows();
@@ -290,13 +355,60 @@ namespace control
 			D << zero_for_curr_task, -eye,
 					 D_matrs_accum_[task_i - 1], zero_for_all_tasks,
 					 D_matrs_orig_[task_i], - eye;
+			// NOTE: This is upside down compared to the paper,
+			// but more consistent with the rest of the algorithm
 		}
 		std::cout << "Constructed D matrix for " << task_i << std::endl;
 		PrintMatrixSize("D",D);
 		D_matrs_[task_i] = D;
 		//PrintMatrix(D);
-}
+	}
 
+	void HierarchicalQP::ConstructFVec(int task_i)
+	{
+		std::cout << "Constructing F vector for task " << task_i << std::endl;;
+		// TODO: Put into its own function
+		int total_num_slack_vars_so_far = 0;
+		if (task_i > 0)
+			total_num_slack_vars_so_far = D_matrs_accum_[task_i - 1].rows();
+
+		Eigen::VectorXd f(
+				2 * num_slack_vars_[task_i] + total_num_slack_vars_so_far
+				);
+		f.setZero();
+
+		Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(
+					num_slack_vars_[task_i]
+					);
+
+		auto f_curr = f_vecs_orig_[task_i];
+		if (task_i == 0)
+		{
+			f << zero_vec,
+					 f_curr;
+		}
+		else
+		{
+			PrintMatrixSize("D_matr", D_matrs_orig_[task_i]);
+			PrintMatrixSize("x_sol", x_solution_);
+			PrintMatrixSize("D_matr_accum", D_matrs_accum_[task_i - 1]);
+			PrintMatrixSize("f_accum[task_i - 1]", f_vecs_accum_[task_i - 1]);
+			PrintMatrixSize("f_vecs_orig_[task_i]", f_vecs_orig_[task_i]);
+			PrintMatrixSize("slack_solutions_accum_[task_i - 1]", slack_solutions_accum_[task_i - 1]);
+
+			auto fs_prev = f_vecs_accum_[task_i - 1];
+			auto Ds_prev_times_x = D_matrs_accum_[task_i - 1] * x_solution_;
+			auto vs_star_prev = slack_solutions_accum_[task_i - 1]; 
+			auto D_curr_times_x = D_matrs_orig_[task_i] * x_solution_;
+
+			f << zero_vec,
+				   fs_prev - Ds_prev_times_x + vs_star_prev,
+					 f_curr - D_curr_times_x;
+		}
+		PrintMatrix(f);
+
+		f_vecs_[task_i] = f;
+	}
 
 	void HierarchicalQP::AddEqConstraint(
 			Eigen::MatrixXd A,
@@ -368,6 +480,13 @@ namespace control
 
 	void HierarchicalQP::PrintMatrixSize(
 			std::string name, Eigen::MatrixXd matr
+			)
+	{
+		std::cout << name << ": " << matr.rows() << "x" << matr.cols()
+			<< std::endl;
+	}
+	void HierarchicalQP::PrintMatrixSize(
+			std::string name, Eigen::VectorXd matr
 			)
 	{
 		std::cout << name << ": " << matr.rows() << "x" << matr.cols()

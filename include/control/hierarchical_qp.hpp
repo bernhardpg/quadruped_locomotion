@@ -53,6 +53,12 @@ namespace control
 			std::vector<symbolic_vector_t> lambdas_;
 			std::vector<symbolic_vector_t> slack_vars_;
 
+			Eigen::VectorXd x_solution_; // TODO: rename?
+			std::vector<Eigen::VectorXd> slack_solutions_; // TODO: rename?
+			std::vector<Eigen::VectorXd> slack_solutions_accum_; // TODO: rename?
+			void SetSlackVarsToZero(); // TODO move?
+			void GetAccumulatedSlackSolutions();
+
 			// Original task matrices
 			std::vector<Eigen::MatrixXd> A_matrs_orig_;
 			std::vector<Eigen::VectorXd> b_vecs_orig_;
@@ -67,6 +73,7 @@ namespace control
 
 			// Task matrices for final optimization problem
 			std::vector<Eigen::MatrixXd> D_matrs_;
+			std::vector<Eigen::VectorXd> f_vecs_;
 
 			// Solutions to higher order optimization problem
 			std::vector<Eigen::VectorXd> x_star_;
@@ -88,13 +95,14 @@ namespace control
 			void AccumulateAMatrices(); // TODO: rename
 			void AccumulateBVectors();
 			void AccumulateDMatrices();
+			void AccumulateFVecs();
 			void ConstructNullSpaceMatrices();
 			Eigen::MatrixXd ConstructNullSpaceMatrixFromPrevious(
 					int task_i
 					);
 			void ConstructDMatrices();
 			void ConstructDMatrix(int task_i);
-
+			void ConstructFVec(int task_i);
 
 			void AddIneqConstraintsForTask(int task_i);
 
@@ -125,6 +133,9 @@ namespace control
 					);
 			void PrintMatrixSize(
 					std::string name, symbolic_vector_t matr
+					);
+			void PrintMatrixSize(
+					std::string name, Eigen::VectorXd matr
 					);
 	};
 }
