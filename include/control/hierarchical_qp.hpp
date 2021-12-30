@@ -54,20 +54,26 @@ namespace control
 			std::vector<symbolic_vector_t> slack_vars_;
 
 			// Original task matrices
-			std::vector<Eigen::MatrixXd> task_eq_const_As_;
-			std::vector<Eigen::VectorXd> task_eq_const_bs_;
-			std::vector<Eigen::MatrixXd> task_ineq_const_Ds_;
-			std::vector<Eigen::VectorXd> task_ineq_const_fs_;
+			std::vector<Eigen::MatrixXd> A_matrs_orig_;
+			std::vector<Eigen::VectorXd> b_vecs_orig_;
+			std::vector<Eigen::MatrixXd> D_matrs_orig_;
+			std::vector<Eigen::VectorXd> f_vecs_orig_;
 
+			// Accumulated task matrices
 			std::vector<Eigen::MatrixXd> A_matrs_accum_;
 			std::vector<Eigen::VectorXd> b_vecs_accum_;
 			std::vector<Eigen::MatrixXd> D_matrs_accum_;
 			std::vector<Eigen::VectorXd> f_vecs_accum_;
 
-			// Matrices for final optimization problem
+			// Task matrices for final optimization problem
 			std::vector<Eigen::MatrixXd> D_matrs_;
 
-			std::vector<Eigen::MatrixXd> Z_matrices_;
+			// Solutions to higher order optimization problem
+			std::vector<Eigen::VectorXd> x_star_;
+			std::vector<Eigen::VectorXd> v_star_;
+			
+			// Null space matrices for accumulated tasks
+			std::vector<Eigen::MatrixXd> Z_matrs_;
 
 			void SetupQPs();
 			void CreateNewMathProgForTask(int task_i);
