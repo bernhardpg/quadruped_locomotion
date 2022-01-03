@@ -37,13 +37,23 @@ namespace control
 			Eigen::VectorXd GetAccumF();
 			Eigen::MatrixXd GetAccumNullspaceMatrix();
 
+			int GetPrevAccumNumSlackVars();
+			int GetAccumNumSlackVars();
+
+			Eigen::VectorXd GetSolution();
+			Eigen::VectorXd GetSlackSolutions();
+			Eigen::VectorXd GetAccumSlackSolutions();
+
+			symbolic_vector_t GetAllDecisionVars(); // TODO: This should have another name
+
 		private:
 			drake::solvers::MathematicalProgram prog_; 
 
-			// TODO: Are these needed?
-			symbolic_vector_t u_dot_;
-			symbolic_vector_t lambda_;
-			symbolic_vector_t v_;
+			int num_slack_vars_;
+			int num_decision_vars_;
+
+			symbolic_vector_t decision_vars_;
+			symbolic_vector_t slack_vars_;
 
 			// TODO: are these needed?
 			Eigen::MatrixXd H_;
@@ -56,28 +66,41 @@ namespace control
 			TaskDefinition curr_task_;
 			TaskDefinition accumulated_task_;
 
+			Eigen::VectorXd accumulated_slack_vars_; 
+
 			HoQpProblem *higher_pri_problem_;
 
-			// ************** //
-			// INITIALIZATION //
-			// ************** //
+			// ********************* //
+			// MATRIX INITIALIZATION //
+			// ********************* //
 
 			void AccumulateTasks();
 			void CalcNullspaceMatrix();
+			void ConstructDMatrix();
+			void ConstructFVector();
+			void AccumulateSlackSolutions();
+
+			// ******************** //
+			// OPTIMIZATION PROBLEM //
+			// ******************** //
+
+			void CreateDecisionVars();
+			void CreateSlackVars();
+			void AddIneqConstraints();
 
 			// **************** //
 			// HELPER FUNCTIONS //
 			// **************** //
 
-			bool IsHigherPriTaskDefined();
+			bool IsHigherPriProblemDefined();
 			TaskDefinition ConcatenateTasks(
 					TaskDefinition t1, TaskDefinition t2
 					);
 			Eigen::MatrixXd ConcatenateMatrices(
-					Eigen::MatrixXd &m1, Eigen::MatrixXd &m2
+					Eigen::MatrixXd m1, Eigen::MatrixXd m2
 					);
 			Eigen::VectorXd ConcatenateVectors(
-					Eigen::VectorXd &v1, Eigen::VectorXd &v2
+					Eigen::VectorXd v1, Eigen::VectorXd v2
 					);
 	};
 }

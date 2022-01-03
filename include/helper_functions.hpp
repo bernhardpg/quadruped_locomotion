@@ -15,6 +15,7 @@ void PrintMatrixSize(
 	std::cout << name << ": " << matr.rows() << "x" << matr.cols()
 		<< std::endl;
 }
+
 void PrintMatrixSize(
 		std::string name, Eigen::VectorXd matr
 		)
@@ -22,6 +23,7 @@ void PrintMatrixSize(
 	std::cout << name << ": " << matr.rows() << "x" << matr.cols()
 		<< std::endl;
 }
+
 void PrintMatrixSize(
 		std::string name, symbolic_vector_t matr
 		)
