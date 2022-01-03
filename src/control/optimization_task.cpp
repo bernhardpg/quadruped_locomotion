@@ -17,12 +17,47 @@ namespace control
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
 		AccumulateTasks();
+		CalcNullspaceMatrix();
+		PrintMatrixSize("Z", Z_);
 	}
 
-	TaskDefinition HoQpProblem::GetAccumulatedTask()
+	// ***************** //
+	// SETTERS & GETTERS //
+	// ***************** //
+
+	TaskDefinition HoQpProblem::GetAccumTask()
 	{
 		return accumulated_task_;
 	}
+
+	Eigen::MatrixXd HoQpProblem::GetAccumA()
+	{
+		return accumulated_task_.A;
+	}
+
+	Eigen::MatrixXd HoQpProblem::GetAccumD()
+	{
+		return accumulated_task_.D;
+	}
+
+	Eigen::VectorXd HoQpProblem::GetAccumB()
+	{
+		return accumulated_task_.b;
+	}
+
+	Eigen::VectorXd HoQpProblem::GetAccumF()
+	{
+		return accumulated_task_.f;
+	}
+
+	Eigen::MatrixXd HoQpProblem::GetAccumNullspaceMatrix()
+	{
+		return Z_;
+	}
+
+	// ************** //
+	// INITIALIZATION //
+	// ************** //
 
 	void HoQpProblem::AccumulateTasks()
 	{
@@ -33,9 +68,35 @@ namespace control
 		else
 		{
 			accumulated_task_ = ConcatenateTasks(
-					curr_task_, higher_pri_problem_->GetAccumulatedTask()
+					curr_task_, higher_pri_problem_->GetAccumTask()
 					);
 		}
+	}
+
+	void HoQpProblem::CalcNullspaceMatrix()
+	{
+		if (higher_pri_problem_ == nullptr)
+		{
+			Z_ = CalcNullSpaceProjMatrix(curr_task_.A);
+		}
+		else
+		{
+			auto Z_prev = higher_pri_problem_->GetAccumNullspaceMatrix();
+			auto A_curr = accumulated_task_.A;
+			Eigen::MatrixXd Null_of_A_curr_times_Z_prev =
+				CalcNullSpaceProjMatrix(A_curr * Z_prev);
+
+			Z_ = Z_prev * Null_of_A_curr_times_Z_prev;
+		}
+	}
+
+	// **************** //
+	// HELPER FUNCTIONS //
+	// **************** //
+
+	bool HoQpProblem::IsHigherPriTaskDefined()
+	{
+		return higher_pri_problem_ != nullptr;
 	}
 
 	TaskDefinition HoQpProblem::ConcatenateTasks(
@@ -79,11 +140,6 @@ namespace control
 					 v2;
 
 		return res;
-	}
-
-	bool HoQpProblem::IsHigherPriTaskDefined()
-	{
-		return higher_pri_problem_ != nullptr;
 	}
 }
 

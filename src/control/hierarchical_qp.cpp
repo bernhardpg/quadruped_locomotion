@@ -73,7 +73,7 @@ namespace control
 		HoQpProblem test_qp_problem_3 =
 			HoQpProblem(test_task_3, &test_qp_problem_2);
 
-		TaskDefinition test = test_qp_problem_3.GetAccumulatedTask();
+		TaskDefinition test = test_qp_problem_3.GetAccumTask();
 		PrintMatrixSize("A", test.A);
 		PrintMatrixSize("b", test.b);
 		PrintMatrixSize("D", test.D);

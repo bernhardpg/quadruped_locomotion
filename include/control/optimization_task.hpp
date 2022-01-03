@@ -2,6 +2,7 @@
 #include <ros/console.h>
 #include <assert.h>
 
+#include "math.hpp"
 #include "variable_types.hpp"
 #include "helper_functions.hpp"
 
@@ -24,7 +25,17 @@ namespace control
 					TaskDefinition new_task, HoQpProblem *higher_pri_problem_ 
 					);
 
-			TaskDefinition GetAccumulatedTask();
+			// ***************** //
+			// SETTERS & GETTERS //
+			// ***************** //
+
+			// TODO: Replace getters with direct variables for efficiency?
+			TaskDefinition GetAccumTask();
+			Eigen::MatrixXd GetAccumA();
+			Eigen::MatrixXd GetAccumD();
+			Eigen::VectorXd GetAccumB();
+			Eigen::VectorXd GetAccumF();
+			Eigen::MatrixXd GetAccumNullspaceMatrix();
 
 		private:
 			drake::solvers::MathematicalProgram prog_; 
@@ -47,10 +58,18 @@ namespace control
 
 			HoQpProblem *higher_pri_problem_;
 
+			// ************** //
+			// INITIALIZATION //
+			// ************** //
+
 			void AccumulateTasks();
+			void CalcNullspaceMatrix();
+
+			// **************** //
+			// HELPER FUNCTIONS //
+			// **************** //
 
 			bool IsHigherPriTaskDefined();
-
 			TaskDefinition ConcatenateTasks(
 					TaskDefinition t1, TaskDefinition t2
 					);
