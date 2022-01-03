@@ -442,38 +442,4 @@ namespace control
 //		prog_.AddLinearConstraint(constraint, -inf_vec, zero_vec);
 		//prog_.AddQuadraticCost(0.5 * new_vs.transpose() * new_vs);
 	}
-
-
-	// **************** //
-	// HELPER FUNCTIONS //
-	// **************** //
-
-	Eigen::VectorXd HierarchicalQP::CreateInfVector(int size)
-	{
-		Eigen::VectorXd inf_vec = Eigen::VectorXd::Zero(size);
-		for (int i = 0; i < size; ++i)
-			inf_vec(i) = kInf;
-
-		return inf_vec;
-	}
-
-	// TODO: Now this is used two places, so this should be its own library
-	Eigen::MatrixXd HierarchicalQP::CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
-	{
-		Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
-		Eigen::MatrixXd eye =
-			Eigen::MatrixXd::Identity(A.cols(), A.cols());
-
-		Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
-		return null_space_projection_matrix;
-	}
-
-	Eigen::MatrixXd HierarchicalQP::CalcPseudoInverse(Eigen::MatrixXd A)
-	{
-		// Moore-Penrose right inverse: A^t (A A^t)
-		Eigen:: MatrixXd pseudo_inverse =
-			A.transpose() * (A * A.transpose()).inverse();
-		return pseudo_inverse;
-	}
-
 }

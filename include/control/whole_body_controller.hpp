@@ -4,6 +4,7 @@
 #include "control/integrator.hpp"
 #include "control/hierarchical_qp.hpp"
 #include "anymal_constants.hpp"
+#include "math.hpp"
 
 #include <thread>
 #include <ros/ros.h>
@@ -186,15 +187,5 @@ namespace control
 						);
 			void SetVariablesToZero();
 			double GetElapsedTimeSince(ros::Time t);
-
-			// **** //
-			// MATH //
-			// **** //
-			
-			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
-			Eigen::MatrixXd CalcPseudoInverse(
-					Eigen::MatrixXd A, double damping
-					);
-			Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A);
 	};
 }

@@ -11,6 +11,7 @@
 #include "variable_types.hpp"
 #include "anymal_constants.hpp"
 #include "helper_functions.hpp"
+#include "math.hpp"
 #include "control/optimization_task.hpp"
 
 namespace control
@@ -19,8 +20,6 @@ namespace control
 	// This class definition more or less follows the notation from 
 	// 'Perception-less Terrain Adaptation through Whole
 	// Body Control and Hierarchical Optimization', Section III
-
-	const double kInf = 9999999; // TODO: move to another file
 
 	class HierarchicalQP // TODO: rename to hierarchical optimization?
 	{
@@ -119,15 +118,6 @@ namespace control
 					symbolic_vector_t decision_variables
 					);
 
-			// **************** //
-			// HELPER FUNCTIONS //
-			// **************** //
-
 			symbolic_vector_t GetAllDecisionVarsForTask(int task_i);
-
-			// TODO: It is now time to create a math library
-			Eigen::VectorXd CreateInfVector(int size);
-			Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A);
-			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
 	};
 }
