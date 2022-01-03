@@ -36,8 +36,8 @@ namespace control
 		x_solution_.resize(num_decision_vars_); // TODO: move this?
 		x_solution_.setZero();
 
-		PopulateTestVariables(); // TODO: Only for testing
-		SetupQPs();
+		TestTasks();
+		//SetupQPs();
 	}
 
 	// ******* //
@@ -45,43 +45,47 @@ namespace control
 	// ******* //
 
 	// TODO: Just placeholder test code
-	void HierarchicalQP::PopulateTestVariables()
+	void HierarchicalQP::TestTasks()
 	{
-		Eigen::MatrixXd A1 = Eigen::MatrixXd::Random(7,num_decision_vars_);
-		Eigen::VectorXd b1 = Eigen::VectorXd::Random(7);
+		// TODO: Testing
+		Eigen::MatrixXd A1 = Eigen::MatrixXd::Random(1,num_decision_vars_);
+		Eigen::VectorXd b1 = Eigen::VectorXd::Random(1);
+		Eigen::MatrixXd D1 = Eigen::MatrixXd::Random(2,num_decision_vars_);
+		Eigen::VectorXd f1 = Eigen::VectorXd::Random(2);
 
-		Eigen::MatrixXd A2 = Eigen::MatrixXd::Random(5,num_decision_vars_);
-		Eigen::VectorXd b2 = Eigen::VectorXd::Random(5);
+		TaskDefinition test_task = {A1, b1, D1, f1};
+		HoQpProblem test_qp_problem = HoQpProblem();
+		test_qp_problem.SetTask(test_task);
 
-		Eigen::MatrixXd A3 = Eigen::MatrixXd::Random(10,num_decision_vars_);
-		Eigen::VectorXd b3 = Eigen::VectorXd::Random(10);
+		Eigen::MatrixXd A2 = Eigen::MatrixXd::Random(3,num_decision_vars_);
+		Eigen::VectorXd b2 = Eigen::VectorXd::Random(3);
+		Eigen::MatrixXd D2 = Eigen::MatrixXd::Random(4,num_decision_vars_);
+		Eigen::VectorXd f2 = Eigen::VectorXd::Random(4);
 
-		A_matrs_orig_[0] = A1;
-		b_vecs_orig_[0] = b1;
+		TaskDefinition test_task_2 = {A2, b2, D2, f2};
+		HoQpProblem test_qp_problem_2 = HoQpProblem();
+		test_qp_problem_2.SetTask(test_task_2);
+		test_qp_problem_2.SetHigherPriorityTask(
+				test_qp_problem.GetAccumulatedTask()
+				);
 
-		A_matrs_orig_[1] = A2;
-		b_vecs_orig_[1] = b2;
+		Eigen::MatrixXd A3 = Eigen::MatrixXd::Random(5,num_decision_vars_);
+		Eigen::VectorXd b3 = Eigen::VectorXd::Random(5);
+		Eigen::MatrixXd D3 = Eigen::MatrixXd::Random(6,num_decision_vars_);
+		Eigen::VectorXd f3 = Eigen::VectorXd::Random(6);
 
-		A_matrs_orig_[2] = A3;
-		b_vecs_orig_[2] = b3;
+		TaskDefinition test_task_3 = {A3, b3, D3, f3};
+		HoQpProblem test_qp_problem_3 = HoQpProblem();
+		test_qp_problem_3.SetTask(test_task_3);
+		test_qp_problem_3.SetHigherPriorityTask(
+				test_qp_problem_2.GetAccumulatedTask()
+				);
 
-		Eigen::MatrixXd D1 = Eigen::MatrixXd::Random(3,num_decision_vars_);
-		Eigen::VectorXd f1 = Eigen::VectorXd::Random(3);
-
-		Eigen::MatrixXd D2 = Eigen::MatrixXd::Random(6,num_decision_vars_);
-		Eigen::VectorXd f2 = Eigen::VectorXd::Random(6);
-
-		Eigen::MatrixXd D3 = Eigen::MatrixXd::Random(9,num_decision_vars_);
-		Eigen::VectorXd f3 = Eigen::VectorXd::Random(9);
-
-		D_matrs_orig_[0] = D1;
-		f_vecs_orig_[0] = f1;
-
-		D_matrs_orig_[1] = D2;
-		f_vecs_orig_[1] = f2;
-
-		D_matrs_orig_[2] = D3;
-		f_vecs_orig_[2] = f3;
+		TaskDefinition test = test_qp_problem_3.GetAccumulatedTask();
+		PrintMatrix(test.A);
+		PrintMatrix(test.b);
+		PrintMatrix(test.D);
+		PrintMatrix(test.f);
 	}
 
 	// ******************** //

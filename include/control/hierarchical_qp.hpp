@@ -22,7 +22,7 @@ namespace control
 
 	const double kInf = 9999999; // TODO: move to another file
 
-	class HierarchicalQP
+	class HierarchicalQP // TODO: rename to hierarchical optimization?
 	{
 		public:
 			HierarchicalQP();
@@ -37,7 +37,7 @@ namespace control
 			// TESTING //
 			// ******* //
 
-			void PopulateTestVariables(); // TODO: Rename or replace 
+			void TestTasks(); // TODO: Rename or replace 
 
 			// ******************** //
 			// OPTIMIZATION PROBLEM //

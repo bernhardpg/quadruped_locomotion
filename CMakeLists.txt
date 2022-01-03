@@ -87,6 +87,11 @@ target_link_libraries(whole_body_controller hierarchical_qp)
 # Hierarchical QP
 add_library(hierarchical_qp src/control/hierarchical_qp.cpp)
 target_link_libraries(hierarchical_qp drake::drake)
+target_link_libraries(hierarchical_qp optimization_task)
+
+# Hierarchical QP
+add_library(optimization_task src/control/optimization_task.cpp)
+target_link_libraries(optimization_task drake::drake)
 
 # Joint controller
 add_executable(joint_controller src/control/joint_controller.cpp)
