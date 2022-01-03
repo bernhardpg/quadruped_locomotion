@@ -19,9 +19,10 @@ namespace control
 	{
 		public:
 			HoQpProblem();
-
-			void SetTask(TaskDefinition new_task);
-			void SetHigherPriorityTask(TaskDefinition higher_pri_task);
+			HoQpProblem(TaskDefinition new_task);
+			HoQpProblem(
+					TaskDefinition new_task, HoQpProblem *higher_pri_problem_ 
+					);
 
 			TaskDefinition GetAccumulatedTask();
 
@@ -38,14 +39,20 @@ namespace control
 			Eigen::MatrixXd c_;
 			Eigen::MatrixXd D_;
 			Eigen::MatrixXd f_;
+			
+			Eigen::MatrixXd Z_;
 
 			TaskDefinition curr_task_;
-			TaskDefinition higher_pri_task_;
+			TaskDefinition accumulated_task_;
+
+			HoQpProblem *higher_pri_problem_;
+
+			void AccumulateTasks();
 
 			bool IsHigherPriTaskDefined();
 
 			TaskDefinition ConcatenateTasks(
-					TaskDefinition &t1, TaskDefinition &t2
+					TaskDefinition t1, TaskDefinition t2
 					);
 			Eigen::MatrixXd ConcatenateMatrices(
 					Eigen::MatrixXd &m1, Eigen::MatrixXd &m2

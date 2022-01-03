@@ -3,32 +3,43 @@
 namespace control
 {
 	HoQpProblem::HoQpProblem()
+		: HoQpProblem(TaskDefinition(), nullptr)
+	{}
+
+	HoQpProblem::HoQpProblem(TaskDefinition new_task)
+		: HoQpProblem(new_task, nullptr)
 	{
-		ROS_INFO("Created new empty HoQpProblem");
 	}
 
-	void HoQpProblem::SetTask(TaskDefinition new_task)
-	{
-		curr_task_ = new_task;
-	}
-
-	void HoQpProblem::SetHigherPriorityTask(
-			TaskDefinition higher_pri_task
+	HoQpProblem::HoQpProblem(
+			TaskDefinition new_task, HoQpProblem *higher_pri_problem
 			)
+		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
-		higher_pri_task_ = higher_pri_task;
+		AccumulateTasks();
 	}
 
 	TaskDefinition HoQpProblem::GetAccumulatedTask()
 	{
-		if (!IsHigherPriTaskDefined()) return curr_task_;
-		TaskDefinition accumulated_task =
-			ConcatenateTasks(curr_task_, higher_pri_task_);
-		return accumulated_task;
+		return accumulated_task_;
+	}
+
+	void HoQpProblem::AccumulateTasks()
+	{
+		if (!IsHigherPriTaskDefined())
+		{
+			accumulated_task_ = curr_task_;
+		}
+		else
+		{
+			accumulated_task_ = ConcatenateTasks(
+					curr_task_, higher_pri_problem_->GetAccumulatedTask()
+					);
+		}
 	}
 
 	TaskDefinition HoQpProblem::ConcatenateTasks(
-			TaskDefinition &t1, TaskDefinition &t2
+			TaskDefinition t1, TaskDefinition t2
 			)
 	{
 		Eigen::MatrixXd A_concat = 
@@ -72,8 +83,7 @@ namespace control
 
 	bool HoQpProblem::IsHigherPriTaskDefined()
 	{
-		bool higher_pri_task_defined = higher_pri_task_.A.rows() > 0;
-		return higher_pri_task_defined;
+		return higher_pri_problem_ != nullptr;
 	}
 }
 
