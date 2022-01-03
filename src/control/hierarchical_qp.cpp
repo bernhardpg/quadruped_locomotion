@@ -472,31 +472,4 @@ namespace control
 		return pseudo_inverse;
 	}
 
-	void HierarchicalQP::PrintMatrix(Eigen::MatrixXd matr)
-	{
-		std::cout << std::setprecision(0) << std::fixed
-			<< matr << std::endl << std::endl;	
-	}
-
-	void HierarchicalQP::PrintMatrixSize(
-			std::string name, Eigen::MatrixXd matr
-			)
-	{
-		std::cout << name << ": " << matr.rows() << "x" << matr.cols()
-			<< std::endl;
-	}
-	void HierarchicalQP::PrintMatrixSize(
-			std::string name, Eigen::VectorXd matr
-			)
-	{
-		std::cout << name << ": " << matr.rows() << "x" << matr.cols()
-			<< std::endl;
-	}
-	void HierarchicalQP::PrintMatrixSize(
-			std::string name, symbolic_vector_t matr
-			)
-	{
-		std::cout << name << ": " << matr.rows() << "x" << matr.cols()
-			<< std::endl;
-	}
 }

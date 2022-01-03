@@ -10,6 +10,8 @@
 
 #include "variable_types.hpp"
 #include "anymal_constants.hpp"
+#include "helper_functions.hpp"
+#include "control/optimization_task.hpp"
 
 namespace control
 {
@@ -127,15 +129,5 @@ namespace control
 			Eigen::VectorXd CreateInfVector(int size);
 			Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A);
 			Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A);
-			void PrintMatrix(Eigen::MatrixXd matr);
-			void PrintMatrixSize(
-					std::string name, Eigen::MatrixXd matr
-					);
-			void PrintMatrixSize(
-					std::string name, symbolic_vector_t matr
-					);
-			void PrintMatrixSize(
-					std::string name, Eigen::VectorXd matr
-					);
 	};
 }
