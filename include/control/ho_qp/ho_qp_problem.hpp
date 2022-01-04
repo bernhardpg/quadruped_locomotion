@@ -83,6 +83,7 @@ namespace control
 			void ConstructDMatrix();
 			void ConstructFVector();
 			void ConstructHMatrix();
+			void ConstructCVector();
 			void AccumulateSlackSolutions();
 
 			// ******************** //

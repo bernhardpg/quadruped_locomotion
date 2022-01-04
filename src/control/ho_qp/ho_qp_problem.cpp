@@ -27,14 +27,16 @@ namespace control
 		AccumulateTasks();
 		ConstructNullspaceMatrix();
 		AccumulateSlackSolutions(); // TODO: This should be done after progs are solved
-		//PrintMatrixSize("Z", Z_);
 		ConstructDMatrix();
-		//PrintMatrixSize("D", D_);
 		ConstructFVector();
-		//PrintMatrixSize("f", f_);
 
 		ConstructHMatrix();
+		ConstructCVector();
+		PrintMatrixSize("Z", Z_);
 		PrintMatrixSize("H", H_);
+		PrintMatrixSize("c", c_);
+		PrintMatrixSize("D", D_);
+		PrintMatrixSize("f", f_);
 
 		//AddIneqConstraints();
 	}
@@ -170,12 +172,13 @@ namespace control
 	void HoQpProblem::ConstructDMatrix()
 	{
 		int num_prev_slack_vars = GetPrevAccumNumSlackVars();
-		//std::cout << "Total previous number of slack variables: " << num_prev_slack_vars << std::endl;
 
 		Eigen::MatrixXd D(
 				2 * num_slack_vars_ + num_prev_slack_vars,
 				num_decision_vars_ + num_slack_vars_
 				);
+		D.setZero();
+
 		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
 					num_slack_vars_, num_slack_vars_
 					);
@@ -272,6 +275,7 @@ namespace control
 		Eigen::MatrixXd H(
 				num_decision_vars_ + num_slack_vars_,
 				num_decision_vars_ + num_slack_vars_);
+		H.setZero();
 
 		Eigen::MatrixXd A_curr_T_times_A_curr =
 			curr_task_.A.transpose() * curr_task_.A;
@@ -297,6 +301,39 @@ namespace control
 //		PrintMatrixSize("A_T_A", A_curr_T_times_A_curr);
 
 		H_ = H;
+	}
+
+	void HoQpProblem::ConstructCVector()
+	{
+		int num_prev_slack_vars = GetPrevAccumNumSlackVars();
+
+		Eigen::VectorXd c(num_decision_vars_ + num_slack_vars_);
+		c.setZero();
+
+		Eigen::VectorXd zero_vec =
+			Eigen::VectorXd::Zero(num_slack_vars_);
+
+		if (!IsHigherPriProblemDefined())
+		{
+			c << curr_task_.A.transpose() * curr_task_.b,
+					 zero_vec;
+		}
+		else
+		{
+			// TODO: These should be member variables for each task, so that this is only called once
+			Eigen::MatrixXd Z_prev =
+				higher_pri_problem_->GetAccumNullspaceMatrix();
+
+			Eigen::VectorXd temp =
+				Z_prev.transpose() * curr_task_.A.transpose()
+				* (curr_task_.A * higher_pri_problem_->GetSolution()
+						- curr_task_.b);
+
+			c << temp,
+					 zero_vec;
+		}
+
+		c_ = c;
 	}
 
 	// ******************** //
