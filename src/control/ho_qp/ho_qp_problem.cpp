@@ -27,11 +27,11 @@ namespace control
 		AccumulateTasks();
 		ConstructNullspaceMatrix();
 		AccumulateSlackSolutions(); // TODO: This should be done after progs are solved
-		PrintMatrixSize("Z", Z_);
+		//PrintMatrixSize("Z", Z_);
 		ConstructDMatrix();
-		PrintMatrixSize("D", D_);
+		//PrintMatrixSize("D", D_);
 		ConstructFVector();
-		PrintMatrixSize("f", f_);
+		//PrintMatrixSize("f", f_);
 
 		AddIneqConstraints();
 	}
@@ -156,18 +156,18 @@ namespace control
 		else
 		{
 			auto Z_prev = higher_pri_problem_->GetAccumNullspaceMatrix();
-			auto A_curr = accumulated_tasks_.A;
-			Eigen::MatrixXd Null_of_A_curr_times_Z_prev =
-				CalcNullSpaceProjMatrix(A_curr * Z_prev);
+			auto A_accum_curr	= accumulated_tasks_.A;
+			Eigen::MatrixXd Null_of_A_accum_curr_times_Z_prev =
+				CalcNullSpaceProjMatrix(A_accum_curr * Z_prev);
 
-			Z_ = Z_prev * Null_of_A_curr_times_Z_prev;
+			Z_ = Z_prev * Null_of_A_accum_curr_times_Z_prev;
 		}
 	}
 
 	void HoQpProblem::ConstructDMatrix()
 	{
 		int num_prev_slack_vars = GetPrevAccumNumSlackVars();
-		std::cout << "Total previous number of slack variables: " << num_prev_slack_vars << std::endl;
+		//std::cout << "Total previous number of slack variables: " << num_prev_slack_vars << std::endl;
 
 		Eigen::MatrixXd D(
 				2 * num_slack_vars_ + num_prev_slack_vars,
@@ -179,7 +179,7 @@ namespace control
 		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
 					num_slack_vars_, num_decision_vars_
 					);
-		Eigen::MatrixXd zero_for_accum_tasks = Eigen::MatrixXd::Zero(
+		Eigen::MatrixXd accum_zero = Eigen::MatrixXd::Zero(
 					num_prev_slack_vars, num_slack_vars_
 					);
 
@@ -190,18 +190,26 @@ namespace control
 		}
 		else
 		{
+			//			TODO: remove
 //			PrintMatrixSize("new D",D);
 //			PrintMatrixSize("zero",zero);
 //			PrintMatrixSize("eye",eye);
 //			PrintMatrixSize("curr_task D",curr_task_.D);
 //			PrintMatrixSize("accum D",higher_pri_problem_->GetAccumD());
-//			PrintMatrixSize("zero acuum",zero_for_accum_tasks);
+//			PrintMatrixSize("Z_prev",higher_pri_problem_->GetAccumNullspaceMatrix());
+//			PrintMatrixSize("zero acuum",accum_zero);
+
+			// TODO: Remove these intermittent variables if it runs too slow
+			Eigen::MatrixXd Z_prev =
+				higher_pri_problem_->GetAccumNullspaceMatrix();
+			Eigen::MatrixXd accum_D_prev_times_Z_prev = 
+					 higher_pri_problem_->GetAccumD() * Z_prev;
 
 			// NOTE: This is upside down compared to the paper,
 			// but more consistent with the rest of the algorithm
 			D << zero, -eye,
-					 higher_pri_problem_->GetAccumD(), zero_for_accum_tasks,
-					 curr_task_.D, - eye;
+					 accum_D_prev_times_Z_prev, accum_zero,
+					 curr_task_.D * Z_prev, - eye;
 		}
 		D_ = D;
 	}
@@ -221,26 +229,29 @@ namespace control
 		if (!IsHigherPriProblemDefined())
 		{
 			f << zero_vec,
-					 curr_task_.f;
+					 curr_task_.f; // Note: There is no previous solution here
 		}
 		else
 		{
-			Eigen::VectorXd prev_fs = higher_pri_problem_->GetAccumF();
-			Eigen::VectorXd prev_Ds_times_x = higher_pri_problem_->GetAccumD()
+			// TODO: Remove these intermittent variables if it runs too slow
+			Eigen::VectorXd accum_f_prev = higher_pri_problem_->GetAccumF();
+			Eigen::VectorXd accum_D_prev_times_x_prev =
+				higher_pri_problem_->GetAccumD()
 				* higher_pri_problem_->GetSolution();
-			Eigen::VectorXd prev_accum_slack_vars = 
+			Eigen::VectorXd accum_slack_vars_prev = 
 				higher_pri_problem_->GetAccumSlackSolutions();
-			Eigen::VectorXd D_curr_times_x = curr_task_.D
+			Eigen::VectorXd D_curr_times_x_prev = curr_task_.D
 				* higher_pri_problem_->GetSolution();
 
+			//			TODO remove
 //			PrintMatrixSize("prev f", prev_fs);
 //			PrintMatrixSize("prev_Ds_times_x", prev_Ds_times_x);
 //			PrintMatrixSize("prev_accum_slack_variables", prev_accum_slack_vars);
 //			PrintMatrixSize("D_curr_times_x", D_curr_times_x);
 
 			f << zero_vec,
-				   prev_fs - prev_Ds_times_x + prev_accum_slack_vars,
-					 curr_task_.f - D_curr_times_x;
+				   accum_f_prev - accum_D_prev_times_x_prev + accum_slack_vars_prev,
+					 curr_task_.f - D_curr_times_x_prev;
 		}
 		f_ = f;
 	}

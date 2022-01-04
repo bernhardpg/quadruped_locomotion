@@ -9,8 +9,9 @@
 
 ## HO
 - [X] Clean up HOQP class
-- [ ] Make sure that all indices of task matrices are correct
+- [X] Make sure that all indices of inequality constraint matrices are correct
 - [ ] Implement equality constraints
+- [ ] Make sure that all indices of equality constraint matrices are correct
 - [ ] Solve a single task
 - [ ] Solve all tasks in order
 - [ ] Implement higher-level solutions instead of placeholder functions
