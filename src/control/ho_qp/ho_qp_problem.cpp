@@ -284,7 +284,7 @@ namespace control
 					num_slack_vars_, num_slack_vars_
 					);
 
-		Eigen::MatrixXd zero = Eigen::MatrixXd::Identity(
+		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
 					num_slack_vars_, num_decision_vars_ 
 					);
 			
@@ -328,7 +328,7 @@ namespace control
 
 		if (!IsHigherPriProblemDefined())
 		{
-			c << curr_task_.A.transpose() * curr_task_.b,
+			c << - curr_task_.A.transpose() * curr_task_.b,
 					 zero_vec;
 		}
 		else
@@ -365,12 +365,8 @@ namespace control
 
 	void HoQpProblem::AddIneqConstraints()
 	{
-		symbolic_vector_t constraint = D_ * GetAllDecisionVars() - f_;
-		Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(constraint.rows());
-		Eigen::VectorXd inf_vec = CreateInfVector(constraint.rows());
-
 		prog_.AddLinearConstraint(
-				constraint, -inf_vec, zero_vec
+				D_ * GetAllDecisionVars() <= f_
 				);
 	}
 
