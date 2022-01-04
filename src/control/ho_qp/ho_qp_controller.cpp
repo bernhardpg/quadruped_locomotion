@@ -22,16 +22,36 @@ namespace control
 	// TODO: Just placeholder test code
 	void HoQpController::TestTasks()
 	{
+
+//		Eigen::MatrixXd A1(2,2);
+//		A1 << 1, -1,
+//					1, 1;
+//		Eigen::VectorXd b1(2);
+//		b1 << 0,
+//					3;
+//		Eigen::MatrixXd D1(2,2);
+//		D1 << 1, 0,
+//					0, 1;
+//		Eigen::VectorXd f1(2);
+//		f1 << 999,
+//					999;
+//
+//		TaskDefinition test_task = {A1, b1, D1, f1};
+//
+//		HoQpProblem test_qp_problem = HoQpProblem(test_task);
+//
+//		TestLinearProgram(A1,b1,D1,f1);
+
 		Eigen::MatrixXd A1(1,2);
 		A1 << -2, 1;
 		Eigen::VectorXd b1(1);
 		b1 << 1;
 		Eigen::MatrixXd D1(2,2);
 		D1 << 1, 0,
-					0, 1;
+					0, -1;
 		Eigen::VectorXd f1(2);
 		f1 << 3,
-				  7;
+				  -7;
 
 		TaskDefinition test_task = {A1, b1, D1, f1};
 

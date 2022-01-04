@@ -352,7 +352,7 @@ namespace control
 	void HoQpProblem::CreateDecisionVars()
 	{
 		decision_vars_ = prog_.NewContinuousVariables(
-						num_decision_vars_, 1, "x"
+						num_decision_vars_, 1, "z"
 						);
 	}
 
@@ -378,12 +378,18 @@ namespace control
 //		PrintMatrixSize("c", c_);
 
 		drake::symbolic::Expression cost = 
-			x.transpose() * H_ * x
+			0.5 * x.transpose() * H_ * x
 			+ (c_.transpose() * x)(0); 
+	
+		std::cout << "quadratic cost " << std::endl;
+		std::cout << x.transpose() * H_ * x << std::endl;
+
+		std::cout << "linear cost " << std::endl;
+		std::cout << (c_.transpose() * x)(0) << std::endl;
 
 		// H_ is known to be positive definite due to its structure
 		bool is_convex = true;
-		prog_.AddQuadraticCost(0.5 * cost, is_convex);
+		prog_.AddQuadraticCost(cost, is_convex);
 	}
 
 	void HoQpProblem::SolveQp()
