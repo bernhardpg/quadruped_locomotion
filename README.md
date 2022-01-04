@@ -12,7 +12,7 @@
 - [X] Make sure that all indices of inequality constraint matrices are correct
 - [X] Implement cost function
 - [X] Make sure that all indices of cost function are correct
-- [ ] Solve a single task
+- [X] Solve a single task
 - [ ] Add support for empty matrix
 - [ ] Solve all tasks in order
 - [ ] Implement higher-level solutions instead of placeholder functions

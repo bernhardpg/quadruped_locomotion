@@ -1,6 +1,7 @@
 #pragma once
 #include <stdio.h>
 #include <Eigen/Core>
+#include "variable_types.hpp"
 
 void PrintMatrix(Eigen::MatrixXd matr)
 {

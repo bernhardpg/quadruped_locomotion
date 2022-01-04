@@ -33,6 +33,7 @@ namespace control
 			// ******* //
 
 			void TestTasks(); // TODO: Rename or replace 
+			void TestLinearProgram(TaskDefinition task);
 			void TestLinearProgram(
 					Eigen::MatrixXd A, Eigen::VectorXd b,
 					Eigen::MatrixXd D, Eigen::VectorXd f
