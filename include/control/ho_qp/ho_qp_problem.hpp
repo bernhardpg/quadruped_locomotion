@@ -93,6 +93,7 @@ namespace control
 			void CreateDecisionVars();
 			void CreateSlackVars();
 			void AddIneqConstraints();
+			void AddQuadraticCost();
 
 			// **************** //
 			// HELPER FUNCTIONS //

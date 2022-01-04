@@ -32,13 +32,14 @@ namespace control
 
 		ConstructHMatrix();
 		ConstructCVector();
-		PrintMatrixSize("Z", Z_);
-		PrintMatrixSize("H", H_);
-		PrintMatrixSize("c", c_);
-		PrintMatrixSize("D", D_);
-		PrintMatrixSize("f", f_);
+//		PrintMatrixSize("Z", Z_);
+//		PrintMatrixSize("H", H_);
+//		PrintMatrixSize("c", c_);
+//		PrintMatrixSize("D", D_);
+//		PrintMatrixSize("f", f_);
 
-		//AddIneqConstraints();
+		AddIneqConstraints();
+		AddQuadraticCost();
 	}
 
 	// ***************** //
@@ -112,11 +113,11 @@ namespace control
 	symbolic_vector_t HoQpProblem::GetAllDecisionVars()
 	{
 		int tot_num_decision_vars =
-			decision_vars_.rows() + slack_vars_.rows();
-		symbolic_vector_t decision_vars(tot_num_decision_vars);
-		decision_vars << decision_vars_, 
+			num_decision_vars_ + num_slack_vars_;
+		symbolic_vector_t x(tot_num_decision_vars);
+		x << decision_vars_, 
 										 slack_vars_;
-		return decision_vars;
+		return x;
 	}
 
 	// ********************* //
@@ -356,7 +357,6 @@ namespace control
 
 	void HoQpProblem::AddIneqConstraints()
 	{
-		symbolic_vector_t decision_vars = GetAllDecisionVars();
 		symbolic_vector_t constraint = D_ * GetAllDecisionVars() - f_;
 		Eigen::VectorXd zero_vec = Eigen::VectorXd::Zero(constraint.rows());
 		Eigen::VectorXd inf_vec = CreateInfVector(constraint.rows());
@@ -364,6 +364,20 @@ namespace control
 		prog_.AddLinearConstraint(
 				constraint, -inf_vec, zero_vec
 				);
+	}
+
+	void HoQpProblem::AddQuadraticCost()
+	{
+		symbolic_vector_t x = GetAllDecisionVars();
+		PrintMatrixSize("x", x);
+		PrintMatrixSize("H", H_);
+		PrintMatrixSize("c", c_);
+
+		drake::symbolic::Expression cost = 
+			x.transpose() * H_ * x
+			+ (c_.transpose() * x)(0); 
+
+		prog_.AddQuadraticCost(0.5 * cost);
 	}
 
 	// **************** //
