@@ -18,28 +18,32 @@ namespace control
 	{
 		num_decision_vars_ = new_task.A.cols();
 		num_slack_vars_ = new_task.D.rows();
-		CreateDecisionVars();
-		CreateSlackVars();
 
+		ROS_INFO("Constructed new HoQpProblem");
 		ROS_INFO("num_decision_vars_: %d", num_decision_vars_);
 		ROS_INFO("num_slack_vars_: %d", num_slack_vars_);
 
+		CreateDecisionVars();
+		CreateSlackVars();
+
 		AccumulateTasks();
-		ConstructNullspaceMatrix();
-		AccumulateSlackSolutions(); // TODO: This should be done after progs are solved
+		AccumulateSlackSolutions();
+		SetAccumNullspacePrev();
+		ConstructAccumNullspaceMatrix();
+
 		ConstructDMatrix();
 		ConstructFVector();
-
 		ConstructHMatrix();
 		ConstructCVector();
-//		PrintMatrixSize("Z", Z_);
+
+		AddIneqConstraints();
+		AddQuadraticCost();
+
+//		PrintMatrixSize("Z", accum_Z_);
 //		PrintMatrixSize("H", H_);
 //		PrintMatrixSize("c", c_);
 //		PrintMatrixSize("D", D_);
 //		PrintMatrixSize("f", f_);
-
-		AddIneqConstraints();
-		AddQuadraticCost();
 	}
 
 	// ***************** //
@@ -48,32 +52,32 @@ namespace control
 
 	TaskDefinition HoQpProblem::GetAccumTasks()
 	{
-		return accumulated_tasks_;
+		return accum_tasks_;
 	}
 
 	Eigen::MatrixXd HoQpProblem::GetAccumA()
 	{
-		return accumulated_tasks_.A;
+		return accum_tasks_.A;
 	}
 
 	Eigen::MatrixXd HoQpProblem::GetAccumD()
 	{
-		return accumulated_tasks_.D;
+		return accum_tasks_.D;
 	}
 
 	Eigen::VectorXd HoQpProblem::GetAccumB()
 	{
-		return accumulated_tasks_.b;
+		return accum_tasks_.b;
 	}
 
 	Eigen::VectorXd HoQpProblem::GetAccumF()
 	{
-		return accumulated_tasks_.f;
+		return accum_tasks_.f;
 	}
 
 	Eigen::MatrixXd HoQpProblem::GetAccumNullspaceMatrix()
 	{
-		return Z_;
+		return accum_Z_;
 	}
 
 	int HoQpProblem::GetPrevAccumNumSlackVars()
@@ -90,7 +94,7 @@ namespace control
 
 	int HoQpProblem::GetAccumNumSlackVars()
 	{
-		return accumulated_tasks_.D.rows();	
+		return accum_tasks_.D.rows();	
 	}
 
 	// TODO: placeholder
@@ -107,7 +111,7 @@ namespace control
 
 	Eigen::VectorXd HoQpProblem::GetAccumSlackSolutions()
 	{
-		return accumulated_slack_vars_;
+		return accum_slack_vars_;
 	}
 
 	symbolic_vector_t HoQpProblem::GetAllDecisionVars()
@@ -128,11 +132,11 @@ namespace control
 	{
 		if (!IsHigherPriProblemDefined())
 		{
-			accumulated_tasks_ = curr_task_;
+			accum_tasks_ = curr_task_;
 		}
 		else
 		{
-			accumulated_tasks_ = ConcatenateTasks(
+			accum_tasks_ = ConcatenateTasks(
 					curr_task_, higher_pri_problem_->GetAccumTasks()
 					);
 		}
@@ -142,31 +146,43 @@ namespace control
 	{
 		if (!IsHigherPriProblemDefined())		
 		{
-			accumulated_slack_vars_	= GetSlackSolutions();
+			accum_slack_vars_	= GetSlackSolutions();
 		}
 		else
 		{
-			accumulated_slack_vars_	= ConcatenateVectors(
+			accum_slack_vars_	= ConcatenateVectors(
 					higher_pri_problem_->GetAccumSlackSolutions(),
 					GetSlackSolutions()
 					);
 		}
 	}
 
-	void HoQpProblem::ConstructNullspaceMatrix()
+	void HoQpProblem::SetAccumNullspacePrev()
 	{
 		if (!IsHigherPriProblemDefined())
 		{
-			Z_ = CalcNullSpaceProjMatrix(curr_task_.A);
+			accum_Z_prev_ = Eigen::MatrixXd::Identity(
+					num_decision_vars_, num_decision_vars_
+					);
 		}
 		else
 		{
-			auto Z_prev = higher_pri_problem_->GetAccumNullspaceMatrix();
-			auto A_accum_curr	= accumulated_tasks_.A;
-			Eigen::MatrixXd Null_of_A_accum_curr_times_Z_prev =
-				CalcNullSpaceProjMatrix(A_accum_curr * Z_prev);
+			accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
+		}
+	}
 
-			Z_ = Z_prev * Null_of_A_accum_curr_times_Z_prev;
+	void HoQpProblem::ConstructAccumNullspaceMatrix()
+	{
+		if (!IsHigherPriProblemDefined())
+		{
+			accum_Z_ = CalcNullSpaceProjMatrix(curr_task_.A);
+		}
+		else
+		{
+			Eigen::MatrixXd Null_of_accum_A_curr_times_accum_Z_prev_ =
+				CalcNullSpaceProjMatrix(accum_tasks_.A * accum_Z_prev_);
+
+			accum_Z_ = accum_Z_prev_ * Null_of_accum_A_curr_times_accum_Z_prev_;
 		}
 	}
 
@@ -206,17 +222,14 @@ namespace control
 //			PrintMatrixSize("Z_prev",higher_pri_problem_->GetAccumNullspaceMatrix());
 //			PrintMatrixSize("zero acuum",accum_zero);
 
-			// TODO: Remove these intermittent variables if it runs too slow
-			Eigen::MatrixXd Z_prev =
-				higher_pri_problem_->GetAccumNullspaceMatrix();
-			Eigen::MatrixXd accum_D_prev_times_Z_prev = 
-					 higher_pri_problem_->GetAccumD() * Z_prev;
+			Eigen::MatrixXd accum_D_prev_times_accum_Z_prev_ = 
+					 higher_pri_problem_->GetAccumD() * accum_Z_prev_;
 
 			// NOTE: This is upside down compared to the paper,
 			// but more consistent with the rest of the algorithm
 			D << zero, -eye,
-					 accum_D_prev_times_Z_prev, accum_zero,
-					 curr_task_.D * Z_prev, - eye;
+					 accum_D_prev_times_accum_Z_prev_, accum_zero,
+					 curr_task_.D * accum_Z_prev_, - eye;
 		}
 		D_ = D;
 	}
@@ -288,10 +301,7 @@ namespace control
 		}
 		else
 		{
-			Eigen::MatrixXd Z_prev =
-				higher_pri_problem_->GetAccumNullspaceMatrix();
-
-			H << Z_prev.transpose() * A_curr_T_times_A_curr * Z_prev, zero.transpose(),
+			H << accum_Z_prev_.transpose() * A_curr_T_times_A_curr * accum_Z_prev_, zero.transpose(),
 					 zero, eye;
 		}
 
@@ -321,12 +331,8 @@ namespace control
 		}
 		else
 		{
-			// TODO: These should be member variables for each task, so that this is only called once
-			Eigen::MatrixXd Z_prev =
-				higher_pri_problem_->GetAccumNullspaceMatrix();
-
 			Eigen::VectorXd temp =
-				Z_prev.transpose() * curr_task_.A.transpose()
+				accum_Z_prev_.transpose() * curr_task_.A.transpose()
 				* (curr_task_.A * higher_pri_problem_->GetSolution()
 						- curr_task_.b);
 

@@ -65,12 +65,13 @@ namespace control
 			Eigen::MatrixXd D_;
 			Eigen::MatrixXd f_;
 			
-			Eigen::MatrixXd Z_; // Null space matrix for all previous tasks
+			Eigen::MatrixXd accum_Z_;
+			Eigen::MatrixXd accum_Z_prev_; 
 
 			TaskDefinition curr_task_;
-			TaskDefinition accumulated_tasks_;
-
-			Eigen::VectorXd accumulated_slack_vars_; 
+			
+			TaskDefinition accum_tasks_;
+			Eigen::VectorXd accum_slack_vars_; 
 
 			HoQpProblem *higher_pri_problem_;
 
@@ -79,12 +80,14 @@ namespace control
 			// ********************* //
 
 			void AccumulateTasks();
-			void ConstructNullspaceMatrix();
+			void AccumulateSlackSolutions();
+			void SetAccumNullspacePrev();
+
+			void ConstructAccumNullspaceMatrix();
 			void ConstructDMatrix();
 			void ConstructFVector();
 			void ConstructHMatrix();
 			void ConstructCVector();
-			void AccumulateSlackSolutions();
 
 			// ******************** //
 			// OPTIMIZATION PROBLEM //
