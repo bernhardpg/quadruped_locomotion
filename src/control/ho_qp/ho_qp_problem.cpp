@@ -39,6 +39,8 @@ namespace control
 		AddIneqConstraints();
 		AddQuadraticCost();
 
+		SolveQp();
+
 //		PrintMatrixSize("Z", accum_Z_);
 //		PrintMatrixSize("H", H_);
 //		PrintMatrixSize("c", c_);
@@ -375,15 +377,42 @@ namespace control
 	void HoQpProblem::AddQuadraticCost()
 	{
 		symbolic_vector_t x = GetAllDecisionVars();
-		PrintMatrixSize("x", x);
-		PrintMatrixSize("H", H_);
-		PrintMatrixSize("c", c_);
+//		PrintMatrixSize("x", x);
+//		PrintMatrixSize("H", H_);
+//		PrintMatrixSize("c", c_);
 
 		drake::symbolic::Expression cost = 
 			x.transpose() * H_ * x
 			+ (c_.transpose() * x)(0); 
 
-		prog_.AddQuadraticCost(0.5 * cost);
+		// H_ is known to be positive definite due to its structure
+		bool is_convex = true;
+		prog_.AddQuadraticCost(0.5 * cost, is_convex);
+	}
+
+	void HoQpProblem::SolveQp()
+	{
+		std::cout << "Solving QP" << std::endl;
+		PrintTask(curr_task_);
+
+		std::cout << "H:" << std::endl;
+		PrintMatrix(H_);
+		std::cout << "c:" << std::endl;
+		PrintMatrix(c_);
+		std::cout << "D:" << std::endl;
+		PrintMatrix(D_);
+		std::cout << "f:" << std::endl;
+		PrintMatrix(f_);
+		std::cout << prog_.to_string() << std::endl;
+
+		result_ = Solve(prog_);
+		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
+			<< "\nFound solution: " << result_.is_success()
+			<< "\nSolution result: " << result_.get_solution_result()
+			<< std::endl);
+		assert(result_.is_success());
+		std::cout << "Result: " << std::endl;
+		PrintMatrix(result_.GetSolution());
 	}
 
 	// **************** //

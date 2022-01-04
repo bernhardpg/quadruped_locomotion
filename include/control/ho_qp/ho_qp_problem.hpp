@@ -1,4 +1,7 @@
 #include <drake/solvers/mathematical_program.h>
+#include <drake/common/symbolic.h>
+#include <drake/solvers/solve.h>
+
 #include <ros/console.h>
 #include <assert.h>
 
@@ -15,6 +18,19 @@ namespace control
 		Eigen::MatrixXd D;
 		Eigen::VectorXd f;
 	};
+
+	// TODO: Remove?
+	void PrintTask(TaskDefinition task)
+	{
+		std::cout << "A:" << std::endl;
+		PrintMatrix(task.A);
+		std::cout << "b:" << std::endl;
+		PrintMatrix(task.b);
+		std::cout << "D:" << std::endl;
+		PrintMatrix(task.D);
+		std::cout << "f:" << std::endl;
+		PrintMatrix(task.f);
+	}
 
 	// USE OF NOTATION:
 	// These definition more or less follows the notation from 
@@ -53,6 +69,7 @@ namespace control
 
 		private:
 			drake::solvers::MathematicalProgram prog_; 
+			drake::solvers::MathematicalProgramResult result_;
 
 			int num_slack_vars_;
 			int num_decision_vars_;
@@ -97,6 +114,7 @@ namespace control
 			void CreateSlackVars();
 			void AddIneqConstraints();
 			void AddQuadraticCost();
+			void SolveQp();
 
 			// **************** //
 			// HELPER FUNCTIONS //
