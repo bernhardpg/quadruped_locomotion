@@ -1,28 +1,28 @@
 # Quadruped locomotion
 
-## Todos
-- [X] Test joint control
-- [X] Tune position PIDs
-- [X] Add base pose and velocity to generalized coords and vels
-- [X] Implement inverse kinematics trajectory optimization to make the robot stand up
+## Features
+- Low-level joint force control
+- Differential inverse kinematics control
+- Support consistent differential inverse kinematics control
+- TODO: COM zero moment point motion planner for any gait sequence
+- TODO: Hierarchical Optimization control of joint accelerations
 
-## HO QP
-- [x] Download and install drake as a dependency
-- [] Test Optimization of one task, toy task
-- [] Implement dynamic constraint task (will require to somehow get dynamics here)
-- [] Implement controller torques
-- [] Implement more tasks
-- [] Formulate HO QP optimization in general
-- ... ?
+## HO
+- [ ] Clean up HOQP class
+- [ ] Make sure that all indices of task matrices are correct
+- [ ] Implement equality constraints
+- [ ] Solve a single task
+- [ ] Solve all tasks in order
+- [ ] Implement higher-level solutions instead of placeholder functions
 
 ## ZMP Motion planner
 - [X] Specify a format for gait sequence
 - [X] Get polygons from vel_cmd and gait sequence
-- [] Get A and b from polygon
-- [] Implement zmp constraints
-- [] Implement current position as constraint on first spline
-- [] (Make constraint on final position a soft one)
-- [] (Implement path regularizer?)
+- [ ] Get A and b from polygon
+- [ ] Implement zmp constraints
+- [ ] Implement current position as constraint on first spline
+- [ ] (Make constraint on final position a soft one)
+- [ ] (Implement path regularizer?)
 
 [##](##) Dependencies 
 The lines

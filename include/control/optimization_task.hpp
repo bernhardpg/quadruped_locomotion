@@ -55,13 +55,12 @@ namespace control
 			symbolic_vector_t decision_vars_;
 			symbolic_vector_t slack_vars_;
 
-			// TODO: are these needed?
 			Eigen::MatrixXd H_;
 			Eigen::MatrixXd c_;
 			Eigen::MatrixXd D_;
 			Eigen::MatrixXd f_;
 			
-			Eigen::MatrixXd Z_;
+			Eigen::MatrixXd Z_; // Null space matrix for all previous tasks
 
 			TaskDefinition curr_task_;
 			TaskDefinition accumulated_task_;
