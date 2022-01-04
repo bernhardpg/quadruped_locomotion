@@ -76,22 +76,22 @@ target_link_libraries(dynamics ${pinocchio_LIBRARIES})
 # Integrator library
 add_library(integrator src/control/integrator.cpp)
 
-# Controller 
+# Whole Body Controller 
 add_executable(whole_body_controller src/control/whole_body_controller.cpp)
 target_link_libraries(whole_body_controller drake::drake)
 target_link_libraries(whole_body_controller ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(whole_body_controller dynamics)
 target_link_libraries(whole_body_controller integrator)
-target_link_libraries(whole_body_controller hierarchical_qp)
+target_link_libraries(whole_body_controller ho_qp_controller)
 
-# Hierarchical QP
-add_library(hierarchical_qp src/control/hierarchical_qp.cpp)
-target_link_libraries(hierarchical_qp drake::drake)
-target_link_libraries(hierarchical_qp optimization_task)
+# Hierarchical QP Controller 
+add_library(ho_qp_controller src/control/ho_qp/ho_qp_controller.cpp)
+target_link_libraries(ho_qp_controller drake::drake)
+target_link_libraries(ho_qp_controller ho_qp_problem)
 
-# Hierarchical QP
-add_library(optimization_task src/control/optimization_task.cpp)
-target_link_libraries(optimization_task drake::drake)
+# Hierarchical QP Problem formulation
+add_library(ho_qp_problem src/control/ho_qp/ho_qp_problem.cpp)
+target_link_libraries(ho_qp_problem drake::drake)
 
 # Joint controller
 add_executable(joint_controller src/control/joint_controller.cpp)

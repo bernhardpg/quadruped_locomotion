@@ -2,7 +2,7 @@
 
 #include "dynamics/dynamics.hpp"
 #include "control/integrator.hpp"
-#include "control/hierarchical_qp.hpp"
+#include "control/ho_qp/ho_qp_controller.hpp"
 #include "anymal_constants.hpp"
 #include "math.hpp"
 
@@ -80,7 +80,7 @@ namespace control
 			double k_pos_p_ = 1.0;
 			bool controller_ready_ = false;
 
-			HierarchicalQP hqp_solver_;
+			HoQpController hqp_solver_;
 
 			void UpdateJointCommand();
 			void DirectJointControl();

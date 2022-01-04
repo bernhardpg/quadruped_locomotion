@@ -1,4 +1,4 @@
-#include "control/optimization_task.hpp"
+#include "control/ho_qp/ho_qp_problem.hpp"
 
 namespace control
 {
@@ -25,7 +25,7 @@ namespace control
 		ROS_INFO("num_slack_vars_: %d", num_slack_vars_);
 
 		AccumulateTasks();
-		CalcNullspaceMatrix();
+		ConstructNullspaceMatrix();
 		AccumulateSlackSolutions(); // TODO: This should be done after progs are solved
 		PrintMatrixSize("Z", Z_);
 		ConstructDMatrix();
@@ -40,29 +40,29 @@ namespace control
 	// SETTERS & GETTERS //
 	// ***************** //
 
-	TaskDefinition HoQpProblem::GetAccumTask()
+	TaskDefinition HoQpProblem::GetAccumTasks()
 	{
-		return accumulated_task_;
+		return accumulated_tasks_;
 	}
 
 	Eigen::MatrixXd HoQpProblem::GetAccumA()
 	{
-		return accumulated_task_.A;
+		return accumulated_tasks_.A;
 	}
 
 	Eigen::MatrixXd HoQpProblem::GetAccumD()
 	{
-		return accumulated_task_.D;
+		return accumulated_tasks_.D;
 	}
 
 	Eigen::VectorXd HoQpProblem::GetAccumB()
 	{
-		return accumulated_task_.b;
+		return accumulated_tasks_.b;
 	}
 
 	Eigen::VectorXd HoQpProblem::GetAccumF()
 	{
-		return accumulated_task_.f;
+		return accumulated_tasks_.f;
 	}
 
 	Eigen::MatrixXd HoQpProblem::GetAccumNullspaceMatrix()
@@ -84,7 +84,7 @@ namespace control
 
 	int HoQpProblem::GetAccumNumSlackVars()
 	{
-		return accumulated_task_.D.rows();	
+		return accumulated_tasks_.D.rows();	
 	}
 
 	// TODO: placeholder
@@ -122,12 +122,12 @@ namespace control
 	{
 		if (!IsHigherPriProblemDefined())
 		{
-			accumulated_task_ = curr_task_;
+			accumulated_tasks_ = curr_task_;
 		}
 		else
 		{
-			accumulated_task_ = ConcatenateTasks(
-					curr_task_, higher_pri_problem_->GetAccumTask()
+			accumulated_tasks_ = ConcatenateTasks(
+					curr_task_, higher_pri_problem_->GetAccumTasks()
 					);
 		}
 	}
@@ -147,7 +147,7 @@ namespace control
 		}
 	}
 
-	void HoQpProblem::CalcNullspaceMatrix()
+	void HoQpProblem::ConstructNullspaceMatrix()
 	{
 		if (!IsHigherPriProblemDefined())
 		{
@@ -156,7 +156,7 @@ namespace control
 		else
 		{
 			auto Z_prev = higher_pri_problem_->GetAccumNullspaceMatrix();
-			auto A_curr = accumulated_task_.A;
+			auto A_curr = accumulated_tasks_.A;
 			Eigen::MatrixXd Null_of_A_curr_times_Z_prev =
 				CalcNullSpaceProjMatrix(A_curr * Z_prev);
 

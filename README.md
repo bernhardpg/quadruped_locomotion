@@ -8,7 +8,7 @@
 - TODO: Hierarchical Optimization control of joint accelerations
 
 ## HO
-- [ ] Clean up HOQP class
+- [X] Clean up HOQP class
 - [ ] Make sure that all indices of task matrices are correct
 - [ ] Implement equality constraints
 - [ ] Solve a single task

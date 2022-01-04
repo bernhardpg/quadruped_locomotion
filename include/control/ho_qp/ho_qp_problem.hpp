@@ -16,6 +16,11 @@ namespace control
 		Eigen::VectorXd f;
 	};
 
+	// USE OF NOTATION:
+	// These definition more or less follows the notation from 
+	// 'Perception-less Terrain Adaptation through Whole
+	// Body Control and Hierarchical Optimization', Section III
+
 	class HoQpProblem
 	{
 		public:
@@ -30,7 +35,7 @@ namespace control
 			// ***************** //
 
 			// TODO: Replace getters with direct variables for efficiency?
-			TaskDefinition GetAccumTask();
+			TaskDefinition GetAccumTasks();
 			Eigen::MatrixXd GetAccumA();
 			Eigen::MatrixXd GetAccumD();
 			Eigen::VectorXd GetAccumB();
@@ -63,7 +68,7 @@ namespace control
 			Eigen::MatrixXd Z_; // Null space matrix for all previous tasks
 
 			TaskDefinition curr_task_;
-			TaskDefinition accumulated_task_;
+			TaskDefinition accumulated_tasks_;
 
 			Eigen::VectorXd accumulated_slack_vars_; 
 
@@ -74,7 +79,7 @@ namespace control
 			// ********************* //
 
 			void AccumulateTasks();
-			void CalcNullspaceMatrix();
+			void ConstructNullspaceMatrix();
 			void ConstructDMatrix();
 			void ConstructFVector();
 			void AccumulateSlackSolutions();
