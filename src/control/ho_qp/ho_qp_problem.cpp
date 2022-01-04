@@ -27,7 +27,6 @@ namespace control
 		CreateSlackVars();
 
 		AccumulateTasks();
-		AccumulateSlackSolutions();
 		SetAccumNullspacePrev();
 		ConstructAccumNullspaceMatrix();
 
@@ -40,6 +39,7 @@ namespace control
 		AddQuadraticCost();
 
 		SolveQp();
+		AccumulateSlackSolutions();
 
 //		PrintMatrixSize("Z", accum_Z_);
 //		PrintMatrixSize("H", H_);
@@ -99,16 +99,14 @@ namespace control
 		return accum_tasks_.D.rows();	
 	}
 
-	// TODO: placeholder
 	Eigen::VectorXd HoQpProblem::GetSolution()
 	{
-		return Eigen::VectorXd::Zero(num_decision_vars_);
+		return decision_vars_solutions_;
 	}
 
-	// TODO: placeholder
 	Eigen::VectorXd HoQpProblem::GetSlackSolutions()
 	{
-		return Eigen::VectorXd::Zero(num_slack_vars_);
+		return slack_vars_solutions_;
 	}
 
 	Eigen::VectorXd HoQpProblem::GetAccumSlackSolutions()
@@ -125,6 +123,7 @@ namespace control
 										 slack_vars_;
 		return x;
 	}
+
 
 	// ********************* //
 	// MATRIX INITIALIZATION //
@@ -381,11 +380,11 @@ namespace control
 			0.5 * x.transpose() * H_ * x
 			+ (c_.transpose() * x)(0); 
 	
-		std::cout << "quadratic cost " << std::endl;
-		std::cout << x.transpose() * H_ * x << std::endl;
-
-		std::cout << "linear cost " << std::endl;
-		std::cout << (c_.transpose() * x)(0) << std::endl;
+//		std::cout << "quadratic cost " << std::endl;
+//		std::cout << x.transpose() * H_ * x << std::endl;
+//
+//		std::cout << "linear cost " << std::endl;
+//		std::cout << (c_.transpose() * x)(0) << std::endl;
 
 		// H_ is known to be positive definite due to its structure
 		bool is_convex = true;
@@ -394,27 +393,39 @@ namespace control
 
 	void HoQpProblem::SolveQp()
 	{
-		std::cout << "Solving QP" << std::endl;
-		PrintTask(curr_task_);
-
-		std::cout << "H:" << std::endl;
-		PrintMatrix(H_);
-		std::cout << "c:" << std::endl;
-		PrintMatrix(c_);
-		std::cout << "D:" << std::endl;
-		PrintMatrix(D_);
-		std::cout << "f:" << std::endl;
-		PrintMatrix(f_);
 		std::cout << prog_.to_string() << std::endl;
 
 		result_ = Solve(prog_);
+		assert(result_.is_success());
+		Eigen::VectorXd sol = result_.GetSolution();
+
+		decision_vars_solutions_.resize(num_decision_vars_);
+		decision_vars_solutions_ << sol
+			.block(0,0,num_decision_vars_,1);
+		slack_vars_solutions_.resize(num_slack_vars_);
+		slack_vars_solutions_ << sol
+			.block(num_decision_vars_,0,num_slack_vars_,1);
+
+		std::cout << "Solving QP" << std::endl;
+		//PrintTask(curr_task_);
+
+//		std::cout << "H:" << std::endl;
+//		PrintMatrix(H_);
+//		std::cout << "c:" << std::endl;
+//		PrintMatrix(c_);
+//		std::cout << "D:" << std::endl;
+//		PrintMatrix(D_);
+//		std::cout << "f:" << std::endl;
+//		PrintMatrix(f_);
 		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
 			<< "\nFound solution: " << result_.is_success()
 			<< "\nSolution result: " << result_.get_solution_result()
 			<< std::endl);
-		assert(result_.is_success());
 		std::cout << "Result: " << std::endl;
-		PrintMatrix(result_.GetSolution());
+		std::cout << "z:\n";
+		PrintMatrix(decision_vars_solutions_);
+		std::cout << "v:\n";
+		PrintMatrix(slack_vars_solutions_);
 	}
 
 	// **************** //
@@ -442,30 +453,6 @@ namespace control
 		TaskDefinition res =
 			{A_concat, b_concat, D_concat, f_concat};
 		
-		return res;
-	}
-
-	Eigen::MatrixXd HoQpProblem::ConcatenateMatrices(
-			Eigen::MatrixXd m1, Eigen::MatrixXd m2
-			)
-	{
-		assert (m1.cols() == m2.cols());
-		Eigen::MatrixXd res(m1.rows() + m2.rows(), m1.cols());
-		res << m1,
-					 m2;
-
-		return res;
-	}
-
-	Eigen::VectorXd HoQpProblem::ConcatenateVectors(
-			Eigen::VectorXd v1, Eigen::VectorXd v2
-			)
-	{
-		assert (v1.cols() == v2.cols());
-		Eigen::VectorXd res(v1.rows() + v2.rows());
-		res << v1,
-					 v2;
-
 		return res;
 	}
 }

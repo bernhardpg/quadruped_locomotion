@@ -77,6 +77,9 @@ namespace control
 			symbolic_vector_t decision_vars_;
 			symbolic_vector_t slack_vars_;
 
+			Eigen::VectorXd decision_vars_solutions_;
+			Eigen::VectorXd slack_vars_solutions_;
+
 			Eigen::MatrixXd H_;
 			Eigen::MatrixXd c_;
 			Eigen::MatrixXd D_;
@@ -123,12 +126,6 @@ namespace control
 			bool IsHigherPriProblemDefined();
 			TaskDefinition ConcatenateTasks(
 					TaskDefinition t1, TaskDefinition t2
-					);
-			Eigen::MatrixXd ConcatenateMatrices(
-					Eigen::MatrixXd m1, Eigen::MatrixXd m2
-					);
-			Eigen::VectorXd ConcatenateVectors(
-					Eigen::VectorXd v1, Eigen::VectorXd v2
 					);
 	};
 }

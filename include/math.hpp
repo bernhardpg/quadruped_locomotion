@@ -4,6 +4,30 @@
 
 const double kInf = 9999999;
 
+Eigen::MatrixXd ConcatenateMatrices(
+		Eigen::MatrixXd m1, Eigen::MatrixXd m2
+		)
+{
+	assert (m1.cols() == m2.cols());
+	Eigen::MatrixXd res(m1.rows() + m2.rows(), m1.cols());
+	res << m1,
+				 m2;
+
+	return res;
+}
+
+Eigen::VectorXd ConcatenateVectors(
+		Eigen::VectorXd v1, Eigen::VectorXd v2
+		)
+{
+	assert (v1.cols() == v2.cols());
+	Eigen::VectorXd res(v1.rows() + v2.rows());
+	res << v1,
+				 v2;
+
+	return res;
+}
+
 Eigen::VectorXd CreateInfVector(int size)
 {
 	Eigen::VectorXd inf_vec = Eigen::VectorXd::Zero(size);

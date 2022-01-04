@@ -22,46 +22,39 @@ namespace control
 	// TODO: Just placeholder test code
 	void HoQpController::TestTasks()
 	{
-
-//		Eigen::MatrixXd A1(2,2);
-//		A1 << 1, -1,
-//					1, 1;
-//		Eigen::VectorXd b1(2);
-//		b1 << 0,
-//					3;
-//		Eigen::MatrixXd D1(2,2);
-//		D1 << 1, 0,
-//					0, 1;
-//		Eigen::VectorXd f1(2);
-//		f1 << 999,
-//					999;
-//
-//		TaskDefinition test_task = {A1, b1, D1, f1};
-//
-//		HoQpProblem test_qp_problem = HoQpProblem(test_task);
-//
-//		TestLinearProgram(A1,b1,D1,f1);
-
 		Eigen::MatrixXd A1(1,2);
-		A1 << -2, 1;
+		A1 << -1, 1;
 		Eigen::VectorXd b1(1);
 		b1 << 1;
 		Eigen::MatrixXd D1(2,2);
 		D1 << 1, 0,
-					0, -1;
+				 -1, 0;
 		Eigen::VectorXd f1(2);
-		f1 << 3,
-				  -7;
+		f1 << 10,
+				  0;
+		TaskDefinition test_task_1 = {A1, b1, D1, f1};
+		HoQpProblem test_qp_problem = HoQpProblem(test_task_1);
 
-		TaskDefinition test_task = {A1, b1, D1, f1};
+		Eigen::MatrixXd A2(1,2);
+		A2 << 1, 1;
+		Eigen::VectorXd b2(1);
+		b2 << 5;
+		Eigen::MatrixXd D2(1,2);
+		D2 << 1, 0;
+		Eigen::VectorXd f2(1);
+		f2 << 9999;
+		TaskDefinition test_task_2 = {A2, b2, D2, f2};
 
-		HoQpProblem test_qp_problem = HoQpProblem(test_task);
+		HoQpProblem test_qp_problem_2 =
+			HoQpProblem(test_task_2, &test_qp_problem);
 
-		TestLinearProgram(A1,b1,D1,f1);
+		TestLinearProgram(
+				ConcatenateMatrices(A1,A2),
+				ConcatenateVectors(b1,b2),
+				ConcatenateMatrices(D1,D2),
+				ConcatenateVectors(f1,f2)
+				);
 
-
-//		HoQpProblem test_qp_problem_2 =
-//			HoQpProblem(test_task_2, &test_qp_problem);
 //		HoQpProblem test_qp_problem_3 =
 //			HoQpProblem(test_task_3, &test_qp_problem_2);
 	}
