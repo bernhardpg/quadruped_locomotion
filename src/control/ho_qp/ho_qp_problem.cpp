@@ -1,5 +1,7 @@
 #include "control/ho_qp/ho_qp_problem.hpp"
 
+// TODO: clean up use of variable 'x'
+
 namespace control
 {
 	HoQpProblem::HoQpProblem()
@@ -23,11 +25,12 @@ namespace control
 		ROS_INFO("num_decision_vars_: %d", num_decision_vars_);
 		ROS_INFO("num_slack_vars_: %d", num_slack_vars_);
 
+		GetValuesFromPrevProblem();
+
 		CreateDecisionVars();
 		CreateSlackVars();
 
 		AccumulateTasks();
-		SetAccumNullspacePrev();
 		ConstructAccumNullspaceMatrix();
 
 		ConstructDMatrix();
@@ -40,6 +43,8 @@ namespace control
 
 		SolveQp();
 		AccumulateSlackSolutions();
+		std::cout << "x: " << std::endl;
+		PrintMatrix(GetSolution());
 
 //		PrintMatrixSize("Z", accum_Z_);
 //		PrintMatrixSize("H", H_);
@@ -101,7 +106,21 @@ namespace control
 
 	Eigen::VectorXd HoQpProblem::GetSolution()
 	{
-		return decision_vars_solutions_;
+		Eigen::MatrixXd x =
+			x_prev_ + accum_Z_prev_ * decision_vars_solutions_;
+//		std::cout << "accum_Z_prev_\n";
+//		PrintMatrix(accum_Z_prev_);
+//
+//		std::cout << "x_prev\n";
+//		PrintMatrix(x_prev_);
+//
+//		std::cout << "decision_vars_solutions_\n";
+//		PrintMatrix(decision_vars_solutions_);
+//
+//		std::cout << "x\n";
+//		PrintMatrix(x);
+ 
+		return x;
 	}
 
 	Eigen::VectorXd HoQpProblem::GetSlackSolutions()
@@ -158,17 +177,20 @@ namespace control
 		}
 	}
 
-	void HoQpProblem::SetAccumNullspacePrev()
+	void HoQpProblem::GetValuesFromPrevProblem()
 	{
 		if (!IsHigherPriProblemDefined())
 		{
+			// Note: These values are actually never used
 			accum_Z_prev_ = Eigen::MatrixXd::Identity(
 					num_decision_vars_, num_decision_vars_
 					);
+			x_prev_ = Eigen::VectorXd::Zero(num_decision_vars_);
 		}
 		else
 		{
 			accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
+			x_prev_ = higher_pri_problem_->GetSolution();
 		}
 	}
 
@@ -258,11 +280,11 @@ namespace control
 			Eigen::VectorXd accum_f_prev = higher_pri_problem_->GetAccumF();
 			Eigen::VectorXd accum_D_prev_times_x_prev =
 				higher_pri_problem_->GetAccumD()
-				* higher_pri_problem_->GetSolution();
+				* x_prev_;
 			Eigen::VectorXd accum_slack_vars_prev = 
 				higher_pri_problem_->GetAccumSlackSolutions();
 			Eigen::VectorXd D_curr_times_x_prev = curr_task_.D
-				* higher_pri_problem_->GetSolution();
+				* x_prev_;
 
 			//			TODO remove
 //			PrintMatrixSize("prev f", prev_fs);
@@ -334,7 +356,7 @@ namespace control
 		{
 			Eigen::VectorXd temp =
 				accum_Z_prev_.transpose() * curr_task_.A.transpose()
-				* (curr_task_.A * higher_pri_problem_->GetSolution()
+				* (curr_task_.A * x_prev_
 						- curr_task_.b);
 
 			c << temp,
@@ -426,6 +448,8 @@ namespace control
 		PrintMatrix(decision_vars_solutions_);
 		std::cout << "v:\n";
 		PrintMatrix(slack_vars_solutions_);
+
+		GetSolution();
 	}
 
 	// **************** //

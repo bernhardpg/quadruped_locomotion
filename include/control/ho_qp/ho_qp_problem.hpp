@@ -86,7 +86,9 @@ namespace control
 			Eigen::MatrixXd f_;
 			
 			Eigen::MatrixXd accum_Z_;
+
 			Eigen::MatrixXd accum_Z_prev_; 
+			Eigen::VectorXd x_prev_;
 
 			TaskDefinition curr_task_;
 			
@@ -101,7 +103,7 @@ namespace control
 
 			void AccumulateTasks();
 			void AccumulateSlackSolutions();
-			void SetAccumNullspacePrev();
+			void GetValuesFromPrevProblem();
 
 			void ConstructAccumNullspaceMatrix();
 			void ConstructDMatrix();

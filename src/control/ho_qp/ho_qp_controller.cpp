@@ -33,7 +33,7 @@ namespace control
 		f1 << 10,
 				  0;
 		TaskDefinition test_task_1 = {A1, b1, D1, f1};
-		HoQpProblem test_qp_problem = HoQpProblem(test_task_1);
+		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_1);
 
 		Eigen::MatrixXd A2(1,2);
 		A2 << 1, 1;
@@ -46,13 +46,27 @@ namespace control
 		TaskDefinition test_task_2 = {A2, b2, D2, f2};
 
 		HoQpProblem test_qp_problem_2 =
-			HoQpProblem(test_task_2, &test_qp_problem);
+			HoQpProblem(test_task_2, &test_qp_problem_1);
 
+		Eigen::MatrixXd A3(1,2);
+		A3 << 0, 0;
+		Eigen::VectorXd b3(1);
+		b3 << 0;
+		Eigen::MatrixXd D3(1,2);
+		D3 << 0, 1;
+		Eigen::VectorXd f3(1);
+		f3 << 3;
+		TaskDefinition test_task_3 = {A3, b3, D3, f3};
+
+		HoQpProblem test_qp_problem_3 =
+			HoQpProblem(test_task_3, &test_qp_problem_2);
+
+		std::cout << "Verifying as linear program\n";
 		TestLinearProgram(
-				ConcatenateMatrices(A1,A2),
-				ConcatenateVectors(b1,b2),
-				ConcatenateMatrices(D1,D2),
-				ConcatenateVectors(f1,f2)
+				ConcatenateMatrices(ConcatenateMatrices(A1,A2),A3),
+				ConcatenateVectors(ConcatenateVectors(b1,b2),b3),
+				ConcatenateMatrices(ConcatenateMatrices(D1,D2),D3),
+				ConcatenateVectors(ConcatenateVectors(f1,f2),f3)
 				);
 
 //		HoQpProblem test_qp_problem_3 =
