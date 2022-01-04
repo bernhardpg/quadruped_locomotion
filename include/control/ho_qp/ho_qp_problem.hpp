@@ -82,6 +82,7 @@ namespace control
 			void ConstructNullspaceMatrix();
 			void ConstructDMatrix();
 			void ConstructFVector();
+			void ConstructHMatrix();
 			void AccumulateSlackSolutions();
 
 			// ******************** //

@@ -33,7 +33,10 @@ namespace control
 		ConstructFVector();
 		//PrintMatrixSize("f", f_);
 
-		AddIneqConstraints();
+		ConstructHMatrix();
+		PrintMatrixSize("H", H_);
+
+		//AddIneqConstraints();
 	}
 
 	// ***************** //
@@ -254,6 +257,46 @@ namespace control
 					 curr_task_.f - D_curr_times_x_prev;
 		}
 		f_ = f;
+	}
+
+	void HoQpProblem::ConstructHMatrix()
+	{
+		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
+					num_slack_vars_, num_slack_vars_
+					);
+
+		Eigen::MatrixXd zero = Eigen::MatrixXd::Identity(
+					num_slack_vars_, num_decision_vars_ 
+					);
+			
+		Eigen::MatrixXd H(
+				num_decision_vars_ + num_slack_vars_,
+				num_decision_vars_ + num_slack_vars_);
+
+		Eigen::MatrixXd A_curr_T_times_A_curr =
+			curr_task_.A.transpose() * curr_task_.A;
+
+		if (!IsHigherPriProblemDefined())
+		{
+			H << A_curr_T_times_A_curr, zero.transpose(),
+					 zero, eye;
+		}
+		else
+		{
+			Eigen::MatrixXd Z_prev =
+				higher_pri_problem_->GetAccumNullspaceMatrix();
+
+			H << Z_prev.transpose() * A_curr_T_times_A_curr * Z_prev, zero.transpose(),
+					 zero, eye;
+		}
+
+		//		TODO: remove
+//		PrintMatrixSize("eye", eye);
+//		PrintMatrixSize("zero", zero);
+//		PrintMatrixSize("H", H);
+//		PrintMatrixSize("A_T_A", A_curr_T_times_A_curr);
+
+		H_ = H;
 	}
 
 	// ******************** //
