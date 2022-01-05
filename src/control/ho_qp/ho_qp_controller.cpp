@@ -9,13 +9,19 @@ namespace control
 	HoQpController::HoQpController(int num_tasks)
 		: num_tasks_(num_tasks)
 	{
-		//num_contacts_ = 4; // TODO: generalize this
-		//num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
+		num_contacts_ = 4; // TODO: generalize this
+		num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
+		
+		EquationsOfMotionConstraint();
+	}
 
-//		TestTwoTasksEqFirst();
-//		TestTwoTasksEqFirst();
-		//TestThreeTasks();
-		TestFourTasks();
+	void HoQpController::EquationsOfMotionConstraint()
+	{
+		ROS_INFO("Adding EOM constraint");
+		ROS_INFO("Mass matrix");
+		PrintMatrix(robot_dynamics_.GetMassMatrix());
+		ROS_INFO("Bias vector");
+		PrintMatrix(robot_dynamics_.GetBiasVector());
 	}
 
 	// ******* //

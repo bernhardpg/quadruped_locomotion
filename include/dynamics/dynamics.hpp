@@ -1,6 +1,8 @@
 #pragma once
 
 #include <pinocchio/fwd.hpp>
+#include "pinocchio/algorithm/crba.hpp"
+#include "pinocchio/algorithm/rnea.hpp"
 #include "pinocchio/algorithm/joint-configuration.hpp"
 #include "pinocchio/algorithm/kinematics.hpp"
 #include "pinocchio/algorithm/compute-all-terms.hpp"
@@ -16,6 +18,11 @@ class Dynamics
 {
 	public:
 		Dynamics();
+
+		void UpdateState();
+
+		Eigen::MatrixXd GetMassMatrix();
+		Eigen::VectorXd GetBiasVector();
 
 		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
 				Eigen::Matrix<double,kNumGenCoords, 1> q

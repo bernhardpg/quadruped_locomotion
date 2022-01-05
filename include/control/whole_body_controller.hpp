@@ -80,7 +80,7 @@ namespace control
 			double k_pos_p_ = 1.0;
 			bool controller_ready_ = false;
 
-			HoQpController hqp_solver_;
+			HoQpController ho_qp_controller_;
 
 			void UpdateJointCommand();
 			void DirectJointControl();

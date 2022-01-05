@@ -88,6 +88,7 @@ target_link_libraries(whole_body_controller ho_qp_controller)
 add_library(ho_qp_controller src/control/ho_qp/ho_qp_controller.cpp)
 target_link_libraries(ho_qp_controller drake::drake)
 target_link_libraries(ho_qp_controller ho_qp_problem)
+target_link_libraries(ho_qp_controller dynamics)
 
 # Hierarchical QP Problem formulation
 add_library(ho_qp_problem src/control/ho_qp/ho_qp_problem.cpp)

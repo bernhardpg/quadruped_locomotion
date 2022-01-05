@@ -1,5 +1,12 @@
 #pragma once
 
+#include "dynamics/dynamics.hpp"
+#include "anymal_constants.hpp"
+#include "helper_functions.hpp"
+#include "math.hpp"
+#include "control/ho_qp/ho_qp_problem.hpp"
+#include "variable_types.hpp"
+
 #include <drake/solvers/mathematical_program.h>
 #include <drake/common/symbolic.h>
 #include <drake/solvers/solve.h>
@@ -7,12 +14,6 @@
 #include <ros/console.h>
 
 #include <Eigen/Core>
-
-#include "variable_types.hpp"
-#include "anymal_constants.hpp"
-#include "helper_functions.hpp"
-#include "math.hpp"
-#include "control/ho_qp/ho_qp_problem.hpp"
 
 namespace control
 {
@@ -28,6 +29,10 @@ namespace control
 			int num_contacts_;
 			int	num_decision_vars_;
 
+			void EquationsOfMotionConstraint();
+
+			Dynamics robot_dynamics_; // TODO: Should this own its own dynamics object?
+
 			// ******* //
 			// TESTING //
 			// ******* //
@@ -36,6 +41,7 @@ namespace control
 			void TestTwoTasksIneqFirst();
 			void TestThreeTasks();
 			void TestFourTasks();
+
 			Eigen::VectorXd SolveWithLinearProgram(TaskDefinition task);
 			Eigen::VectorXd SolveWithLinearProgram(
 					Eigen::MatrixXd A, Eigen::VectorXd b,

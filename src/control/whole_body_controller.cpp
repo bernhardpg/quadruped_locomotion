@@ -238,6 +238,7 @@ namespace control {
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
 	}
 
+	// TODO: Should this be its own class?
 	void WholeBodyController::SupportConsistentControl()
 	{
 		Eigen::MatrixXd J_constraint = robot_dynamics_
@@ -248,9 +249,6 @@ namespace control {
 		Eigen::MatrixXd w_task = EvalVelTrajAtTime(
 				task_vel_traj_, seconds_in_mode_
 				);
-
-		// TODO: remove
-		//ROS_INFO("J_c Rows: %d, Cols: %d, w_task rows: %d", J_constraint.rows(), J_constraint.cols(), w_task.rows());
 
 		Eigen::MatrixXd u_0_cmd
 			= CalcPseudoInverse(J_task_ * N_constraint) * w_task;
@@ -498,13 +496,6 @@ namespace control {
 	// HELPER FUNCTIONS //
 	// **************** //
 	
-	// TODO: For debugging
-	void WholeBodyController::PrintMatrix(Eigen::MatrixXd matr)
-	{
-		std::cout << std::setprecision(2) << std::fixed
-			<< matr << std::endl << std::endl;	
-	}
-
 	Eigen::MatrixXd WholeBodyController::EvalPosTrajAtTime(
 			drake::trajectories::PiecewisePolynomial<double> traj,
 			double curr_time)

@@ -15,6 +15,49 @@ Dynamics::Dynamics()
 	data_ = pinocchio::Data(model_);
 }
 
+Eigen::MatrixXd Dynamics::GetMassMatrix()
+{
+	// TODO: Take q and v as arguments
+	Eigen::VectorXd q(kNumGenCoords);
+	q << 0, 0, 0,  // fb pos
+			 1, 0, 0, 0, // fb attitude
+			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
+
+	Eigen::VectorXd v(18);
+	v << 0, 0, 0, // fb linear vel
+		   0, 0, 0, // fb ang vel
+			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
+
+	pinocchio::crba(model_, data_, q); // Computes upper triangle of M
+	// Make M symmetric
+	data_.M.triangularView<Eigen::StrictlyLower>() =
+		data_.M.transpose().triangularView<Eigen::StrictlyLower>();
+	return data_.M;
+}
+
+Eigen::VectorXd Dynamics::GetBiasVector()
+{
+	// TODO: Take q and v as arguments
+	Eigen::VectorXd q(kNumGenCoords);
+	q << 0, 0, 0,  // fb pos
+			 1, 0, 0, 0, // fb attitude
+			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
+
+	Eigen::VectorXd v(18);
+	v << 0, 0, 0, // fb linear vel
+		   0, 0, 0, // fb ang vel
+			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
+
+	pinocchio::nonLinearEffects(model_, data_, q, v);
+	return data_.nle;
+}
+
+void Dynamics::UpdateState()
+{
+
+	//pinocchio::computeAllTerms(model_, data_, q, v);
+}
+
 Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
 		Eigen::Matrix<double,kNumGenCoords, 1> q
 		)
