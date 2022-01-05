@@ -71,14 +71,12 @@ namespace control
 		A2 << -1,1;
 		Eigen::VectorXd b2(1);
 		b2 << 1;
-		Eigen::MatrixXd D2(0,num_decision_vars);
-		Eigen::VectorXd f2(0);
-		TaskDefinition test_task_2 = {A2, b2, D2, f2};
+		TaskDefinition test_task_2 = {.A=A2, .b=b2};
 
 		Eigen::MatrixXd A = A2;
 		Eigen::VectorXd b = b2;
-		Eigen::MatrixXd D = ConcatenateMatrices(D1,D2);
-		Eigen::VectorXd f = ConcatenateVectors(f1,f2);
+		Eigen::MatrixXd D = D1;
+		Eigen::VectorXd f = f1;
 
 		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
 

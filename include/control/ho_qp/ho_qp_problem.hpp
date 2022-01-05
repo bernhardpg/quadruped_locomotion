@@ -89,6 +89,8 @@ namespace control
 
 			Eigen::MatrixXd accum_Z_prev_; 
 			Eigen::MatrixXd accum_D_prev_; 
+			Eigen::VectorXd accum_f_prev_; 
+			Eigen::VectorXd accum_slack_solutions_prev_; 
 			Eigen::VectorXd x_prev_;
 			int num_prev_slack_vars_;
 

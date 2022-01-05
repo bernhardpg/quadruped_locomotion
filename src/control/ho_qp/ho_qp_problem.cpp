@@ -181,6 +181,8 @@ namespace control
 				num_decision_vars_, num_decision_vars_
 				);
 		accum_D_prev_ = Eigen::MatrixXd::Zero(0, num_decision_vars_);
+		accum_f_prev_ = Eigen::VectorXd::Zero(0);
+		accum_slack_solutions_prev_ = Eigen::VectorXd::Zero(0);
 		x_prev_ = Eigen::VectorXd::Zero(num_decision_vars_);
 		num_prev_slack_vars_ = 0;
 	}
@@ -189,6 +191,9 @@ namespace control
 	{
 		accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
 		accum_D_prev_ = higher_pri_problem_->GetAccumD();
+		accum_f_prev_ = higher_pri_problem_->GetAccumF();
+		accum_slack_solutions_prev_ = 
+			higher_pri_problem_->GetAccumSlackSolutions();
 		x_prev_ = higher_pri_problem_->GetSolution();
 		num_prev_slack_vars_ =
 			higher_pri_problem_->GetAccumNumSlackVars();
@@ -254,33 +259,17 @@ namespace control
 		Eigen::VectorXd zero_vec =
 			Eigen::VectorXd::Zero(num_slack_vars_);
 
-		if (!is_higher_pri_problem_defined_)
-		{
-			f << zero_vec,
-					 curr_task_.f; // Note: There is no previous solution here
-		}
+		Eigen::VectorXd f_minus_D_x_prev;
+		if (has_ineq_constraints_)
+			f_minus_D_x_prev = curr_task_.f - curr_task_.D * x_prev_;
 		else
-		{
-			// TODO: Remove these intermittent variables if it runs too slow
-			Eigen::VectorXd accum_f_prev = higher_pri_problem_->GetAccumF();
-			Eigen::VectorXd accum_D_prev_times_x_prev =
-				higher_pri_problem_->GetAccumD()
-				* x_prev_;
-			Eigen::VectorXd accum_slack_vars_prev = 
-				higher_pri_problem_->GetAccumSlackSolutions();
-			Eigen::VectorXd D_curr_times_x_prev = curr_task_.D
-				* x_prev_;
+			f_minus_D_x_prev = Eigen::VectorXd::Zero(0);
 
-			//			TODO remove
-//			PrintMatrixSize("prev f", prev_fs);
-//			PrintMatrixSize("prev_Ds_times_x", prev_Ds_times_x);
-//			PrintMatrixSize("prev_accum_slack_variables", prev_accum_slack_vars);
-//			PrintMatrixSize("D_curr_times_x", D_curr_times_x);
+		f << zero_vec,
+				 accum_f_prev_ - accum_D_prev_ * x_prev_
+					 + accum_slack_solutions_prev_,
+				 f_minus_D_x_prev;
 
-			f << zero_vec,
-				   accum_f_prev - accum_D_prev_times_x_prev + accum_slack_vars_prev,
-					 curr_task_.f - D_curr_times_x_prev;
-		}
 		f_ = f;
 	}
 
@@ -315,12 +304,6 @@ namespace control
 
 		H << Z_t_A_t_A_Z, zero.transpose(),
 				 zero, eye;
-
-		//		TODO: remove
-//		PrintMatrixSize("eye", eye);
-//		PrintMatrixSize("zero", zero);
-//		PrintMatrixSize("H", H);
-//		PrintMatrixSize("A_T_A", A_curr_T_times_A_curr);
 
 		H_ = H;
 	}
