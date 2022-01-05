@@ -19,6 +19,7 @@ namespace control
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
 		InitTaskVariables();
+		AccumulateTasks();
 
 		// TODO remove
 		ROS_INFO("----- Constructed new HoQpProblem -----");
@@ -26,19 +27,27 @@ namespace control
 		ROS_INFO("num_slack_vars_: %d", num_slack_vars_);
 		ROS_INFO("has eq constraints: %d", has_eq_constraints_);
 		ROS_INFO("has ineq constraints: %d", has_ineq_constraints_);
+		std::cout << "Current task:" << std::endl;
+		PrintTask(curr_task_);
 
 		SetPrevProblemValues();
+		ROS_INFO("Stored values from prev problem");
 
 		CreateDecisionVars();
 		CreateSlackVars();
+		ROS_INFO("Initialized variables");
 
-		AccumulateTasks();
 		ConstructAccumNullspaceMatrix();
+		ROS_INFO("Accumulated null space matrices");
 
-		ConstructDMatrix();
-		ConstructFVector();
 		ConstructHMatrix();
+		ROS_INFO("Constructed H matrix");
 		ConstructCVector();
+		ROS_INFO("Constructed c vector");
+		ConstructDMatrix();
+		ROS_INFO("Constructed D matrix");
+		ConstructFVector();
+		ROS_INFO("Constructed f vector");
 
 		if (has_ineq_constraints_)
 			AddIneqConstraints();
@@ -229,20 +238,16 @@ namespace control
 
 		if (!is_higher_pri_problem_defined_)
 		{
+			PrintMatrixSize("D",D);
+			PrintMatrixSize("zero",zero);
+			PrintMatrixSize("eye",eye);
+			PrintMatrixSize("curr_task_.D",curr_task_.D);
 			D << zero, -eye,
 					 curr_task_.D, -eye;
 		}
 		else
 		{
-			//			TODO: remove
-//			PrintMatrixSize("new D",D);
-//			PrintMatrixSize("zero",zero);
-//			PrintMatrixSize("eye",eye);
-//			PrintMatrixSize("curr_task D",curr_task_.D);
-//			PrintMatrixSize("accum D",higher_pri_problem_->GetAccumD());
-//			PrintMatrixSize("Z_prev",higher_pri_problem_->GetAccumNullspaceMatrix());
-//			PrintMatrixSize("zero acuum",accum_zero);
-
+			std::cout << "here2\n";
 			Eigen::MatrixXd accum_D_prev_times_accum_Z_prev_ = 
 					 higher_pri_problem_->GetAccumD() * accum_Z_prev_;
 
@@ -310,19 +315,20 @@ namespace control
 				num_decision_vars_ + num_slack_vars_);
 		H.setZero();
 
-		Eigen::MatrixXd A_curr_T_times_A_curr =
-			curr_task_.A.transpose() * curr_task_.A;
+		Eigen::MatrixXd Z_t_A_t_A_Z =
+			Eigen::MatrixXd::Zero(num_decision_vars_, num_decision_vars_);
 
-		if (!is_higher_pri_problem_defined_)
+		if (has_eq_constraints_)
 		{
-			H << A_curr_T_times_A_curr, zero.transpose(),
-					 zero, eye;
+			Eigen::MatrixXd A_t_A =
+				curr_task_.A.transpose() * curr_task_.A;
+
+			Z_t_A_t_A_Z = accum_Z_prev_.transpose()
+				* A_t_A * accum_Z_prev_;
 		}
-		else
-		{
-			H << accum_Z_prev_.transpose() * A_curr_T_times_A_curr * accum_Z_prev_, zero.transpose(),
-					 zero, eye;
-		}
+
+		H << Z_t_A_t_A_Z, zero.transpose(),
+				 zero, eye;
 
 		//		TODO: remove
 //		PrintMatrixSize("eye", eye);
@@ -332,6 +338,7 @@ namespace control
 
 		H_ = H;
 	}
+
 
 	void HoQpProblem::ConstructCVector()
 	{
@@ -422,17 +429,14 @@ namespace control
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
 
-		std::cout << "Solving QP" << std::endl;
-		//PrintTask(curr_task_);
-
-//		std::cout << "H:" << std::endl;
-//		PrintMatrix(H_);
-//		std::cout << "c:" << std::endl;
-//		PrintMatrix(c_);
-//		std::cout << "D:" << std::endl;
-//		PrintMatrix(D_);
-//		std::cout << "f:" << std::endl;
-//		PrintMatrix(f_);
+		std::cout << "H:" << std::endl;
+		PrintMatrix(H_);
+		std::cout << "c:" << std::endl;
+		PrintMatrix(c_);
+		std::cout << "D:" << std::endl;
+		PrintMatrix(D_);
+		std::cout << "f:" << std::endl;
+		PrintMatrix(f_);
 		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
 			<< "\nFound solution: " << result_.is_success()
 			<< "\nSolution result: " << result_.get_solution_result()
@@ -452,7 +456,8 @@ namespace control
 
 	void HoQpProblem::InitTaskVariables()
 	{
-		num_decision_vars_ = curr_task_.A.cols();
+		num_decision_vars_ =
+			std::max(curr_task_.A.cols(), curr_task_.D.cols());
 		num_slack_vars_ = curr_task_.D.rows();
 		has_eq_constraints_ = curr_task_.A.rows() > 0;
 		has_ineq_constraints_ = num_slack_vars_ > 0;

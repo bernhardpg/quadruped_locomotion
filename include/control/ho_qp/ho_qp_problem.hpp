@@ -95,7 +95,7 @@ namespace control
 
 			TaskDefinition curr_task_;
 			
-			TaskDefinition accum_tasks_;
+			TaskDefinition accum_tasks_; // TODO: rename?
 			Eigen::VectorXd accum_slack_vars_; 
 
 			HoQpProblem *higher_pri_problem_;
@@ -113,7 +113,10 @@ namespace control
 
 			void ConstructAccumNullspaceMatrix();
 			void ConstructNullspaceMatrixFromPrev();
+
 			void ConstructDMatrix();
+			void ConstructDMatrixWithCurrTask();
+
 			void ConstructFVector();
 			void ConstructHMatrix();
 			void ConstructCVector();
