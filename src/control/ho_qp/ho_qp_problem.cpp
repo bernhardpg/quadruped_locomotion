@@ -38,7 +38,8 @@ namespace control
 		ConstructHMatrix();
 		ConstructCVector();
 
-		AddIneqConstraints();
+		if (HasIneqConstraints())
+			AddIneqConstraints();
 		AddQuadraticCost();
 
 		SolveQp();
@@ -87,7 +88,7 @@ namespace control
 		return accum_Z_;
 	}
 
-	int HoQpProblem::GetPrevAccumNumSlackVars()
+	int HoQpProblem::GetNumPrevAccumSlackVars()
 	{
 		if (IsHigherPriProblemDefined())
 		{
@@ -181,7 +182,6 @@ namespace control
 	{
 		if (!IsHigherPriProblemDefined())
 		{
-			// Note: These values are actually never used
 			accum_Z_prev_ = Eigen::MatrixXd::Identity(
 					num_decision_vars_, num_decision_vars_
 					);
@@ -196,22 +196,15 @@ namespace control
 
 	void HoQpProblem::ConstructAccumNullspaceMatrix()
 	{
-		if (!IsHigherPriProblemDefined())
-		{
-			accum_Z_ = CalcNullSpaceProjMatrix(curr_task_.A);
-		}
-		else
-		{
-			Eigen::MatrixXd Null_of_accum_A_curr_times_accum_Z_prev_ =
-				CalcNullSpaceProjMatrix(accum_tasks_.A * accum_Z_prev_);
+		Eigen::MatrixXd Null_of_accum_A_curr_times_accum_Z_prev_ =
+			CalcNullSpaceProjMatrix(accum_tasks_.A * accum_Z_prev_);
 
-			accum_Z_ = accum_Z_prev_ * Null_of_accum_A_curr_times_accum_Z_prev_;
-		}
+		accum_Z_ = accum_Z_prev_ * Null_of_accum_A_curr_times_accum_Z_prev_;
 	}
 
 	void HoQpProblem::ConstructDMatrix()
 	{
-		int num_prev_slack_vars = GetPrevAccumNumSlackVars();
+		int num_prev_slack_vars = GetNumPrevAccumSlackVars();
 
 		Eigen::MatrixXd D(
 				2 * num_slack_vars_ + num_prev_slack_vars,
@@ -259,7 +252,7 @@ namespace control
 
 	void HoQpProblem::ConstructFVector()
 	{
-		int num_prev_slack_vars = GetPrevAccumNumSlackVars();
+		int num_prev_slack_vars = GetNumPrevAccumSlackVars();
 
 		Eigen::VectorXd f(
 				2 * num_slack_vars_ + num_prev_slack_vars 
@@ -339,7 +332,7 @@ namespace control
 
 	void HoQpProblem::ConstructCVector()
 	{
-		int num_prev_slack_vars = GetPrevAccumNumSlackVars();
+		int num_prev_slack_vars = GetNumPrevAccumSlackVars();
 
 		Eigen::VectorXd c(num_decision_vars_ + num_slack_vars_);
 		c.setZero();
@@ -455,6 +448,12 @@ namespace control
 	// **************** //
 	// HELPER FUNCTIONS //
 	// **************** //
+	
+	bool HoQpProblem::HasIneqConstraints()
+	{
+		bool has_ineq_constraints = num_slack_vars_ > 0;
+		return has_ineq_constraints;
+	}
 
 	bool HoQpProblem::IsHigherPriProblemDefined()
 	{

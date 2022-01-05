@@ -58,7 +58,7 @@ namespace control
 			Eigen::VectorXd GetAccumF();
 			Eigen::MatrixXd GetAccumNullspaceMatrix();
 
-			int GetPrevAccumNumSlackVars();
+			int GetNumPrevAccumSlackVars();
 			int GetAccumNumSlackVars();
 
 			Eigen::VectorXd GetSolution();
@@ -125,6 +125,7 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			bool HasIneqConstraints();
 			bool IsHigherPriProblemDefined();
 			TaskDefinition ConcatenateTasks(
 					TaskDefinition t1, TaskDefinition t2

@@ -32,12 +32,17 @@ namespace control
 			// TESTING //
 			// ******* //
 
-			void TestTasks(); // TODO: Rename or replace 
-			void TestLinearProgram(TaskDefinition task);
-			void TestLinearProgram(
+			void Test2Tasks(); // TODO: Rename or replace 
+			void Test3Tasks(); // TODO: Rename or replace 
+			Eigen::VectorXd TestLinearProgram(TaskDefinition task);
+			Eigen::VectorXd TestLinearProgram(
 					Eigen::MatrixXd A, Eigen::VectorXd b,
 					Eigen::MatrixXd D, Eigen::VectorXd f
 					);
+			void CheckSolutionValid(
+					Eigen::MatrixXd A, Eigen::VectorXd b,
+					Eigen::MatrixXd D, Eigen::VectorXd f,
+					Eigen::VectorXd sol);
 	};
 }
 
