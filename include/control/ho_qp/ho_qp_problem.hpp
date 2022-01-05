@@ -52,9 +52,7 @@ namespace control
 
 			// TODO: Replace getters with direct variables for efficiency?
 			TaskDefinition GetAccumTasks();
-			Eigen::MatrixXd GetAccumA();
 			Eigen::MatrixXd GetAccumD();
-			Eigen::VectorXd GetAccumB();
 			Eigen::VectorXd GetAccumF();
 			Eigen::MatrixXd GetAccumNullspaceMatrix();
 
@@ -90,6 +88,7 @@ namespace control
 			Eigen::MatrixXd accum_Z_;
 
 			Eigen::MatrixXd accum_Z_prev_; 
+			Eigen::MatrixXd accum_D_prev_; 
 			Eigen::VectorXd x_prev_;
 			int num_prev_slack_vars_;
 

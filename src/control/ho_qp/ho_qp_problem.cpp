@@ -74,19 +74,9 @@ namespace control
 		return accum_tasks_;
 	}
 
-	Eigen::MatrixXd HoQpProblem::GetAccumA()
-	{
-		return accum_tasks_.A;
-	}
-
 	Eigen::MatrixXd HoQpProblem::GetAccumD()
 	{
 		return accum_tasks_.D;
-	}
-
-	Eigen::VectorXd HoQpProblem::GetAccumB()
-	{
-		return accum_tasks_.b;
 	}
 
 	Eigen::VectorXd HoQpProblem::GetAccumF()
@@ -190,6 +180,7 @@ namespace control
 		accum_Z_prev_ = Eigen::MatrixXd::Identity(
 				num_decision_vars_, num_decision_vars_
 				);
+		accum_D_prev_ = Eigen::MatrixXd::Zero(0, num_decision_vars_);
 		x_prev_ = Eigen::VectorXd::Zero(num_decision_vars_);
 		num_prev_slack_vars_ = 0;
 	}
@@ -197,6 +188,7 @@ namespace control
 	void HoQpProblem::InitPrevProblemValuesFromPrevProblem()
 	{
 		accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
+		accum_D_prev_ = higher_pri_problem_->GetAccumD();
 		x_prev_ = higher_pri_problem_->GetSolution();
 		num_prev_slack_vars_ =
 			higher_pri_problem_->GetAccumNumSlackVars();
@@ -236,27 +228,18 @@ namespace control
 					num_prev_slack_vars_, num_slack_vars_
 					);
 
-		if (!is_higher_pri_problem_defined_)
-		{
-			PrintMatrixSize("D",D);
-			PrintMatrixSize("zero",zero);
-			PrintMatrixSize("eye",eye);
-			PrintMatrixSize("curr_task_.D",curr_task_.D);
-			D << zero, -eye,
-					 curr_task_.D, -eye;
-		}
-		else
-		{
-			std::cout << "here2\n";
-			Eigen::MatrixXd accum_D_prev_times_accum_Z_prev_ = 
-					 higher_pri_problem_->GetAccumD() * accum_Z_prev_;
+		Eigen::MatrixXd D_curr_Z =
+			Eigen::MatrixXd::Zero(num_slack_vars_, num_decision_vars_);
+		if (has_ineq_constraints_)
+			D_curr_Z = curr_task_.D * accum_Z_prev_;
 
-			// NOTE: This is upside down compared to the paper,
-			// but more consistent with the rest of the algorithm
-			D << zero, -eye,
-					 accum_D_prev_times_accum_Z_prev_, accum_zero,
-					 curr_task_.D * accum_Z_prev_, - eye;
-		}
+		// NOTE: This is upside down compared to the paper,
+		// but more consistent with the rest of the algorithm
+		D << zero, -eye,
+				 accum_D_prev_ * accum_Z_prev_, accum_zero,
+				 D_curr_Z, - eye;
+
+
 		D_ = D;
 	}
 
@@ -348,21 +331,18 @@ namespace control
 		Eigen::VectorXd zero_vec =
 			Eigen::VectorXd::Zero(num_slack_vars_);
 
-		if (!is_higher_pri_problem_defined_)
-		{
-			c << - curr_task_.A.transpose() * curr_task_.b,
-					 zero_vec;
-		}
-		else
-		{
-			Eigen::VectorXd temp =
-				accum_Z_prev_.transpose() * curr_task_.A.transpose()
-				* (curr_task_.A * x_prev_
-						- curr_task_.b);
+		Eigen::VectorXd temp =
+			Eigen::VectorXd::Zero(num_decision_vars_, 1);
 
-			c << temp,
-					 zero_vec;
+		if (has_eq_constraints_)
+		{
+			temp = accum_Z_prev_.transpose() * curr_task_.A.transpose()
+			* (curr_task_.A * x_prev_
+					- curr_task_.b);
 		}
+
+		c << temp,
+				 zero_vec;
 
 		c_ = c;
 	}
