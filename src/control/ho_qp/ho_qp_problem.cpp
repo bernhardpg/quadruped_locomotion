@@ -191,7 +191,6 @@ namespace control
 		return empty_task;
 	}
 
-
 	void HoQpProblem::InitPrevProblemValuesFromPrevProblem()
 	{
 		accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();

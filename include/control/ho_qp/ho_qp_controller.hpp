@@ -34,7 +34,8 @@ namespace control
 
 			void TestTwoTasksEqFirst(); 
 			void TestTwoTasksIneqFirst();
-			void Test3Tasks(); // TODO: Rename or replace 
+			void TestThreeTasks();
+			void TestFourTasks();
 			Eigen::VectorXd SolveWithLinearProgram(TaskDefinition task);
 			Eigen::VectorXd SolveWithLinearProgram(
 					Eigen::MatrixXd A, Eigen::VectorXd b,

@@ -43,22 +43,22 @@ void CheckSolutionValid(
 	if (A.rows() > 0)
 	{
 		Eigen::VectorXd residue = A*sol - b;
-		if (residue.sum() > eps)
+		std::cout << "Ax-b = \n";
+		PrintMatrix(residue);
+		if ((residue.array().abs() > eps).any())
 		{
 			std::cout << "Solution not valid: Equality constraint violated" << std::endl;
-			std::cout << "Ax-b = " << std::endl;
-			PrintMatrix(residue);
 			return;
 		}
 	}
 	if (D.rows() > 0)
 	{
 		Eigen::VectorXd residue = D*sol - f;
+		std::cout << "Dx-f = " << std::endl;
+		PrintMatrix(residue);
 		if ((residue.array() > 0).any())
 		{
 			std::cout << "Solution not valid: Inequality constraint violated" << std::endl;
-			std::cout << "Dx-f = " << std::endl;
-			PrintMatrix(residue);
 			return;
 		}
 	}
