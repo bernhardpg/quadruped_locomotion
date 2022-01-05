@@ -88,8 +88,6 @@ namespace control
 			Eigen::MatrixXd accum_Z_;
 
 			Eigen::MatrixXd accum_Z_prev_; 
-			Eigen::MatrixXd accum_D_prev_; 
-			Eigen::VectorXd accum_f_prev_; 
 			Eigen::VectorXd accum_slack_solutions_prev_; 
 			Eigen::VectorXd x_prev_;
 			int num_prev_slack_vars_;
@@ -97,6 +95,7 @@ namespace control
 			TaskDefinition curr_task_;
 			
 			TaskDefinition accum_tasks_; // TODO: rename?
+			TaskDefinition accum_tasks_prev_; 
 			Eigen::VectorXd accum_slack_vars_; 
 
 			HoQpProblem *higher_pri_problem_;
@@ -110,6 +109,7 @@ namespace control
 
 			void SetPrevProblemValues();
 			void InitPrevProblemValuesToDefault();
+			TaskDefinition CreateEmptyTask(int num_decision_vars);
 			void InitPrevProblemValuesFromPrevProblem();
 
 			void ConstructAccumNullspaceMatrix();

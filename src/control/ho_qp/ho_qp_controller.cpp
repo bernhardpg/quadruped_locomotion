@@ -22,36 +22,32 @@ namespace control
 	// TODO: Just placeholder test code
 	void HoQpController::TestTwoTasksEqFirst()
 	{
-
 		int num_decision_vars = 2;
-		Eigen::MatrixXd A1(1,num_decision_vars);
-		A1 << -1,1;
-		Eigen::VectorXd b1(1);
-		b1 << 1;
-		Eigen::MatrixXd D1(0,num_decision_vars);
-		Eigen::VectorXd f1(0);
-		TaskDefinition test_task_1 = {A1, b1, D1, f1};
 
-		Eigen::MatrixXd A2(0,num_decision_vars);
-		Eigen::VectorXd b2(0);
-		Eigen::MatrixXd D2(1,num_decision_vars);
-		D2 << 1,1;
-		Eigen::VectorXd f2(1);
-		f2 << 5;
-		TaskDefinition test_task_2 = {A2, b2, D2, f2};
+		Eigen::MatrixXd D1(1,num_decision_vars);
+		D1 << 1,1;
+		Eigen::VectorXd f1(1);
+		f1 << 5;
+		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
 
-		Eigen::MatrixXd A = ConcatenateMatrices(A1,A2);
-		Eigen::VectorXd b = ConcatenateVectors(b1,b2);
-		Eigen::MatrixXd D = ConcatenateMatrices(D1,D2);
-		Eigen::VectorXd f = ConcatenateVectors(f1,f2);
+		Eigen::MatrixXd A2(1,num_decision_vars);
+		A2 << -1,1;
+		Eigen::VectorXd b2(1);
+		b2 << 1;
+		TaskDefinition test_task_eq = {.A=A2, .b=b2};
+
+		Eigen::MatrixXd A = A2;
+		Eigen::VectorXd b = b2;
+		Eigen::MatrixXd D = D1;
+		Eigen::VectorXd f = f1;
 
 		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
 
 		CheckSolutionValid(A, b, D, f, sol);
 
-		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_1);
+		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_eq);
 		HoQpProblem test_qp_problem_2 =
-			HoQpProblem(test_task_2, &test_qp_problem_1);
+			HoQpProblem(test_task_ineq, &test_qp_problem_1);
 
 		Eigen::VectorXd sol_ho_qp = test_qp_problem_2.GetSolution();
 		CheckSolutionValid(A, b, D, f, sol_ho_qp);
@@ -65,13 +61,13 @@ namespace control
 		D1 << 1,1;
 		Eigen::VectorXd f1(1);
 		f1 << 5;
-		TaskDefinition test_task_1 = {.D=D1, .f=f1};
+		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
 
 		Eigen::MatrixXd A2(1,num_decision_vars);
 		A2 << -1,1;
 		Eigen::VectorXd b2(1);
 		b2 << 1;
-		TaskDefinition test_task_2 = {.A=A2, .b=b2};
+		TaskDefinition test_task_eq = {.A=A2, .b=b2};
 
 		Eigen::MatrixXd A = A2;
 		Eigen::VectorXd b = b2;
@@ -82,9 +78,9 @@ namespace control
 
 		CheckSolutionValid(A, b, D, f, sol);
 
-		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_1);
+		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_ineq);
 		HoQpProblem test_qp_problem_2 =
-			HoQpProblem(test_task_2, &test_qp_problem_1);
+			HoQpProblem(test_task_eq, &test_qp_problem_1);
 
 		Eigen::VectorXd sol_ho_qp = test_qp_problem_2.GetSolution();
 		CheckSolutionValid(A, b, D, f, sol_ho_qp);

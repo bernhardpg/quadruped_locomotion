@@ -19,6 +19,8 @@ namespace control
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
 		InitTaskVariables();
+		SetPrevProblemValues();
+		ROS_INFO("Stored values from prev problem");
 		AccumulateTasks();
 
 		// TODO remove
@@ -29,9 +31,6 @@ namespace control
 		ROS_INFO("has ineq constraints: %d", has_ineq_constraints_);
 		std::cout << "Current task:" << std::endl;
 		PrintTask(curr_task_);
-
-		SetPrevProblemValues();
-		ROS_INFO("Stored values from prev problem");
 
 		CreateDecisionVars();
 		CreateSlackVars();
@@ -140,16 +139,7 @@ namespace control
 
 	void HoQpProblem::AccumulateTasks()
 	{
-		if (!is_higher_pri_problem_defined_)
-		{
-			accum_tasks_ = curr_task_;
-		}
-		else
-		{
-			accum_tasks_ = ConcatenateTasks(
-					curr_task_, higher_pri_problem_->GetAccumTasks()
-					);
-		}
+		accum_tasks_ = ConcatenateTasks(curr_task_, accum_tasks_prev_);
 	}
 
 	void HoQpProblem::AccumulateSlackSolutions()
@@ -169,29 +159,43 @@ namespace control
 
 	void HoQpProblem::SetPrevProblemValues()
 	{
-		if (!is_higher_pri_problem_defined_)
-			InitPrevProblemValuesToDefault();
-		else
+		if (is_higher_pri_problem_defined_)
 			InitPrevProblemValuesFromPrevProblem();
+		else
+			InitPrevProblemValuesToDefault();
 	}
 
 	void HoQpProblem::InitPrevProblemValuesToDefault()
 	{
+		accum_tasks_prev_ = CreateEmptyTask(num_decision_vars_);
 		accum_Z_prev_ = Eigen::MatrixXd::Identity(
 				num_decision_vars_, num_decision_vars_
 				);
-		accum_D_prev_ = Eigen::MatrixXd::Zero(0, num_decision_vars_);
-		accum_f_prev_ = Eigen::VectorXd::Zero(0);
-		accum_slack_solutions_prev_ = Eigen::VectorXd::Zero(0);
 		x_prev_ = Eigen::VectorXd::Zero(num_decision_vars_);
 		num_prev_slack_vars_ = 0;
+		accum_slack_solutions_prev_ = Eigen::VectorXd::Zero(0);
 	}
+
+	TaskDefinition HoQpProblem::CreateEmptyTask(int num_decision_vars)
+	{
+		Eigen::MatrixXd A
+			= Eigen::MatrixXd::Zero(0, num_decision_vars_);
+		Eigen::VectorXd b
+			= Eigen::VectorXd::Zero(0);
+		Eigen::MatrixXd D
+			= Eigen::MatrixXd::Zero(0, num_decision_vars_);
+		Eigen::VectorXd f
+			= Eigen::VectorXd::Zero(0);
+
+		TaskDefinition empty_task = {A, b, D, f};
+		return empty_task;
+	}
+
 
 	void HoQpProblem::InitPrevProblemValuesFromPrevProblem()
 	{
 		accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
-		accum_D_prev_ = higher_pri_problem_->GetAccumD();
-		accum_f_prev_ = higher_pri_problem_->GetAccumF();
+		accum_tasks_prev_ = higher_pri_problem_->GetAccumTasks();
 		accum_slack_solutions_prev_ = 
 			higher_pri_problem_->GetAccumSlackSolutions();
 		x_prev_ = higher_pri_problem_->GetSolution();
@@ -239,12 +243,18 @@ namespace control
 		else
 			D_curr_Z = Eigen::MatrixXd::Zero(0,num_decision_vars_);
 
+		std::cout << "accum D prev\n";
+		PrintMatrix(accum_tasks_prev_.D);
+		PrintMatrixSize("accum_tasks_prev_.D",accum_tasks_prev_.D);
+
+		std::cout << "accum Z prev\n";
+		PrintMatrix(accum_Z_prev_);
+
 		// NOTE: This is upside down compared to the paper,
 		// but more consistent with the rest of the algorithm
 		D << zero, -eye,
-				 accum_D_prev_ * accum_Z_prev_, accum_zero,
+				 accum_tasks_prev_.D * accum_Z_prev_, accum_zero,
 				 D_curr_Z, - eye;
-
 
 		D_ = D;
 	}
@@ -265,8 +275,18 @@ namespace control
 		else
 			f_minus_D_x_prev = Eigen::VectorXd::Zero(0);
 
+		PrintMatrixSize("accum_tasks_prev_.f", accum_tasks_prev_.f);
+		PrintMatrixSize("accum_tasks_prev_.D", accum_tasks_prev_.D);
+		PrintMatrixSize("x_prev_", x_prev_);
+		PrintMatrixSize("accum_slack_solutions_prev_", accum_slack_solutions_prev_);
+		Eigen::VectorXd test =
+				 accum_tasks_prev_.f - accum_tasks_prev_.D * x_prev_
+					 + accum_slack_solutions_prev_;
+
+		std::cout << "test worked" << std::endl;
+	
 		f << zero_vec,
-				 accum_f_prev_ - accum_D_prev_ * x_prev_
+				 accum_tasks_prev_.f - accum_tasks_prev_.D * x_prev_
 					 + accum_slack_solutions_prev_,
 				 f_minus_D_x_prev;
 
