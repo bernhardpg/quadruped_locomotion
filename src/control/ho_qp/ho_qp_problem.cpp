@@ -18,14 +18,14 @@ namespace control
 			)
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
-		num_decision_vars_ = new_task.A.cols();
-		num_slack_vars_ = new_task.D.rows();
+		InitTaskVariables();
 
+		// TODO remove
 		ROS_INFO("Constructed new HoQpProblem");
 		ROS_INFO("num_decision_vars_: %d", num_decision_vars_);
 		ROS_INFO("num_slack_vars_: %d", num_slack_vars_);
 
-		GetValuesFromPrevProblem();
+		SetPrevProblemValues();
 
 		CreateDecisionVars();
 		CreateSlackVars();
@@ -38,7 +38,7 @@ namespace control
 		ConstructHMatrix();
 		ConstructCVector();
 
-		if (HasIneqConstraints())
+		if (has_ineq_constraints_)
 			AddIneqConstraints();
 		AddQuadraticCost();
 
@@ -86,18 +86,6 @@ namespace control
 	Eigen::MatrixXd HoQpProblem::GetAccumNullspaceMatrix()
 	{
 		return accum_Z_;
-	}
-
-	int HoQpProblem::GetNumPrevAccumSlackVars()
-	{
-		if (IsHigherPriProblemDefined())
-		{
-			return higher_pri_problem_->GetAccumNumSlackVars();
-		}
-		else
-		{
-			return 0;
-		}
 	}
 
 	int HoQpProblem::GetAccumNumSlackVars()
@@ -151,7 +139,7 @@ namespace control
 
 	void HoQpProblem::AccumulateTasks()
 	{
-		if (!IsHigherPriProblemDefined())
+		if (!is_higher_pri_problem_defined_)
 		{
 			accum_tasks_ = curr_task_;
 		}
@@ -165,7 +153,7 @@ namespace control
 
 	void HoQpProblem::AccumulateSlackSolutions()
 	{
-		if (!IsHigherPriProblemDefined())		
+		if (!is_higher_pri_problem_defined_)		
 		{
 			accum_slack_vars_	= GetSlackSolutions();
 		}
@@ -178,36 +166,51 @@ namespace control
 		}
 	}
 
-	void HoQpProblem::GetValuesFromPrevProblem()
+	void HoQpProblem::SetPrevProblemValues()
 	{
-		if (!IsHigherPriProblemDefined())
-		{
-			accum_Z_prev_ = Eigen::MatrixXd::Identity(
-					num_decision_vars_, num_decision_vars_
-					);
-			x_prev_ = Eigen::VectorXd::Zero(num_decision_vars_);
-		}
+		if (!is_higher_pri_problem_defined_)
+			InitPrevProblemValuesToDefault();
 		else
-		{
-			accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
-			x_prev_ = higher_pri_problem_->GetSolution();
-		}
+			InitPrevProblemValuesFromPrevProblem();
+	}
+
+	void HoQpProblem::InitPrevProblemValuesToDefault()
+	{
+		accum_Z_prev_ = Eigen::MatrixXd::Identity(
+				num_decision_vars_, num_decision_vars_
+				);
+		x_prev_ = Eigen::VectorXd::Zero(num_decision_vars_);
+		num_prev_slack_vars_ = 0;
+	}
+
+	void HoQpProblem::InitPrevProblemValuesFromPrevProblem()
+	{
+		accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
+		x_prev_ = higher_pri_problem_->GetSolution();
+		num_prev_slack_vars_ =
+			higher_pri_problem_->GetAccumNumSlackVars();
 	}
 
 	void HoQpProblem::ConstructAccumNullspaceMatrix()
 	{
-		Eigen::MatrixXd Null_of_accum_A_curr_times_accum_Z_prev_ =
-			CalcNullSpaceProjMatrix(accum_tasks_.A * accum_Z_prev_);
+		if(has_eq_constraints_)
+			ConstructNullspaceMatrixFromPrev();
+		else
+			accum_Z_ = accum_Z_prev_;
+	}
 
-		accum_Z_ = accum_Z_prev_ * Null_of_accum_A_curr_times_accum_Z_prev_;
+	void HoQpProblem::ConstructNullspaceMatrixFromPrev()
+	{
+		Eigen::MatrixXd Null_of_A_curr_times_accum_Z_prev_ =
+			CalcNullSpaceProjMatrix(curr_task_.A * accum_Z_prev_);
+
+		accum_Z_ = accum_Z_prev_ * Null_of_A_curr_times_accum_Z_prev_;
 	}
 
 	void HoQpProblem::ConstructDMatrix()
 	{
-		int num_prev_slack_vars = GetNumPrevAccumSlackVars();
-
 		Eigen::MatrixXd D(
-				2 * num_slack_vars_ + num_prev_slack_vars,
+				2 * num_slack_vars_ + num_prev_slack_vars_,
 				num_decision_vars_ + num_slack_vars_
 				);
 		D.setZero();
@@ -219,10 +222,10 @@ namespace control
 					num_slack_vars_, num_decision_vars_
 					);
 		Eigen::MatrixXd accum_zero = Eigen::MatrixXd::Zero(
-					num_prev_slack_vars, num_slack_vars_
+					num_prev_slack_vars_, num_slack_vars_
 					);
 
-		if (!IsHigherPriProblemDefined())
+		if (!is_higher_pri_problem_defined_)
 		{
 			D << zero, -eye,
 					 curr_task_.D, -eye;
@@ -252,17 +255,15 @@ namespace control
 
 	void HoQpProblem::ConstructFVector()
 	{
-		int num_prev_slack_vars = GetNumPrevAccumSlackVars();
-
 		Eigen::VectorXd f(
-				2 * num_slack_vars_ + num_prev_slack_vars 
+				2 * num_slack_vars_ + num_prev_slack_vars_ 
 				);
 		f.setZero();
 
 		Eigen::VectorXd zero_vec =
 			Eigen::VectorXd::Zero(num_slack_vars_);
 
-		if (!IsHigherPriProblemDefined())
+		if (!is_higher_pri_problem_defined_)
 		{
 			f << zero_vec,
 					 curr_task_.f; // Note: There is no previous solution here
@@ -310,7 +311,7 @@ namespace control
 		Eigen::MatrixXd A_curr_T_times_A_curr =
 			curr_task_.A.transpose() * curr_task_.A;
 
-		if (!IsHigherPriProblemDefined())
+		if (!is_higher_pri_problem_defined_)
 		{
 			H << A_curr_T_times_A_curr, zero.transpose(),
 					 zero, eye;
@@ -332,15 +333,13 @@ namespace control
 
 	void HoQpProblem::ConstructCVector()
 	{
-		int num_prev_slack_vars = GetNumPrevAccumSlackVars();
-
 		Eigen::VectorXd c(num_decision_vars_ + num_slack_vars_);
 		c.setZero();
 
 		Eigen::VectorXd zero_vec =
 			Eigen::VectorXd::Zero(num_slack_vars_);
 
-		if (!IsHigherPriProblemDefined())
+		if (!is_higher_pri_problem_defined_)
 		{
 			c << - curr_task_.A.transpose() * curr_task_.b,
 					 zero_vec;
@@ -448,18 +447,16 @@ namespace control
 	// **************** //
 	// HELPER FUNCTIONS //
 	// **************** //
+
+	void HoQpProblem::InitTaskVariables()
+	{
+		num_decision_vars_ = curr_task_.A.cols();
+		num_slack_vars_ = curr_task_.D.rows();
+		has_eq_constraints_ = curr_task_.A.rows() > 0;
+		has_ineq_constraints_ = num_slack_vars_ > 0;
+		is_higher_pri_problem_defined_ = higher_pri_problem_ != nullptr;
+	}
 	
-	bool HoQpProblem::HasIneqConstraints()
-	{
-		bool has_ineq_constraints = num_slack_vars_ > 0;
-		return has_ineq_constraints;
-	}
-
-	bool HoQpProblem::IsHigherPriProblemDefined()
-	{
-		return higher_pri_problem_ != nullptr;
-	}
-
 	TaskDefinition HoQpProblem::ConcatenateTasks(
 			TaskDefinition t1, TaskDefinition t2
 			)

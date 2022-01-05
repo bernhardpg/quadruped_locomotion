@@ -87,7 +87,7 @@ Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
 		Eigen::MatrixXd::Identity(A.cols(), A.cols());
 
 	Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
-	std::cout << "null\n";
+	std::cout << "Nullspace matrix:\n";
 	PrintMatrix(null_space_projection_matrix);
 	return null_space_projection_matrix;
 }

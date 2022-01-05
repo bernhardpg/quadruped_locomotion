@@ -9,17 +9,17 @@ namespace control
 	HoQpController::HoQpController(int num_tasks)
 		: num_tasks_(num_tasks)
 	{
-		num_contacts_ = 4; // TODO: generalize this
-		num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
+		//num_contacts_ = 4; // TODO: generalize this
+		//num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
 
-		Test2Tasks();
+		TestTwoTasksEqFirst();
 	}
 
 	// ******* //
 	// TESTING //
 	// ******* //
 	// TODO: Just placeholder test code
-	void HoQpController::Test2Tasks()
+	void HoQpController::TestTwoTasksEqFirst()
 	{
 
 		int num_decision_vars = 2;
@@ -31,12 +31,12 @@ namespace control
 		Eigen::VectorXd f1(0);
 		TaskDefinition test_task_1 = {A1, b1, D1, f1};
 
-		Eigen::MatrixXd A2(1,num_decision_vars);
-		A2 << 1,1;
-		Eigen::VectorXd b2(1);
-		b2 << 5;
-		Eigen::MatrixXd D2(0,num_decision_vars);
-		Eigen::VectorXd f2(0);
+		Eigen::MatrixXd A2(0,num_decision_vars);
+		Eigen::VectorXd b2(0);
+		Eigen::MatrixXd D2(1,num_decision_vars);
+		D2 << 1,1;
+		Eigen::VectorXd f2(1);
+		f2 << 5;
 		TaskDefinition test_task_2 = {A2, b2, D2, f2};
 
 		Eigen::MatrixXd A = ConcatenateMatrices(A1,A2);
@@ -44,7 +44,7 @@ namespace control
 		Eigen::MatrixXd D = ConcatenateMatrices(D1,D2);
 		Eigen::VectorXd f = ConcatenateVectors(f1,f2);
 
-		Eigen::VectorXd sol = TestLinearProgram(A, b, D, f);
+		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
 
 		CheckSolutionValid(A, b, D, f, sol);
 
@@ -52,40 +52,11 @@ namespace control
 		HoQpProblem test_qp_problem_2 =
 			HoQpProblem(test_task_2, &test_qp_problem_1);
 
+		Eigen::VectorXd sol_ho_qp = test_qp_problem_2.GetSolution();
+		CheckSolutionValid(A, b, D, f, sol_ho_qp);
 	}
 
-	void HoQpController::CheckSolutionValid(
-			Eigen::MatrixXd A, Eigen::VectorXd b,
-			Eigen::MatrixXd D, Eigen::VectorXd f,
-			Eigen::VectorXd sol)
-	{
-		double eps = 1e-4;
-		if (A.rows() > 0)
-		{
-			Eigen::VectorXd residue = A*sol - b;
-			if (residue.sum() > eps)
-			{
-				std::cout << "Solution not valid: Equality constraint violated" << std::endl;
-				std::cout << "Ax-b = " << std::endl;
-				PrintMatrix(residue);
-				return;
-			}
-		}
-		if (D.rows() > 0)
-		{
-			Eigen::VectorXd residue = D*sol - f;
-			if ((residue.array() > 0).any())
-			{
-				std::cout << "Solution not valid: Inequality constraint violated" << std::endl;
-				std::cout << "Dx-f = " << std::endl;
-				PrintMatrix(residue);
-				return;
-			}
-		}
-		std::cout << "Solution valid.\n";
-	}
-
-	Eigen::VectorXd HoQpController::TestLinearProgram(
+	Eigen::VectorXd HoQpController::SolveWithLinearProgram(
 			Eigen::MatrixXd A, Eigen::VectorXd b,
 			Eigen::MatrixXd D, Eigen::VectorXd f
 			)
@@ -112,7 +83,8 @@ namespace control
 		return result.GetSolution();
 	}
 
-	Eigen::VectorXd HoQpController::TestLinearProgram(TaskDefinition task)
+	// TODO remove this?
+	Eigen::VectorXd HoQpController::SolveWithLinearProgram(TaskDefinition task)
 	{
 		std::cout << "---- Solving as LP ----" << std::endl;
 		drake::solvers::MathematicalProgram prog;
@@ -164,7 +136,7 @@ namespace control
 		Eigen::VectorXd f3(0);
 		TaskDefinition test_task_3 = {A3, b3, D3, f3};
 
-		TestLinearProgram(
+		SolveWithLinearProgram(
 				ConcatenateMatrices(ConcatenateMatrices(A1,A2),A3),
 				ConcatenateVectors(ConcatenateVectors(b1,b2),b3),
 				ConcatenateMatrices(ConcatenateMatrices(D1,D2),D3),

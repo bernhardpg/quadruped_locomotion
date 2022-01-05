@@ -58,7 +58,6 @@ namespace control
 			Eigen::VectorXd GetAccumF();
 			Eigen::MatrixXd GetAccumNullspaceMatrix();
 
-			int GetNumPrevAccumSlackVars();
 			int GetAccumNumSlackVars();
 
 			Eigen::VectorXd GetSolution();
@@ -73,6 +72,9 @@ namespace control
 
 			int num_slack_vars_;
 			int num_decision_vars_;
+			bool has_eq_constraints_;
+			bool has_ineq_constraints_;
+			bool is_higher_pri_problem_defined_; 
 
 			symbolic_vector_t decision_vars_;
 			symbolic_vector_t slack_vars_;
@@ -89,6 +91,7 @@ namespace control
 
 			Eigen::MatrixXd accum_Z_prev_; 
 			Eigen::VectorXd x_prev_;
+			int num_prev_slack_vars_;
 
 			TaskDefinition curr_task_;
 			
@@ -103,9 +106,13 @@ namespace control
 
 			void AccumulateTasks();
 			void AccumulateSlackSolutions();
-			void GetValuesFromPrevProblem();
+
+			void SetPrevProblemValues();
+			void InitPrevProblemValuesToDefault();
+			void InitPrevProblemValuesFromPrevProblem();
 
 			void ConstructAccumNullspaceMatrix();
+			void ConstructNullspaceMatrixFromPrev();
 			void ConstructDMatrix();
 			void ConstructFVector();
 			void ConstructHMatrix();
@@ -125,8 +132,7 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
-			bool HasIneqConstraints();
-			bool IsHigherPriProblemDefined();
+			void InitTaskVariables();
 			TaskDefinition ConcatenateTasks(
 					TaskDefinition t1, TaskDefinition t2
 					);
