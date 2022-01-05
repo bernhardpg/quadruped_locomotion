@@ -228,10 +228,11 @@ namespace control
 					num_prev_slack_vars_, num_slack_vars_
 					);
 
-		Eigen::MatrixXd D_curr_Z =
-			Eigen::MatrixXd::Zero(num_slack_vars_, num_decision_vars_);
+		Eigen::MatrixXd D_curr_Z;
 		if (has_ineq_constraints_)
 			D_curr_Z = curr_task_.D * accum_Z_prev_;
+		else
+			D_curr_Z = Eigen::MatrixXd::Zero(0,num_decision_vars_);
 
 		// NOTE: This is upside down compared to the paper,
 		// but more consistent with the rest of the algorithm
@@ -298,9 +299,7 @@ namespace control
 				num_decision_vars_ + num_slack_vars_);
 		H.setZero();
 
-		Eigen::MatrixXd Z_t_A_t_A_Z =
-			Eigen::MatrixXd::Zero(num_decision_vars_, num_decision_vars_);
-
+		Eigen::MatrixXd Z_t_A_t_A_Z(num_decision_vars_,num_decision_vars_);
 		if (has_eq_constraints_)
 		{
 			Eigen::MatrixXd A_t_A =
@@ -308,6 +307,10 @@ namespace control
 
 			Z_t_A_t_A_Z = accum_Z_prev_.transpose()
 				* A_t_A * accum_Z_prev_;
+		}
+		else
+		{
+			Z_t_A_t_A_Z.setZero();
 		}
 
 		H << Z_t_A_t_A_Z, zero.transpose(),
@@ -331,14 +334,16 @@ namespace control
 		Eigen::VectorXd zero_vec =
 			Eigen::VectorXd::Zero(num_slack_vars_);
 
-		Eigen::VectorXd temp =
-			Eigen::VectorXd::Zero(num_decision_vars_, 1);
-
+		Eigen::VectorXd temp(num_decision_vars_, 1);
 		if (has_eq_constraints_)
 		{
 			temp = accum_Z_prev_.transpose() * curr_task_.A.transpose()
 			* (curr_task_.A * x_prev_
 					- curr_task_.b);
+		}
+		else
+		{
+			temp.setZero();
 		}
 
 		c << temp,
