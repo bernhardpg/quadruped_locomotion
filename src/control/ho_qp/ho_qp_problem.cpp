@@ -20,48 +20,11 @@ namespace control
 	{
 		InitTaskVariables();
 		SetPrevProblemValues();
-		ROS_INFO("Stored values from prev problem");
-		AccumulateTasks();
-
-		// TODO remove
-		ROS_INFO("----- Constructed new HoQpProblem -----");
-		ROS_INFO("num_decision_vars_: %d", num_decision_vars_);
-		ROS_INFO("num_slack_vars_: %d", num_slack_vars_);
-		ROS_INFO("has eq constraints: %d", has_eq_constraints_);
-		ROS_INFO("has ineq constraints: %d", has_ineq_constraints_);
-		std::cout << "Current task:" << std::endl;
-		PrintTask(curr_task_);
-
-		CreateDecisionVars();
-		CreateSlackVars();
-		ROS_INFO("Initialized variables");
-
-		ConstructAccumNullspaceMatrix();
-		ROS_INFO("Accumulated null space matrices");
-
-		ConstructHMatrix();
-		ROS_INFO("Constructed H matrix");
-		ConstructCVector();
-		ROS_INFO("Constructed c vector");
-		ConstructDMatrix();
-		ROS_INFO("Constructed D matrix");
-		ConstructFVector();
-		ROS_INFO("Constructed f vector");
-
-		if (has_ineq_constraints_)
-			AddIneqConstraints();
-		AddQuadraticCost();
-
+		ConstructProblemMatrices();
+		FormulateOptimizationProblem();
 		SolveQp();
+		AccumulateTasks();
 		AccumulateSlackSolutions();
-		std::cout << "x: " << std::endl;
-		PrintMatrix(GetSolution());
-
-//		PrintMatrixSize("Z", accum_Z_);
-//		PrintMatrixSize("H", H_);
-//		PrintMatrixSize("c", c_);
-//		PrintMatrixSize("D", D_);
-//		PrintMatrixSize("f", f_);
 	}
 
 	// ***************** //
@@ -97,18 +60,6 @@ namespace control
 	{
 		Eigen::MatrixXd x =
 			x_prev_ + accum_Z_prev_ * decision_vars_solutions_;
-//		std::cout << "accum_Z_prev_\n";
-//		PrintMatrix(accum_Z_prev_);
-//
-//		std::cout << "x_prev\n";
-//		PrintMatrix(x_prev_);
-//
-//		std::cout << "decision_vars_solutions_\n";
-//		PrintMatrix(decision_vars_solutions_);
-//
-//		std::cout << "x\n";
-//		PrintMatrix(x);
- 
 		return x;
 	}
 
@@ -126,10 +77,10 @@ namespace control
 	{
 		int tot_num_decision_vars =
 			num_decision_vars_ + num_slack_vars_;
-		symbolic_vector_t x(tot_num_decision_vars);
-		x << decision_vars_, 
-										 slack_vars_;
-		return x;
+		symbolic_vector_t all_decision_vars(tot_num_decision_vars);
+		all_decision_vars << decision_vars_, 
+										     slack_vars_;
+		return all_decision_vars;
 	}
 
 
@@ -202,6 +153,15 @@ namespace control
 			higher_pri_problem_->GetAccumNumSlackVars();
 	}
 
+	void HoQpProblem::ConstructProblemMatrices()
+	{
+		ConstructAccumNullspaceMatrix();
+		ConstructHMatrix();
+		ConstructCVector();
+		ConstructDMatrix();
+		ConstructFVector();
+	}
+
 	void HoQpProblem::ConstructAccumNullspaceMatrix()
 	{
 		if(has_eq_constraints_)
@@ -242,13 +202,6 @@ namespace control
 		else
 			D_curr_Z = Eigen::MatrixXd::Zero(0,num_decision_vars_);
 
-		std::cout << "accum D prev\n";
-		PrintMatrix(accum_tasks_prev_.D);
-		PrintMatrixSize("accum_tasks_prev_.D",accum_tasks_prev_.D);
-
-		std::cout << "accum Z prev\n";
-		PrintMatrix(accum_Z_prev_);
-
 		// NOTE: This is upside down compared to the paper,
 		// but more consistent with the rest of the algorithm
 		D << zero, -eye,
@@ -274,16 +227,6 @@ namespace control
 		else
 			f_minus_D_x_prev = Eigen::VectorXd::Zero(0);
 
-		PrintMatrixSize("accum_tasks_prev_.f", accum_tasks_prev_.f);
-		PrintMatrixSize("accum_tasks_prev_.D", accum_tasks_prev_.D);
-		PrintMatrixSize("x_prev_", x_prev_);
-		PrintMatrixSize("accum_slack_solutions_prev_", accum_slack_solutions_prev_);
-		Eigen::VectorXd test =
-				 accum_tasks_prev_.f - accum_tasks_prev_.D * x_prev_
-					 + accum_slack_solutions_prev_;
-
-		std::cout << "test worked" << std::endl;
-	
 		f << zero_vec,
 				 accum_tasks_prev_.f - accum_tasks_prev_.D * x_prev_
 					 + accum_slack_solutions_prev_,
@@ -358,6 +301,15 @@ namespace control
 	// OPTIMIZATION PROBLEM //
 	// ******************** //
 
+	void HoQpProblem::FormulateOptimizationProblem()
+	{
+		CreateDecisionVars();
+		CreateSlackVars();
+		if (has_ineq_constraints_)
+			AddIneqConstraints();
+		AddQuadraticCost();
+	}
+
 	void HoQpProblem::CreateDecisionVars()
 	{
 		decision_vars_ = prog_.NewContinuousVariables(
@@ -381,21 +333,12 @@ namespace control
 
 	void HoQpProblem::AddQuadraticCost()
 	{
-		symbolic_vector_t x = GetAllDecisionVars();
-//		PrintMatrixSize("x", x);
-//		PrintMatrixSize("H", H_);
-//		PrintMatrixSize("c", c_);
+		symbolic_vector_t all_decision_vars = GetAllDecisionVars();
 
 		drake::symbolic::Expression cost = 
-			0.5 * x.transpose() * H_ * x
-			+ (c_.transpose() * x)(0); 
+			0.5 * all_decision_vars.transpose() * H_ * all_decision_vars
+			+ (c_.transpose() * all_decision_vars)(0); 
 	
-//		std::cout << "quadratic cost " << std::endl;
-//		std::cout << x.transpose() * H_ * x << std::endl;
-//
-//		std::cout << "linear cost " << std::endl;
-//		std::cout << (c_.transpose() * x)(0) << std::endl;
-
 		// H_ is known to be positive definite due to its structure
 		bool is_convex = true;
 		prog_.AddQuadraticCost(cost, is_convex);
@@ -403,8 +346,6 @@ namespace control
 
 	void HoQpProblem::SolveQp()
 	{
-		std::cout << prog_.to_string() << std::endl;
-
 		result_ = Solve(prog_);
 		assert(result_.is_success());
 		Eigen::VectorXd sol = result_.GetSolution();
@@ -416,25 +357,13 @@ namespace control
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
 
-		std::cout << "H:" << std::endl;
-		PrintMatrix(H_);
-		std::cout << "c:" << std::endl;
-		PrintMatrix(c_);
-		std::cout << "D:" << std::endl;
-		PrintMatrix(D_);
-		std::cout << "f:" << std::endl;
-		PrintMatrix(f_);
-		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
-			<< "\nFound solution: " << result_.is_success()
-			<< "\nSolution result: " << result_.get_solution_result()
-			<< std::endl);
 		std::cout << "Result: " << std::endl;
 		std::cout << "z:\n";
 		PrintMatrix(decision_vars_solutions_);
 		std::cout << "v:\n";
 		PrintMatrix(slack_vars_solutions_);
-
-		GetSolution();
+		std::cout << "x:\n";
+		PrintMatrix(GetSolution());
 	}
 
 	// **************** //

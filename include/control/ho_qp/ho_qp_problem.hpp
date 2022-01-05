@@ -112,6 +112,7 @@ namespace control
 			TaskDefinition CreateEmptyTask(int num_decision_vars);
 			void InitPrevProblemValuesFromPrevProblem();
 
+			void ConstructProblemMatrices();
 			void ConstructAccumNullspaceMatrix();
 			void ConstructNullspaceMatrixFromPrev();
 
@@ -126,6 +127,7 @@ namespace control
 			// OPTIMIZATION PROBLEM //
 			// ******************** //
 
+			void FormulateOptimizationProblem();
 			void CreateDecisionVars();
 			void CreateSlackVars();
 			void AddIneqConstraints();
