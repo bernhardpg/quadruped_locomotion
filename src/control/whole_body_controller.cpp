@@ -15,7 +15,8 @@ namespace control {
 		SpinRosThreads();
 		WaitForPublishedState();
 
-		SetRobotMode(kIdle);
+		//SetRobotMode(kIdle); // TODO: only for development
+		SetRobotMode(kWalk);
 	}
 
 	WholeBodyController::~WholeBodyController()
@@ -185,6 +186,9 @@ namespace control {
 			case kSupportConsistentTracking:
 				SupportConsistentControl();
 				break;
+			case kHoQpController:
+				ho_qp_controller_.Update(q_,u_);
+				break;
 			default:
 				break;
 		}
@@ -287,6 +291,8 @@ namespace control {
 				control_mode_ = kSupportConsistentTracking;
 				break;
 			case kWalk:
+				ROS_INFO("Setting mode to WALK");
+				control_mode_ = kHoQpController;
 				break;
 			default:
 				break;

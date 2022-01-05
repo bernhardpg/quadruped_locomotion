@@ -347,6 +347,11 @@ namespace control
 	void HoQpProblem::SolveQp()
 	{
 		result_ = Solve(prog_);
+		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
+			<< "\nFound solution: " << result_.is_success()
+			<< "\nSolution result: " << result_.get_solution_result()
+			<< std::endl);
+
 		assert(result_.is_success());
 		Eigen::VectorXd sol = result_.GetSolution();
 
@@ -364,6 +369,7 @@ namespace control
 		PrintMatrix(slack_vars_solutions_);
 		std::cout << "x:\n";
 		PrintMatrix(GetSolution());
+
 	}
 
 	// **************** //

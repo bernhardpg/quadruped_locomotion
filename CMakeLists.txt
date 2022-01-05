@@ -72,6 +72,7 @@ target_link_libraries(anymal_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
 # Dynamics library
 add_library(dynamics src/dynamics/dynamics.cpp)
 target_link_libraries(dynamics ${pinocchio_LIBRARIES})
+target_link_libraries(dynamics drake::drake) # TODO: remove this after finished with debugging
 
 # Integrator library
 add_library(integrator src/control/integrator.cpp)

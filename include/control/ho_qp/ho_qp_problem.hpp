@@ -8,30 +8,10 @@
 #include "math.hpp"
 #include "variable_types.hpp"
 #include "helper_functions.hpp"
+#include "control/ho_qp/task_definition.hpp"
 
 namespace control
 {
-	struct TaskDefinition
-	{
-		Eigen::MatrixXd A;
-		Eigen::VectorXd b;
-		Eigen::MatrixXd D;
-		Eigen::VectorXd f;
-	};
-
-	// TODO: Remove?
-	void PrintTask(TaskDefinition task)
-	{
-		std::cout << "A:" << std::endl;
-		PrintMatrix(task.A);
-		std::cout << "b:" << std::endl;
-		PrintMatrix(task.b);
-		std::cout << "D:" << std::endl;
-		PrintMatrix(task.D);
-		std::cout << "f:" << std::endl;
-		PrintMatrix(task.f);
-	}
-
 	// USE OF NOTATION:
 	// These definition more or less follows the notation from 
 	// 'Perception-less Terrain Adaptation through Whole

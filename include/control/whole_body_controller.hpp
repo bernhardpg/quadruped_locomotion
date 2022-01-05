@@ -58,7 +58,10 @@ namespace control
 			// ********** //
 
 			enum ControlMode {
-				kJointTracking, kFeetTracking, kSupportConsistentTracking
+				kJointTracking,
+				kFeetTracking,
+				kSupportConsistentTracking,
+				kHoQpController
 			} control_mode_;
 
 			drake::trajectories::PiecewisePolynomial<double>

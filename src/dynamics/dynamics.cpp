@@ -15,19 +15,10 @@ Dynamics::Dynamics()
 	data_ = pinocchio::Data(model_);
 }
 
-Eigen::MatrixXd Dynamics::GetMassMatrix()
+Eigen::MatrixXd Dynamics::GetMassMatrix(
+		Eigen::Matrix<double,kNumGenCoords, 1> q
+		)
 {
-	// TODO: Take q and v as arguments
-	Eigen::VectorXd q(kNumGenCoords);
-	q << 0, 0, 0,  // fb pos
-			 1, 0, 0, 0, // fb attitude
-			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
-
-	Eigen::VectorXd v(18);
-	v << 0, 0, 0, // fb linear vel
-		   0, 0, 0, // fb ang vel
-			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
-
 	pinocchio::crba(model_, data_, q); // Computes upper triangle of M
 	// Make M symmetric
 	data_.M.triangularView<Eigen::StrictlyLower>() =
@@ -35,26 +26,17 @@ Eigen::MatrixXd Dynamics::GetMassMatrix()
 	return data_.M;
 }
 
-Eigen::VectorXd Dynamics::GetBiasVector()
+Eigen::VectorXd Dynamics::GetBiasVector(
+		Eigen::Matrix<double,kNumGenCoords, 1> q,
+		Eigen::Matrix<double,kNumGenVels, 1> u
+		)
 {
-	// TODO: Take q and v as arguments
-	Eigen::VectorXd q(kNumGenCoords);
-	q << 0, 0, 0,  // fb pos
-			 1, 0, 0, 0, // fb attitude
-			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
-
-	Eigen::VectorXd v(18);
-	v << 0, 0, 0, // fb linear vel
-		   0, 0, 0, // fb ang vel
-			 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0; // joints
-
-	pinocchio::nonLinearEffects(model_, data_, q, v);
+	pinocchio::nonLinearEffects(model_, data_, q, u);
 	return data_.nle;
 }
 
 void Dynamics::UpdateState()
 {
-
 	//pinocchio::computeAllTerms(model_, data_, q, v);
 }
 
@@ -90,6 +72,24 @@ Eigen::MatrixXd Dynamics::GetContactJacobian(
 			); // TODO: For some reason, this works with LOCAL_WORLD_ALIGNED, but not WORLD. Why is that?
 
 	return J_with_floating_body;
+}
+
+Eigen::MatrixXd Dynamics::GetStackedContactJacobian(
+		Eigen::Matrix<double,kNumGenCoords,1> q
+		)
+		// TODO: For now this assumes that all legs are in contact
+{
+	int num_contacts = 4; // TODO: replace
+	Eigen::MatrixXd J(num_contacts * kNumTwistCoords,kNumGenVels);
+	J.setZero();
+
+	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	{
+		Eigen::MatrixXd J_foot_i = GetContactJacobian(q, foot_i);
+		J.block(foot_i * kNumTwistCoords,0,kNumTwistCoords,kNumGenVels)
+			= J_foot_i;
+	}
+	return J;
 }
 
 Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(

@@ -11,17 +11,71 @@ namespace control
 	{
 		num_contacts_ = 4; // TODO: generalize this
 		num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
-		
-		EquationsOfMotionConstraint();
+		ROS_INFO("num_decision_vars: %d", num_decision_vars_);
 	}
 
-	void HoQpController::EquationsOfMotionConstraint()
+	void HoQpController::Update(
+			Eigen::Matrix<double,kNumGenCoords, 1> q,
+			Eigen::Matrix<double,kNumGenVels, 1> u
+			)
 	{
-		ROS_INFO("Adding EOM constraint");
-		ROS_INFO("Mass matrix");
-		PrintMatrix(robot_dynamics_.GetMassMatrix());
-		ROS_INFO("Bias vector");
-		PrintMatrix(robot_dynamics_.GetBiasVector());
+		if (!run_once_)
+		{
+			UpdateDynamicsTerms(q,u);
+			TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
+
+			Eigen::VectorXd sol_lp = SolveWithLinearProgram(fb_eom_task);
+			CheckSolutionValid(fb_eom_task, sol_lp);
+
+			PrintTask(fb_eom_task);
+			HoQpProblem fb_eom_prob(fb_eom_task);
+			Eigen::VectorXd sol = fb_eom_prob.GetSolution();
+			CheckSolutionValid(fb_eom_task, sol);
+
+			run_once_ = true;
+		}
+	}
+
+	TaskDefinition HoQpController::ConstructFloatingBaseEomTask()
+	{
+		Eigen::MatrixXd mass_matrix_fb =
+			GetFloatingBaseMatrix(mass_matrix_);
+		Eigen::MatrixXd bias_vector_fb =
+			GetFloatingBaseMatrix(bias_vector_);
+		Eigen::MatrixXd contact_jacobian_transpose =
+			contact_jacobian_.transpose();
+		Eigen::MatrixXd contact_jacobian_fb_t
+			= GetFloatingBaseMatrix(contact_jacobian_transpose);
+
+		Eigen::MatrixXd A(kNumTwistCoords,num_decision_vars_);
+		A << mass_matrix_fb, -contact_jacobian_fb_t; 
+
+		Eigen::VectorXd b(kNumTwistCoords);
+		b << -bias_vector_fb;
+
+		TaskDefinition fb_eom_constraint = {.A=A, .b=b};
+		return fb_eom_constraint;
+	}
+
+	Eigen::MatrixXd HoQpController::GetFloatingBaseMatrix(
+			Eigen::MatrixXd &m
+			)
+	{
+		Eigen::MatrixXd m_fb
+			= m.block(0,0,kNumTwistCoords,m.cols());
+		return m_fb;
+	}
+
+
+	void HoQpController::UpdateDynamicsTerms(
+			Eigen::Matrix<double,kNumGenCoords, 1> q,
+			Eigen::Matrix<double,kNumGenVels, 1> u
+			)
+	{
+		// TODO: Assumes 4 contact points!
+		mass_matrix_ = robot_dynamics_.GetMassMatrix(q);
+		bias_vector_ = robot_dynamics_.GetBiasVector(q,u);
+		contact_jacobian_ = robot_dynamics_.GetStackedContactJacobianPos(q);
 	}
 
 	// ******* //
@@ -222,29 +276,9 @@ namespace control
 		return result.GetSolution();
 	}
 
-	// TODO remove this?
 	Eigen::VectorXd HoQpController::SolveWithLinearProgram(TaskDefinition task)
 	{
-		std::cout << "---- Solving as LP ----" << std::endl;
-		drake::solvers::MathematicalProgram prog;
-		auto x = prog.NewContinuousVariables(task.A.cols(), 1, "x");
-		if (task.A.rows() > 0)
-			prog.AddLinearConstraint(task.A * x == task.b);
-		if (task.D.rows() > 0)
-		prog.AddLinearConstraint(task.D * x <= task.f);
-
-		std::cout << "Solution to LP" << std::endl;
-		std::cout << prog.to_string() << std::endl;
-		auto result = Solve(prog);
-		ROS_INFO_STREAM("Solver id: " << result.get_solver_id()
-			<< "\nFound solution: " << result.is_success()
-			<< "\nSolution result: " << result.get_solution_result()
-			<< std::endl);
-		assert(result.is_success());
-		std::cout << "Result: " << std::endl;
-		PrintMatrix(result.GetSolution());
-
-		return result.GetSolution();
+		return SolveWithLinearProgram(task.A, task.b, task.D, task.f);
 	}
 
 }

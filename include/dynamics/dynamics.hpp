@@ -13,6 +13,7 @@
 #include <iomanip>
 
 #include "anymal_constants.hpp"
+#include "helper_functions.hpp"
 
 class Dynamics
 {
@@ -21,14 +22,23 @@ class Dynamics
 
 		void UpdateState();
 
-		Eigen::MatrixXd GetMassMatrix();
-		Eigen::VectorXd GetBiasVector();
+		Eigen::MatrixXd GetMassMatrix(
+				Eigen::Matrix<double,kNumGenCoords, 1> q
+				);
+		Eigen::VectorXd GetBiasVector(
+				Eigen::Matrix<double,kNumGenCoords, 1> q,
+				Eigen::Matrix<double,kNumGenVels, 1> u
+				);
 
 		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
 				Eigen::Matrix<double,kNumGenCoords, 1> q
 				);
+
 		Eigen::MatrixXd GetContactJacobian(
 				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
+				);
+		Eigen::MatrixXd GetStackedContactJacobian(
+				Eigen::Matrix<double,kNumGenCoords,1> q
 				);
 		Eigen::MatrixXd GetStackedContactJacobianPos(
 				Eigen::Matrix<double,kNumGenCoords,1> q
