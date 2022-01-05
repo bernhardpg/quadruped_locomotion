@@ -33,6 +33,7 @@ namespace control
 			// ******* //
 
 			void TestTwoTasksEqFirst(); 
+			void TestTwoTasksIneqFirst();
 			void Test3Tasks(); // TODO: Rename or replace 
 			Eigen::VectorXd SolveWithLinearProgram(TaskDefinition task);
 			Eigen::VectorXd SolveWithLinearProgram(

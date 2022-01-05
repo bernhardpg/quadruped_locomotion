@@ -4,6 +4,7 @@
 #include "helper_functions.hpp"
 
 #include <Eigen/Core>
+#include <assert.h>
 
 const double kInf = 9999999;
 
@@ -74,21 +75,13 @@ Eigen::MatrixXd CalcPseudoInverse(
 
 Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
 {
-	if (A.rows() == 0)
-	{
-		std::cout << "no rows!\n";
-		return Eigen::MatrixXd::Identity(A.cols(), A.cols());
-	}
+	assert((A.rows() > 0) && (A.cols() > 0));
 
-	std::cout << "Calculating nullspace of\n";
-	PrintMatrix(A);
 	Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
 	Eigen::MatrixXd eye =
 		Eigen::MatrixXd::Identity(A.cols(), A.cols());
 
 	Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
-	std::cout << "Nullspace matrix:\n";
-	PrintMatrix(null_space_projection_matrix);
 	return null_space_projection_matrix;
 }
 

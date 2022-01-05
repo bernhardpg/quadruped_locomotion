@@ -21,9 +21,11 @@ namespace control
 		InitTaskVariables();
 
 		// TODO remove
-		ROS_INFO("Constructed new HoQpProblem");
+		ROS_INFO("----- Constructed new HoQpProblem -----");
 		ROS_INFO("num_decision_vars_: %d", num_decision_vars_);
 		ROS_INFO("num_slack_vars_: %d", num_slack_vars_);
+		ROS_INFO("has eq constraints: %d", has_eq_constraints_);
+		ROS_INFO("has ineq constraints: %d", has_ineq_constraints_);
 
 		SetPrevProblemValues();
 
