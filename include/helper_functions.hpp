@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <Eigen/Core>
 #include "variable_types.hpp"
+#include "math.hpp"
 #include "control/ho_qp/task_definition.hpp"
 
 void PrintMatrix(Eigen::MatrixXd matr)

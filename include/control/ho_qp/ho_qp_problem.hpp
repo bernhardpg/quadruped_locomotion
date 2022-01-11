@@ -121,8 +121,5 @@ namespace control
 			// **************** //
 
 			void InitTaskVariables();
-			TaskDefinition ConcatenateTasks(
-					TaskDefinition t1, TaskDefinition t2
-					);
 	};
 }

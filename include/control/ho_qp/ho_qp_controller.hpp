@@ -33,6 +33,7 @@ namespace control
 		private:
 			const double max_torque_ = 100; // TODO: Set the actual torque limit?
 			const double min_torque_ = -max_torque_; 
+			const double friction_coeff_ = 0.5;  // TODO: set more accurately?
 			int num_tasks_;
 			int num_contacts_;
 			int	num_decision_vars_;
@@ -46,6 +47,7 @@ namespace control
 
 			TaskDefinition ConstructFloatingBaseEomTask();
 			TaskDefinition ConstructJointTorqueTask();
+			TaskDefinition ConstructFrictionConeTask();
 			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
 			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);
 

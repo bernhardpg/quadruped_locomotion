@@ -413,23 +413,5 @@ namespace control
 		is_higher_pri_problem_defined_ = higher_pri_problem_ != nullptr;
 	}
 	
-	TaskDefinition HoQpProblem::ConcatenateTasks(
-			TaskDefinition t1, TaskDefinition t2
-			)
-	{
-		Eigen::MatrixXd A_concat = 
-			ConcatenateMatrices(t1.A, t2.A);
-		Eigen::VectorXd b_concat =
-			ConcatenateVectors(t1.b, t2.b);
-		Eigen::MatrixXd D_concat =
-			ConcatenateMatrices(t1.D, t2.D);
-		Eigen::VectorXd f_concat =
-			ConcatenateVectors(t1.f, t2.f);
-
-		TaskDefinition res =
-			{A_concat, b_concat, D_concat, f_concat};
-		
-		return res;
-	}
 }
 

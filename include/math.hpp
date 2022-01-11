@@ -1,8 +1,5 @@
 #pragma once
 
-// TODO: remove
-#include "helper_functions.hpp"
-
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues> 
 #include <assert.h>

@@ -24,16 +24,55 @@ namespace control
 			UpdateDynamicsTerms(q,u);
 			TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
 			TaskDefinition joint_torque_task = ConstructJointTorqueTask();
+			TaskDefinition friction_cone_task = ConstructFrictionConeTask();
+
+			TaskDefinition joint_torque_and_friction_task =
+				ConcatenateTasks(joint_torque_task, friction_cone_task);
 
 			// TODO: this should be a function
 			HoQpProblem fb_eom_prob_1(fb_eom_task);
 			HoQpProblem fb_eom_prob_2(joint_torque_task, &fb_eom_prob_1);
 			Eigen::VectorXd sol = fb_eom_prob_2.GetSolution();
 
-			//CheckSolutionValid(fb_eom_task, sol);
-
 			run_once_ = true;
+			//CheckSolutionValid(fb_eom_task, sol);
 		}
+	}
+
+	TaskDefinition HoQpController::ConstructFrictionConeTask()
+	{
+		const int num_constraints_per_leg = 4;
+		Eigen::MatrixXd friction_pyramic_constraint(
+				num_constraints_per_leg, kNumPosDims
+				);
+		// Corresponds to
+		// abs(lambda_x) <= coeff * lambda_z
+		// abs(lambda_y) <= coeff * lambda_z
+		friction_pyramic_constraint <<
+			1, 0, -friction_coeff_,
+			-1, 0, -friction_coeff_,
+			0, 1, -friction_coeff_,
+			0, -1, -friction_coeff_;
+
+		// TODO: Generalize this to when not all feet are in contact
+		Eigen::MatrixXd D(
+				num_constraints_per_leg * num_contacts_, num_decision_vars_
+				);
+		D.setZero();
+		for (int i = 0; i < num_contacts_; ++i)
+		{
+			D.block<num_constraints_per_leg,kNumPosDims>
+				(i * num_constraints_per_leg,
+				 kNumTwistCoords + i * kNumPosDims)
+				= friction_pyramic_constraint;
+		}
+		std::cout << "Friction cone constraints\n";
+		PrintMatrix(D);
+
+		Eigen::VectorXd f = Eigen::VectorXd::Zero(D.rows());
+
+		TaskDefinition friction_cone_task = {.D=D, .f=f};
+		return friction_cone_task;
 	}
 
 	TaskDefinition HoQpController::ConstructJointTorqueTask()
