@@ -17,6 +17,14 @@ bool CheckEigenValuesPositive(Eigen::MatrixXd m)
 	return true;
 }
 
+void PrintEigenValues(Eigen::MatrixXd m)
+{
+	Eigen::EigenSolver<Eigen::MatrixXd> es(m, false);
+	auto eigenvalues = es.eigenvalues();
+
+	std::cout << "Eigenvalues:\n" << eigenvalues << std::endl;
+}
+
 Eigen::MatrixXd ConcatenateMatrices(
 		Eigen::MatrixXd m1, Eigen::MatrixXd m2
 		)
@@ -77,7 +85,7 @@ Eigen::MatrixXd CalcPseudoInverse(
 Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A)
 {
 	// Moore-Penrose right inverse: A^t (A A^t)
-	return CalcPseudoInverse(A, 1e-5);
+	return CalcPseudoInverse(A, 1e-3); // TODO: Find a better damping constant?
 }
 
 Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)

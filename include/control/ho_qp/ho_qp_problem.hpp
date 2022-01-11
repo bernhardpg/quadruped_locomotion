@@ -54,7 +54,7 @@ namespace control
 			bool has_ineq_constraints_;
 			bool is_higher_pri_problem_defined_; 
 
-			const double eps_ = 1e-5;
+			const double eps_ = 1e-3;
 
 			symbolic_vector_t decision_vars_;
 			symbolic_vector_t slack_vars_;

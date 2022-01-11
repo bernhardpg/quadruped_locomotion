@@ -315,7 +315,7 @@ namespace control
 	void HoQpProblem::FormulateOptimizationProblem()
 	{
 		ConstructProblemMatrices();
-		PrintEigenValues(H_);
+		CheckEigenValuesPositive(H_);
 		CreateDecisionVars();
 		CreateSlackVars();
 		if (has_ineq_constraints_)

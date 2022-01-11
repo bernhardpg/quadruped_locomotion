@@ -29,14 +29,40 @@ namespace control
 			TaskDefinition joint_torque_and_friction_task =
 				ConcatenateTasks(joint_torque_task, friction_cone_task);
 
+			TaskDefinition no_contact_motion_task =
+				ConstructNoContactMotionTask(u);
+
 			// TODO: this should be a function
 			HoQpProblem fb_eom_prob_1(fb_eom_task);
-			HoQpProblem fb_eom_prob_2(joint_torque_task, &fb_eom_prob_1);
-			Eigen::VectorXd sol = fb_eom_prob_2.GetSolution();
+			HoQpProblem fb_eom_prob_2(
+					joint_torque_and_friction_task, &fb_eom_prob_1
+					);
+			HoQpProblem fb_eom_prob_3(
+					no_contact_motion_task, &fb_eom_prob_2
+					);
+			Eigen::VectorXd sol = fb_eom_prob_3.GetSolution();
+
+			//CheckSolutionValid(fb_eom_task, sol);
 
 			run_once_ = true;
-			//CheckSolutionValid(fb_eom_task, sol);
 		}
+	}
+
+	TaskDefinition HoQpController::ConstructNoContactMotionTask(
+			Eigen::VectorXd u
+			)
+	{
+		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
+				kNumPosDims * num_contacts_, kNumPosDims * num_contacts_);
+
+		Eigen::MatrixXd A(kNumPosDims * num_contacts_, num_decision_vars_);
+		A << contact_jacobian_, zero;
+
+		Eigen::VectorXd b(kNumPosDims * num_contacts_);
+		b << -contact_jacobian_dot_ * u;
+
+		TaskDefinition no_contact_motion_task = {.A=A, .b=b};
+		return no_contact_motion_task;
 	}
 
 	TaskDefinition HoQpController::ConstructFrictionConeTask()
@@ -66,9 +92,6 @@ namespace control
 				 kNumTwistCoords + i * kNumPosDims)
 				= friction_pyramic_constraint;
 		}
-		std::cout << "Friction cone constraints\n";
-		PrintMatrix(D);
-
 		Eigen::VectorXd f = Eigen::VectorXd::Zero(D.rows());
 
 		TaskDefinition friction_cone_task = {.D=D, .f=f};
@@ -158,6 +181,8 @@ namespace control
 		mass_matrix_ = robot_dynamics_.GetMassMatrix(q);
 		bias_vector_ = robot_dynamics_.GetBiasVector(q,u);
 		contact_jacobian_ = robot_dynamics_.GetStackedContactJacobianPos(q);
+		contact_jacobian_dot_ = robot_dynamics_
+			.GetStackedContactJacobianPosDerivative(q,u);
 	}
 
 	// ******* //

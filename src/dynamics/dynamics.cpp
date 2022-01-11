@@ -1,5 +1,7 @@
 #include "dynamics/dynamics.hpp"
 
+// TODO: Clean up when the different terms are computed. For efficiency, this should only be done once per update.
+
 Dynamics::Dynamics()
 {
 	// TODO: Load URDF file from somewhere
@@ -74,6 +76,25 @@ Eigen::MatrixXd Dynamics::GetContactJacobian(
 	return J_with_floating_body;
 }
 
+Eigen::MatrixXd Dynamics::GetContactJacobianDerivative(
+		Eigen::Matrix<double,kNumGenCoords,1> q,
+		Eigen::Matrix<double,kNumGenVels,1> u,
+		int foot_i
+		)
+{
+	pinocchio::computeJointJacobiansTimeVariation(model_, data_, q, u);
+	
+	Eigen::MatrixXd J_dot_with_floating_body(kNumTwistCoords,kNumGenVels);
+	J_dot_with_floating_body.setZero();
+	pinocchio::getFrameJacobianTimeVariation(
+			model_, data_, model_.getFrameId(kFeetFrames[foot_i]), 
+			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED,
+			J_dot_with_floating_body
+			); 
+
+	return J_dot_with_floating_body;
+}
+
 Eigen::MatrixXd Dynamics::GetStackedContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q
 		)
@@ -108,6 +129,27 @@ Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(
 			= J_foot_i_pos;
 	}
 	return J;
+}
+
+Eigen::MatrixXd Dynamics::GetStackedContactJacobianPosDerivative(
+		Eigen::Matrix<double,kNumGenCoords,1> q,
+		Eigen::Matrix<double,kNumGenVels,1> u
+		)
+		// TODO: For now this assumes that all legs are in contact
+{
+	Eigen::MatrixXd J_dot(kNumFeetCoords,kNumGenVels);
+	J_dot.setZero();
+
+	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	{
+		Eigen::MatrixXd J_dot_foot_i =
+			GetContactJacobianDerivative(q, u, foot_i);
+		auto J_dot_foot_i_pos =
+			J_dot_foot_i.block<kNumPosDims,kNumGenVels>(0,0);
+		J_dot.block<kNumPosDims,kNumGenVels>(kNumPosDims * foot_i,0)
+			= J_dot_foot_i_pos;
+	}
+	return J_dot;
 }
 
 void Dynamics::Test()

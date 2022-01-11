@@ -44,10 +44,15 @@ namespace control
 			Eigen::MatrixXd mass_matrix_;
 			Eigen::MatrixXd bias_vector_;
 			Eigen::MatrixXd contact_jacobian_;
+			Eigen::MatrixXd contact_jacobian_dot_;
 
 			TaskDefinition ConstructFloatingBaseEomTask();
 			TaskDefinition ConstructJointTorqueTask();
 			TaskDefinition ConstructFrictionConeTask();
+			TaskDefinition ConstructNoContactMotionTask(
+					Eigen::VectorXd u
+					);
+
 			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
 			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);
 
