@@ -21,6 +21,8 @@ namespace control
 	{
 		if (!run_once_)
 		{
+			run_once_ = true;
+
 			UpdateDynamicsTerms(q,u);
 			TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
 			TaskDefinition joint_torque_task = ConstructJointTorqueTask();
@@ -32,6 +34,17 @@ namespace control
 			TaskDefinition no_contact_motion_task =
 				ConstructNoContactMotionTask(u);
 
+			auto fb_lin_vel = u.block(0,0,2,1);
+			TaskDefinition com_pos_traj_task =
+				ConstructComPosTrajTask(fb_lin_vel);
+
+			auto fb_ang_vel = u.block(kNumPosDims,0,2,1);
+			TaskDefinition com_rot_traj_task =
+				ConstructComRotTrajTask(fb_ang_vel);
+
+			TaskDefinition com_traj_task = 
+				ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
+
 			// TODO: this should be a function
 			HoQpProblem fb_eom_prob_1(fb_eom_task);
 			HoQpProblem fb_eom_prob_2(
@@ -40,12 +53,70 @@ namespace control
 			HoQpProblem fb_eom_prob_3(
 					no_contact_motion_task, &fb_eom_prob_2
 					);
-			Eigen::VectorXd sol = fb_eom_prob_3.GetSolution();
+			HoQpProblem fb_eom_prob_4(
+					com_traj_task, &fb_eom_prob_3
+					);
+			Eigen::VectorXd sol = fb_eom_prob_4.GetSolution();
 
 			//CheckSolutionValid(fb_eom_task, sol);
 
-			run_once_ = true;
 		}
+	}
+
+	TaskDefinition HoQpController::ConstructComPosTrajTask(
+			Eigen::VectorXd com_vel 
+			)
+	{
+		Eigen::VectorXd com_vel_des(2);
+		com_vel_des << 1, 0; // TODO: Take from traj generator
+
+		double k_pos = 1.0;
+		double k_vel = 0.1;
+
+		Eigen::MatrixXd zero = 
+			Eigen::MatrixXd::Zero(
+					body_jacobian_pos_.rows(), kNumPosDims * num_contacts_
+					);
+
+		Eigen::MatrixXd A(body_jacobian_pos_.rows(), num_decision_vars_);
+		A << body_jacobian_pos_, zero;
+
+		std::cout << "body_jacobian_pos:\n";
+		PrintMatrix(body_jacobian_pos_);
+
+		Eigen::VectorXd b(body_jacobian_pos_.rows());
+		b << k_vel * (com_vel_des - com_vel); // TODO: missing a bunch of terms
+
+		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
+		return com_pos_traj_task;
+	}
+
+	TaskDefinition HoQpController::ConstructComRotTrajTask(
+			Eigen::VectorXd ang_vel
+			)
+	{
+		Eigen::VectorXd com_vel_des(2);
+		com_vel_des << 0, 0;
+
+		double k_pos = 1.0;
+		double k_vel = 0.1;
+
+		Eigen::MatrixXd zero = 
+			Eigen::MatrixXd::Zero(
+					body_jacobian_rot_.rows(), kNumPosDims * num_contacts_
+					);
+
+		Eigen::MatrixXd A(body_jacobian_rot_.rows(), num_decision_vars_);
+		A << body_jacobian_rot_, zero;
+
+		std::cout << "body_jacobian_rot:\n";
+		PrintMatrix(body_jacobian_rot_);
+
+		Eigen::VectorXd b(body_jacobian_pos_.rows());
+		b << -k_vel * (com_vel_des); // TODO: missing a bunch of terms here
+
+		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
+		return com_pos_traj_task;
 	}
 
 	TaskDefinition HoQpController::ConstructNoContactMotionTask(
@@ -135,6 +206,9 @@ namespace control
 
 	TaskDefinition HoQpController::ConstructFloatingBaseEomTask()
 	{
+		std::cout << "mass_matrix_:" << std::endl;
+		PrintMatrix(mass_matrix_);
+
 		Eigen::MatrixXd mass_matrix_fb =
 			GetFloatingBaseRows(mass_matrix_);
 		Eigen::MatrixXd bias_vector_fb =
@@ -183,6 +257,10 @@ namespace control
 		contact_jacobian_ = robot_dynamics_.GetStackedContactJacobianPos(q);
 		contact_jacobian_dot_ = robot_dynamics_
 			.GetStackedContactJacobianPosDerivative(q,u);
+		body_jacobian_pos_ = robot_dynamics_.GetBodyPosJacobian(q)
+			.block(0,0,2,kNumGenVels); // only keep x, y
+		body_jacobian_rot_ = robot_dynamics_.GetBodyRotJacobian(q)
+			.block(0,0,2,kNumGenVels); // only keep roll, pitch
 	}
 
 	// ******* //

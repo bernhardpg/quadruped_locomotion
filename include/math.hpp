@@ -3,8 +3,10 @@
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues> 
 #include <assert.h>
+#include <stdio.h>
 
 const double kInf = 9999999;
+const double kEps = 1e-7;
 
 bool CheckEigenValuesPositive(Eigen::MatrixXd m)
 {
@@ -15,14 +17,6 @@ bool CheckEigenValuesPositive(Eigen::MatrixXd m)
 		if (eigenvalues(i).real() < 0.0) return false;
 
 	return true;
-}
-
-void PrintEigenValues(Eigen::MatrixXd m)
-{
-	Eigen::EigenSolver<Eigen::MatrixXd> es(m, false);
-	auto eigenvalues = es.eigenvalues();
-
-	std::cout << "Eigenvalues:\n" << eigenvalues << std::endl;
 }
 
 Eigen::MatrixXd ConcatenateMatrices(
@@ -76,7 +70,7 @@ Eigen::MatrixXd CalcPseudoInverse(
 	Eigen::MatrixXd eye =
 		Eigen::MatrixXd::Identity(A.rows(), A.rows());
 
-	// Moore-Penrose right inverse: A^t (A A^t)
+	// Moore-Penrose right inverse with damping: A^t (A A^t + lambda I)
 	Eigen:: MatrixXd pseudo_inverse =
 		A.transpose() * (A * A.transpose() + damping * eye).inverse();
 	return pseudo_inverse;
@@ -85,7 +79,7 @@ Eigen::MatrixXd CalcPseudoInverse(
 Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A)
 {
 	// Moore-Penrose right inverse: A^t (A A^t)
-	return CalcPseudoInverse(A, 1e-3); // TODO: Find a better damping constant?
+	return CalcPseudoInverse(A, kEps); 
 }
 
 Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)

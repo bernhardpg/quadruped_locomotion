@@ -34,6 +34,13 @@ class Dynamics
 				Eigen::Matrix<double,kNumGenCoords, 1> q
 				);
 
+		Eigen::MatrixXd GetBodyPosJacobian(
+				Eigen::Matrix<double,kNumGenCoords,1> q
+				);
+		Eigen::MatrixXd GetBodyRotJacobian(
+				Eigen::Matrix<double,kNumGenCoords,1> q
+				);
+
 		Eigen::MatrixXd GetContactJacobian(
 				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 				);

@@ -62,6 +62,34 @@ Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
 	return feet_positions;
 }
 
+Eigen::MatrixXd Dynamics::GetBodyPosJacobian(
+		Eigen::Matrix<double,kNumGenCoords,1> q
+		)
+{
+	Eigen::MatrixXd J(kNumTwistCoords,kNumGenVels);
+	J.setZero();
+	pinocchio::computeFrameJacobian(
+			model_, data_, q, model_.getFrameId("base"), J 
+			); 
+	Eigen::MatrixXd J_pos = J.block(0,0,kNumPosDims,J.cols());
+
+	return J_pos;
+}
+
+Eigen::MatrixXd Dynamics::GetBodyRotJacobian(
+		Eigen::Matrix<double,kNumGenCoords,1> q
+		)
+{
+	Eigen::MatrixXd J(kNumTwistCoords,kNumGenVels);
+	J.setZero();
+	pinocchio::computeFrameJacobian(
+			model_, data_, q, model_.getFrameId("base"), J 
+			);
+	Eigen::MatrixXd J_pos = J.block(kNumPosDims,0,kNumPosDims,J.cols());
+
+	return J_pos;
+}
+
 Eigen::MatrixXd Dynamics::GetContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 		)
@@ -70,8 +98,8 @@ Eigen::MatrixXd Dynamics::GetContactJacobian(
 	J_with_floating_body.setZero();
 	pinocchio::computeFrameJacobian(
 			model_, data_, q, model_.getFrameId(kFeetFrames[foot_i]), 
-			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_with_floating_body
-			); // TODO: For some reason, this works with LOCAL_WORLD_ALIGNED, but not WORLD. Why is that?
+			J_with_floating_body
+			); 
 
 	return J_with_floating_body;
 }

@@ -253,26 +253,22 @@ namespace control
 		H.setZero();
 
 		Eigen::MatrixXd Z_t_A_t_A_Z(num_decision_vars_,num_decision_vars_);
+		Z_t_A_t_A_Z.setZero();
 		if (has_eq_constraints_)
 		{
-			Eigen::MatrixXd A_t_A =
-				curr_task_.A.transpose() * curr_task_.A;
+			Eigen::MatrixXd A_curr_Z_prev = curr_task_.A * accum_Z_prev_;
+			Z_t_A_t_A_Z = A_curr_Z_prev.transpose() * A_curr_Z_prev;
 
 			// Make sure that all eigenvalues of A_t_A are nonnegative,
 			// which could arise due to numerical issues
 			// TODO: It may be slow to compute all the eigenvalues at every iteration. Maybe this should always be done!
-			if (!CheckEigenValuesPositive(A_t_A))
+			if (!CheckEigenValuesPositive(Z_t_A_t_A_Z))
 			{
-				A_t_A = A_t_A
-					+ Eigen::MatrixXd::Identity(A_t_A.rows(), A_t_A.cols()) * eps_;
+				Z_t_A_t_A_Z = Z_t_A_t_A_Z 
+					+ Eigen::MatrixXd::Identity(
+							Z_t_A_t_A_Z.rows(), Z_t_A_t_A_Z.cols()
+							) * eps_;
 			}
-
-			Z_t_A_t_A_Z = accum_Z_prev_.transpose()
-				* A_t_A * accum_Z_prev_;
-		}
-		else
-		{
-			Z_t_A_t_A_Z.setZero();
 		}
 
 		H << Z_t_A_t_A_Z, zero.transpose(),
@@ -315,7 +311,6 @@ namespace control
 	void HoQpProblem::FormulateOptimizationProblem()
 	{
 		ConstructProblemMatrices();
-		PrintEigenValues(H_);
 		CreateDecisionVars();
 		CreateSlackVars();
 		if (has_ineq_constraints_)
@@ -359,17 +354,6 @@ namespace control
 
 	void HoQpProblem::SolveQp()
 	{
-		//std::cout << prog_.to_string() << std::endl;
-
-//		std::cout << "H_:\n";
-//		PrintMatrix(H_);
-//		std::cout << "c_:\n";
-//		PrintMatrix(c_);
-//		std::cout << "D_:\n";
-//		PrintMatrix(D_);
-//		std::cout << "f_:\n";
-//		PrintMatrix(f_);
-
 		result_ = Solve(prog_);
 		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
 			<< "\nFound solution: " << result_.is_success()
@@ -385,15 +369,6 @@ namespace control
 		slack_vars_solutions_.resize(num_slack_vars_);
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
-
-		std::cout << "Result: " << std::endl;
-		std::cout << "z:\n";
-		PrintMatrix(decision_vars_solutions_);
-		std::cout << "v:\n";
-		PrintMatrix(slack_vars_solutions_);
-		std::cout << "x:\n";
-		PrintMatrix(GetSolution());
-
 	}
 
 	// **************** //

@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <Eigen/Core>
 #include "variable_types.hpp"
-#include "math.hpp"
 #include "control/ho_qp/task_definition.hpp"
 
 void PrintMatrix(Eigen::MatrixXd matr)
@@ -110,3 +109,10 @@ void PrintTask(TaskDefinition task)
 	PrintMatrix(task.f);
 }
 
+void PrintEigenValues(Eigen::MatrixXd m)
+{
+	Eigen::EigenSolver<Eigen::MatrixXd> es(m, false);
+	auto eigenvalues = es.eigenvalues();
+
+	std::cout << "Smallest eigenvalue:\n" << eigenvalues.real().minCoeff() << std::endl;
+}
