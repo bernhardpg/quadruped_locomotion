@@ -59,6 +59,7 @@ namespace control
 			void TestTwoTasksIneqFirst();
 			void TestThreeTasks();
 			void TestFourTasks();
+			void TestSingleEqTask();
 
 			Eigen::VectorXd SolveWithLinearProgram(TaskDefinition task);
 			Eigen::VectorXd SolveWithLinearProgram(

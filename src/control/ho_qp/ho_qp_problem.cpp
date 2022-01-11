@@ -1,6 +1,7 @@
 #include "control/ho_qp/ho_qp_problem.hpp"
 
 // TODO: clean up use of variable 'x'
+// TODO: clean up this class and remove prints
 
 namespace control
 {
@@ -20,8 +21,8 @@ namespace control
 	{
 		InitTaskVariables();
 		SetPrevProblemValues();
-		ConstructProblemMatrices();
 		FormulateOptimizationProblem();
+
 		SolveQp();
 		AccumulateTasks();
 		AccumulateSlackSolutions();
@@ -256,6 +257,14 @@ namespace control
 			Eigen::MatrixXd A_t_A =
 				curr_task_.A.transpose() * curr_task_.A;
 
+			// Make sure that all eigenvalues of A_t_A are nonnegative,
+			// which could arise due to numerical issues
+			if (!CheckEigenValuesPositive(A_t_A))
+			{
+				A_t_A = A_t_A
+					+ Eigen::MatrixXd::Identity(A_t_A.rows(), A_t_A.cols()) * eps_;
+			}
+
 			Z_t_A_t_A_Z = accum_Z_prev_.transpose()
 				* A_t_A * accum_Z_prev_;
 		}
@@ -268,6 +277,10 @@ namespace control
 				 zero, eye;
 
 		H_ = H;
+		
+
+		std::cout << "--- RESIDUE --\n";
+		PrintMatrix(H_ - curr_task_.A.transpose()*curr_task_.A);
 	}
 
 
@@ -295,6 +308,9 @@ namespace control
 				 zero_vec;
 
 		c_ = c;
+
+		std::cout << "--- RESIDUE c vec--\n";
+		PrintMatrix(c_ - (-curr_task_.A.transpose()*curr_task_.b));
 	}
 
 	// ******************** //
@@ -303,6 +319,8 @@ namespace control
 
 	void HoQpProblem::FormulateOptimizationProblem()
 	{
+		ConstructProblemMatrices();
+		CheckEigenValuesPositive(H_);
 		CreateDecisionVars();
 		CreateSlackVars();
 		if (has_ineq_constraints_)
@@ -346,6 +364,17 @@ namespace control
 
 	void HoQpProblem::SolveQp()
 	{
+		//std::cout << prog_.to_string() << std::endl;
+
+		std::cout << "H_:\n";
+		PrintMatrix(H_);
+		std::cout << "c_:\n";
+		PrintMatrix(c_);
+		std::cout << "D_:\n";
+		PrintMatrix(D_);
+		std::cout << "f_:\n";
+		PrintMatrix(f_);
+
 		result_ = Solve(prog_);
 		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
 			<< "\nFound solution: " << result_.is_success()

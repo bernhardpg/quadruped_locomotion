@@ -46,7 +46,7 @@ namespace control
 			double seconds_to_initial_config_ = 2.5; 
 			double seconds_to_standup_config_ = 2.0;
 			double traj_end_time_s_ = 2.0;
-			double standing_height_ = 0.5;
+			double standing_height_ = 0.3;
 
 			void SetJointInitialConfigTraj();
 			void SetFeetStandupTraj();
@@ -118,6 +118,7 @@ namespace control
 			// Services
 			ros::ServiceServer cmd_standup_service_;	
 			ros::ServiceServer cmd_dance_service_;	
+			ros::ServiceServer cmd_walk_service_;	
 
 			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
@@ -147,6 +148,10 @@ namespace control
 							std_srvs::Empty::Response &_res
 					);
 			bool CmdDanceService(
+							const std_srvs::Empty::Request &_req,
+							std_srvs::Empty::Response &_res
+					);
+			bool CmdWalkService(
 							const std_srvs::Empty::Request &_req,
 							std_srvs::Empty::Response &_res
 					);

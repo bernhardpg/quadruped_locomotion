@@ -37,7 +37,7 @@ void PrintMatrixSize(
 void CheckSolutionValid(TaskDefinition task, Eigen::VectorXd sol)
 {
 	std::cout << "=== Checking solution ===\n";
-	double eps = 1e-4;
+	double eps = 1e-3;
 	if (task.A.rows() > 0)
 	{
 		Eigen::VectorXd residue = task.A*sol - task.b;

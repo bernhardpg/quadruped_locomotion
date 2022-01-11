@@ -15,8 +15,7 @@ namespace control {
 		SpinRosThreads();
 		WaitForPublishedState();
 
-		//SetRobotMode(kIdle); // TODO: only for development
-		SetRobotMode(kWalk);
+		SetRobotMode(kIdle); 
 	}
 
 	WholeBodyController::~WholeBodyController()
@@ -381,6 +380,16 @@ namespace control {
         );
 
 		cmd_dance_service_ = ros_node_.advertiseService(cmd_dance_aso);
+
+		ros::AdvertiseServiceOptions cmd_walk_aso =
+			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
+            "/" + model_name_ + "/walk",
+            boost::bind(&WholeBodyController::CmdWalkService, this, _1, _2),
+            ros::VoidPtr(),
+            &this->ros_process_queue_
+        );
+
+		cmd_walk_service_ = ros_node_.advertiseService(cmd_walk_aso);
 	}
 
 	bool WholeBodyController::CmdStandupService(
@@ -398,6 +407,15 @@ namespace control {
 			)
 	{
 		SetRobotMode(kDance);
+		return true;
+	}
+
+	bool WholeBodyController::CmdWalkService(
+					const std_srvs::Empty::Request &_req,
+					std_srvs::Empty::Response &_res
+			)
+	{
+		SetRobotMode(kWalk);
 		return true;
 	}
 

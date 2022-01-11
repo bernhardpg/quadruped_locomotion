@@ -36,6 +36,7 @@ namespace control
 		}
 	}
 
+
 	TaskDefinition HoQpController::ConstructFloatingBaseEomTask()
 	{
 		Eigen::MatrixXd mass_matrix_fb =
@@ -82,6 +83,27 @@ namespace control
 	// TESTING //
 	// ******* //
 	// TODO: Just placeholder test code
+	void HoQpController::TestSingleEqTask()
+	{
+		int num_decision_vars = 5;
+
+		Eigen::MatrixXd A(2,num_decision_vars);
+		A << -1,1,0,3,3,
+					0,2,3,1,0;
+		Eigen::VectorXd b(2);
+		b << 1, 10;
+
+		TaskDefinition test_task_eq = {.A=A, .b=b};
+
+		Eigen::VectorXd sol = SolveWithLinearProgram(test_task_eq);
+		CheckSolutionValid(test_task_eq, sol);
+
+		HoQpProblem test_qp_problem = HoQpProblem(test_task_eq);
+
+		Eigen::VectorXd sol_ho_qp = test_qp_problem.GetSolution();
+		CheckSolutionValid(test_task_eq, sol_ho_qp);
+	}
+	//
 	void HoQpController::TestTwoTasksEqFirst()
 	{
 		int num_decision_vars = 2;

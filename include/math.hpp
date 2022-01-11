@@ -4,9 +4,25 @@
 #include "helper_functions.hpp"
 
 #include <Eigen/Core>
+#include <Eigen/Eigenvalues> 
 #include <assert.h>
 
 const double kInf = 9999999;
+
+bool CheckEigenValuesPositive(Eigen::MatrixXd m)
+{
+	Eigen::EigenSolver<Eigen::MatrixXd> es(m, false);
+	auto eigenvalues = es.eigenvalues();
+
+	// TODO: remove
+	std::cout << "The eigenvalues are:" 
+			 << std::endl << eigenvalues << std::endl;	
+
+	for (int i = 0; i < eigenvalues.rows(); ++i)
+		if (eigenvalues(i).real() < 0.0) return false;
+
+	return true;
+}
 
 Eigen::MatrixXd ConcatenateMatrices(
 		Eigen::MatrixXd m1, Eigen::MatrixXd m2
@@ -51,14 +67,6 @@ Eigen::VectorXd CreateInfVector(int size)
 	return inf_vec;
 }
 
-Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A)
-{
-	// Moore-Penrose right inverse: A^t (A A^t)
-	Eigen:: MatrixXd pseudo_inverse =
-		A.transpose() * (A * A.transpose()).inverse();
-	return pseudo_inverse;
-}
-
 Eigen::MatrixXd CalcPseudoInverse(
 		Eigen::MatrixXd A, double damping
 		)
@@ -71,6 +79,12 @@ Eigen::MatrixXd CalcPseudoInverse(
 	Eigen:: MatrixXd pseudo_inverse =
 		A.transpose() * (A * A.transpose() + damping * eye).inverse();
 	return pseudo_inverse;
+}
+
+Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A)
+{
+	// Moore-Penrose right inverse: A^t (A A^t)
+	return CalcPseudoInverse(A, 0);
 }
 
 Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
