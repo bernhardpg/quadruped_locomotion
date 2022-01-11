@@ -23,30 +23,64 @@ namespace control
 		{
 			UpdateDynamicsTerms(q,u);
 			TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
+			TaskDefinition joint_torque_task = ConstructJointTorqueTask();
 
-			Eigen::VectorXd sol_lp = SolveWithLinearProgram(fb_eom_task);
-			CheckSolutionValid(fb_eom_task, sol_lp);
+			// TODO: this should be a function
+			HoQpProblem fb_eom_prob_1(fb_eom_task);
+			HoQpProblem fb_eom_prob_2(joint_torque_task, &fb_eom_prob_1);
+			Eigen::VectorXd sol = fb_eom_prob_2.GetSolution();
 
-			PrintTask(fb_eom_task);
-			HoQpProblem fb_eom_prob(fb_eom_task);
-			Eigen::VectorXd sol = fb_eom_prob.GetSolution();
-			CheckSolutionValid(fb_eom_task, sol);
+			//CheckSolutionValid(fb_eom_task, sol);
 
 			run_once_ = true;
 		}
 	}
 
+	TaskDefinition HoQpController::ConstructJointTorqueTask()
+	{
+		Eigen::MatrixXd mass_matrix_j =
+			GetJointRows(mass_matrix_);
+		Eigen::MatrixXd bias_vector_j =
+			GetJointRows(bias_vector_);
+		Eigen::MatrixXd contact_jacobian_transpose =
+			contact_jacobian_.transpose();
+		Eigen::MatrixXd contact_jacobian_j_t
+			= GetJointRows(contact_jacobian_transpose);
+
+		// TODO: Store these for more efficiency?
+		Eigen::VectorXd max_torque_vec
+			= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
+		Eigen::VectorXd min_torque_vec
+			= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
+
+		// Positive limit
+		Eigen::MatrixXd D(kNumJoints,num_decision_vars_);
+		D << mass_matrix_j, -contact_jacobian_j_t; 
+
+		Eigen::VectorXd f_max(kNumJoints);
+		f_max << max_torque_vec - bias_vector_j;
+
+		//TaskDefinition joint_torque_constraint = {.D=D, .f=f_max};
+		Eigen::VectorXd f_min(kNumJoints);
+		f_min << min_torque_vec - bias_vector_j;
+
+		Eigen::MatrixXd D_tot = ConcatenateMatrices(D,-D);
+		Eigen::VectorXd f_tot = ConcatenateVectors(f_max,-f_min);
+
+		TaskDefinition joint_torque_constraint = {.D=D_tot, .f=f_tot};
+		return joint_torque_constraint;
+	}
 
 	TaskDefinition HoQpController::ConstructFloatingBaseEomTask()
 	{
 		Eigen::MatrixXd mass_matrix_fb =
-			GetFloatingBaseMatrix(mass_matrix_);
+			GetFloatingBaseRows(mass_matrix_);
 		Eigen::MatrixXd bias_vector_fb =
-			GetFloatingBaseMatrix(bias_vector_);
+			GetFloatingBaseRows(bias_vector_);
 		Eigen::MatrixXd contact_jacobian_transpose =
 			contact_jacobian_.transpose();
 		Eigen::MatrixXd contact_jacobian_fb_t
-			= GetFloatingBaseMatrix(contact_jacobian_transpose);
+			= GetFloatingBaseRows(contact_jacobian_transpose);
 
 		Eigen::MatrixXd A(kNumTwistCoords,num_decision_vars_);
 		A << mass_matrix_fb, -contact_jacobian_fb_t; 
@@ -58,7 +92,7 @@ namespace control
 		return fb_eom_constraint;
 	}
 
-	Eigen::MatrixXd HoQpController::GetFloatingBaseMatrix(
+	Eigen::MatrixXd HoQpController::GetFloatingBaseRows(
 			Eigen::MatrixXd &m
 			)
 	{
@@ -67,6 +101,14 @@ namespace control
 		return m_fb;
 	}
 
+	Eigen::MatrixXd HoQpController::GetJointRows(
+			Eigen::MatrixXd &m
+			)
+	{
+		Eigen::MatrixXd m_fb
+			= m.block(kNumTwistCoords,0,kNumJoints,m.cols());
+		return m_fb;
+	}
 
 	void HoQpController::UpdateDynamicsTerms(
 			Eigen::Matrix<double,kNumGenCoords, 1> q,
@@ -83,6 +125,20 @@ namespace control
 	// TESTING //
 	// ******* //
 	// TODO: Just placeholder test code
+	void HoQpController::TestEomConstraint()
+	{
+		TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
+
+		Eigen::VectorXd sol_lp = SolveWithLinearProgram(fb_eom_task);
+		CheckSolutionValid(fb_eom_task, sol_lp);
+
+		PrintTask(fb_eom_task);
+		HoQpProblem fb_eom_prob(fb_eom_task);
+		Eigen::VectorXd sol = fb_eom_prob.GetSolution();
+		CheckSolutionValid(fb_eom_task, sol);
+
+		run_once_ = true;
+	}
 	void HoQpController::TestSingleEqTask()
 	{
 		int num_decision_vars = 5;

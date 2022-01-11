@@ -14,10 +14,6 @@ bool CheckEigenValuesPositive(Eigen::MatrixXd m)
 	Eigen::EigenSolver<Eigen::MatrixXd> es(m, false);
 	auto eigenvalues = es.eigenvalues();
 
-	// TODO: remove
-	std::cout << "The eigenvalues are:" 
-			 << std::endl << eigenvalues << std::endl;	
-
 	for (int i = 0; i < eigenvalues.rows(); ++i)
 		if (eigenvalues(i).real() < 0.0) return false;
 
@@ -84,7 +80,7 @@ Eigen::MatrixXd CalcPseudoInverse(
 Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A)
 {
 	// Moore-Penrose right inverse: A^t (A A^t)
-	return CalcPseudoInverse(A, 0);
+	return CalcPseudoInverse(A, 1e-5);
 }
 
 Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)

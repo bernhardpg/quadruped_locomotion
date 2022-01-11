@@ -19,12 +19,14 @@ namespace control
 			)
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
+		std::cout << "======= NEW TASK ========\n";
 		InitTaskVariables();
 		SetPrevProblemValues();
 		FormulateOptimizationProblem();
 
 		SolveQp();
 		AccumulateTasks();
+		ConstructAccumNullspaceMatrix();
 		AccumulateSlackSolutions();
 	}
 
@@ -156,7 +158,6 @@ namespace control
 
 	void HoQpProblem::ConstructProblemMatrices()
 	{
-		ConstructAccumNullspaceMatrix();
 		ConstructHMatrix();
 		ConstructCVector();
 		ConstructDMatrix();
@@ -202,6 +203,9 @@ namespace control
 			D_curr_Z = curr_task_.D * accum_Z_prev_;
 		else
 			D_curr_Z = Eigen::MatrixXd::Zero(0,num_decision_vars_);
+
+		std::cout << "D_curr_Z: \n";
+		PrintMatrix(D_curr_Z);
 
 		// NOTE: This is upside down compared to the paper,
 		// but more consistent with the rest of the algorithm
@@ -259,6 +263,7 @@ namespace control
 
 			// Make sure that all eigenvalues of A_t_A are nonnegative,
 			// which could arise due to numerical issues
+			// TODO: It may be slow to compute all the eigenvalues at every iteration. Maybe this should always be done!
 			if (!CheckEigenValuesPositive(A_t_A))
 			{
 				A_t_A = A_t_A
@@ -277,10 +282,6 @@ namespace control
 				 zero, eye;
 
 		H_ = H;
-		
-
-		std::cout << "--- RESIDUE --\n";
-		PrintMatrix(H_ - curr_task_.A.transpose()*curr_task_.A);
 	}
 
 
@@ -308,9 +309,6 @@ namespace control
 				 zero_vec;
 
 		c_ = c;
-
-		std::cout << "--- RESIDUE c vec--\n";
-		PrintMatrix(c_ - (-curr_task_.A.transpose()*curr_task_.b));
 	}
 
 	// ******************** //

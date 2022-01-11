@@ -31,6 +31,8 @@ namespace control
 					);
 
 		private:
+			const double max_torque_ = 100; // TODO: Set the actual torque limit?
+			const double min_torque_ = -max_torque_; 
 			int num_tasks_;
 			int num_contacts_;
 			int	num_decision_vars_;
@@ -43,7 +45,9 @@ namespace control
 			Eigen::MatrixXd contact_jacobian_;
 
 			TaskDefinition ConstructFloatingBaseEomTask();
-			Eigen::MatrixXd GetFloatingBaseMatrix(Eigen::MatrixXd &m);
+			TaskDefinition ConstructJointTorqueTask();
+			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
+			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);
 
 			void UpdateDynamicsTerms(
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
@@ -55,6 +59,7 @@ namespace control
 			// TESTING //
 			// ******* //
 
+			void TestEomConstraint();
 			void TestTwoTasksEqFirst(); 
 			void TestTwoTasksIneqFirst();
 			void TestThreeTasks();
