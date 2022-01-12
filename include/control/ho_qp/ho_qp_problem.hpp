@@ -61,6 +61,8 @@ namespace control
 			Eigen::MatrixXd zero_nv_nx_;
 			Eigen::MatrixXd A_curr_Z_prev_;
 
+			bool print_solver_details_ = false; // TODO: only for debugging
+
 			variable_vector_t decision_vars_;
 			variable_vector_t slack_vars_;
 			variable_vector_t all_decision_vars_;

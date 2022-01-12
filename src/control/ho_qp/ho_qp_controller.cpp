@@ -19,31 +19,11 @@ namespace control
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
-		if (!run_once_)
-		{
-			run_once_ = true;
-
-			ros::Time time_begin = ros::Time::now();
-			UpdateDynamicsTerms(q,u);
-			ros::Duration duration = ros::Time::now() - time_begin;
-			ROS_INFO("Spent %lf secs on dynamic terms", duration.toSec());		
-
-			time_begin = ros::Time::now();
-			std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
-			duration = ros::Time::now() - time_begin;
-			ROS_INFO("Spent %lf secs on constructing tasks", duration.toSec());		
-			time_begin = ros::Time::now();
-			std::vector<std::shared_ptr<HoQpProblem>>
-				opt_problems = ConstructOptProblems(tasks);
-			duration = ros::Time::now() - time_begin;
-			ROS_INFO("Spent %lf secs on solving qps", duration.toSec());		
-
-			time_begin = ros::Time::now();
-			Eigen::VectorXd sol = opt_problems.back()->GetSolution();
-			duration = ros::Time::now() - time_begin;
-			ROS_INFO("Spent %lf secs on getting solution", duration.toSec());		
-
-		}
+		UpdateDynamicsTerms(q,u);
+		std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
+		std::vector<std::shared_ptr<HoQpProblem>>
+			opt_problems = ConstructOptProblems(tasks);
+		Eigen::VectorXd sol = opt_problems.back()->GetSolution();
 	}
 
 	std::vector<std::shared_ptr<HoQpProblem>>

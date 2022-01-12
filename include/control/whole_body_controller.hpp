@@ -29,6 +29,8 @@ namespace control
 			~WholeBodyController();
 
 		private:
+			bool print_frequency_ = true;
+
 			ros::NodeHandle ros_node_;
 			std::string model_name_;
 
