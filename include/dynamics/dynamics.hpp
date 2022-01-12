@@ -20,7 +20,9 @@ class Dynamics
 	public:
 		Dynamics();
 
-		void UpdateState();
+		// ******** //
+		// DYNAMICS //
+		// ******** //
 
 		Eigen::MatrixXd GetMassMatrix(
 				Eigen::Matrix<double,kNumGenCoords, 1> q
@@ -29,36 +31,39 @@ class Dynamics
 				Eigen::Matrix<double,kNumGenCoords, 1> q,
 				Eigen::Matrix<double,kNumGenVels, 1> u
 				);
+		Eigen::VectorXd GetContactAcc(
+				Eigen::Matrix<double,kNumGenCoords,1> q,
+				Eigen::Matrix<double,kNumGenVels,1> u,
+				int foot_i
+				);
+		Eigen::VectorXd GetContactAccPosStacked(
+				Eigen::Matrix<double,kNumGenCoords,1> q,
+				Eigen::Matrix<double,kNumGenVels,1> u
+				);
+
+		// ****************** //
+		// FORWARD KINEMATICS // 
+		// ****************** //
 
 		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
 				Eigen::Matrix<double,kNumGenCoords, 1> q
 				);
 
-		Eigen::MatrixXd GetBodyPosJacobian(
-				Eigen::Matrix<double,kNumGenCoords,1> q
-				);
-		Eigen::MatrixXd GetBodyRotJacobian(
-				Eigen::Matrix<double,kNumGenCoords,1> q
-				);
+		// *********************** //
+		// DIFFERENTIAL KINEMATICS // 
+		// *********************** //
 
+		Eigen::MatrixXd GetBaseJacobian(
+				Eigen::Matrix<double,kNumGenCoords,1> q
+				);
 		Eigen::MatrixXd GetContactJacobian(
 				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
-				);
-		Eigen::MatrixXd GetContactJacobianDerivative(
-				Eigen::Matrix<double,kNumGenCoords,1> q,
-				Eigen::Matrix<double,kNumGenVels,1> u,
-				int foot_i
 				);
 		Eigen::MatrixXd GetStackedContactJacobian(
 				Eigen::Matrix<double,kNumGenCoords,1> q
 				);
 		Eigen::MatrixXd GetStackedContactJacobianPos(
 				Eigen::Matrix<double,kNumGenCoords,1> q
-				);
-
-		Eigen::MatrixXd GetStackedContactJacobianPosDerivative(
-				Eigen::Matrix<double,kNumGenCoords,1> q,
-				Eigen::Matrix<double,kNumGenVels,1> u
 				);
 
 		void Test(); // TODO: Remove

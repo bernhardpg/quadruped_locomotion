@@ -12,6 +12,11 @@ namespace control
 		num_contacts_ = 4; // TODO: generalize this
 		num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
 		ROS_INFO("num_decision_vars: %d", num_decision_vars_);
+
+		const Eigen::VectorXd max_torque_vec_
+			= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
+		const Eigen::VectorXd min_torque_vec_
+			= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
 	}
 
 	void HoQpController::Update(
@@ -27,17 +32,42 @@ namespace control
 		Eigen::VectorXd sol = opt_problems.back()->GetSolution();
 
 		CheckSolutionValid(tasks[0], sol);
-		CheckSolutionValid(tasks[1], sol);
+		//CheckSolutionValid(tasks[1], sol);
 		//CheckSolutionValid(tasks[2], sol);
 
 		q_j_ddot_cmd_ = sol.block(kNumTwistCoords,0,kNumJoints,1);
-		//PrintMatrix(q_j_ddot_cmd_.transpose());
+		std::cout << "q_j_ddot:\n";
+		PrintMatrix(q_j_ddot_cmd_.transpose());
 	}
 
 	Eigen::VectorXd HoQpController::GetJointAccelerationCmd()
 	{
 		return q_j_ddot_cmd_;
 	}
+
+	// ********************* //
+	// DYNAMICS & KINEMATICS // 
+	// ********************* //
+
+	void HoQpController::UpdateDynamicsTerms(
+			Eigen::Matrix<double,kNumGenCoords, 1> q,
+			Eigen::Matrix<double,kNumGenVels, 1> u
+			)
+	{
+		// TODO: Assumes 4 contact points!
+		M_ = robot_dynamics_.GetMassMatrix(q);
+		c_ = robot_dynamics_.GetBiasVector(q,u);
+		J_c_ = robot_dynamics_.GetStackedContactJacobianPos(q);
+		J_c_dot_u_ = robot_dynamics_.GetContactAccPosStacked(q,u);
+
+		auto J_b = robot_dynamics_.GetBaseJacobian(q);
+		J_b_pos_ = J_b.block(0,0,2,kNumGenVels); // only keep x, y
+		J_b_rot_ = J_b.block(kNumPosDims,0,2,kNumGenVels); // only keep roll, pitch
+	}
+
+	// ********** //
+	// CONTROLLER // 
+	// ********** //
 
 	std::vector<std::shared_ptr<HoQpProblem>>
 		HoQpController::ConstructOptProblems(
@@ -61,6 +91,10 @@ namespace control
 
 		return opt_problems;
 	}
+
+	// ***************** //
+	// TASK CONSTRUCTION //
+	// ***************** //
 
 	std::vector<TaskDefinition> HoQpController::ConstructTasks(
 			Eigen::VectorXd q, Eigen::VectorXd u
@@ -89,7 +123,7 @@ namespace control
 		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
-			fb_eom_task,
+			//fb_eom_task,
 			//joint_torque_and_friction_task,
 			no_contact_motion_task,
 			//force_min_task,
@@ -112,13 +146,13 @@ namespace control
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
-					body_jacobian_pos_.rows(), kNumPosDims * num_contacts_
+					J_b_pos_.rows(), kNumPosDims * num_contacts_
 					);
 
-		Eigen::MatrixXd A(body_jacobian_pos_.rows(), num_decision_vars_);
-		A << body_jacobian_pos_, zero;
+		Eigen::MatrixXd A(J_b_pos_.rows(), num_decision_vars_);
+		A << J_b_pos_, zero;
 
-		Eigen::VectorXd b(body_jacobian_pos_.rows());
+		Eigen::VectorXd b(J_b_pos_.rows());
 		b << k_vel * (com_vel_des - com_vel); // TODO: missing a bunch of terms
 
 		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
@@ -137,13 +171,13 @@ namespace control
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
-					body_jacobian_rot_.rows(), kNumPosDims * num_contacts_
+					J_b_rot_.rows(), kNumPosDims * num_contacts_
 					);
 
-		Eigen::MatrixXd A(body_jacobian_rot_.rows(), num_decision_vars_);
-		A << body_jacobian_rot_, zero;
+		Eigen::MatrixXd A(J_b_rot_.rows(), num_decision_vars_);
+		A << J_b_rot_, zero;
 
-		Eigen::VectorXd b(body_jacobian_pos_.rows());
+		Eigen::VectorXd b(J_b_pos_.rows());
 		b << -k_vel * (com_vel_des); // TODO: missing a bunch of terms here
 
 		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
@@ -158,10 +192,15 @@ namespace control
 				kNumPosDims * num_contacts_, kNumPosDims * num_contacts_);
 
 		Eigen::MatrixXd A(kNumPosDims * num_contacts_, num_decision_vars_);
-		A << contact_jacobian_, zero;
+		A << J_c_, zero;
 
 		Eigen::VectorXd b(kNumPosDims * num_contacts_);
-		b << -contact_jacobian_dot_ * u;
+		b << -J_c_dot_u_ * u;
+
+		std::cout << "A:\n";
+		PrintMatrix(A);
+		std::cout << "b:\n";
+		PrintMatrix(b);
 
 		TaskDefinition no_contact_motion_task = {.A=A, .b=b};
 		return no_contact_motion_task;
@@ -202,25 +241,21 @@ namespace control
 
 	TaskDefinition HoQpController::ConstructJointTorqueTask()
 	{
-		Eigen::MatrixXd mass_matrix_j =
-			GetJointRows(mass_matrix_);
-		Eigen::MatrixXd bias_vector_j =
-			GetJointRows(bias_vector_);
-		Eigen::MatrixXd contact_jacobian_transpose =
-			contact_jacobian_.transpose();
-		Eigen::MatrixXd contact_jacobian_j_t
-			= GetJointRows(contact_jacobian_transpose);
+		Eigen::MatrixXd M_j = GetJointRows(M_);
+		Eigen::MatrixXd c_j = GetJointRows(c_);
+		Eigen::MatrixXd J_c_t = J_c_.transpose();
+		Eigen::MatrixXd J_c_j_t = GetJointRows(J_c_t);
 
-		// Positive limit
 		Eigen::MatrixXd D(kNumJoints,num_decision_vars_);
-		D << mass_matrix_j, -contact_jacobian_j_t; 
+		D << M_j, -J_c_j_t; 
 
 		Eigen::VectorXd f_max(kNumJoints);
-		f_max << max_torque_vec - bias_vector_j;
+		f_max << max_torque_vec_ - c_j;
 
 		Eigen::VectorXd f_min(kNumJoints);
-		f_min << min_torque_vec - bias_vector_j;
+		f_min << min_torque_vec_ - c_j;
 
+		// Positive and negative limit
 		Eigen::MatrixXd D_tot = ConcatenateMatrices(D,-D);
 		Eigen::VectorXd f_tot = ConcatenateVectors(f_max,-f_min);
 
@@ -230,20 +265,16 @@ namespace control
 
 	TaskDefinition HoQpController::ConstructFloatingBaseEomTask()
 	{
-		Eigen::MatrixXd mass_matrix_fb =
-			GetFloatingBaseRows(mass_matrix_);
-		Eigen::MatrixXd bias_vector_fb =
-			GetFloatingBaseRows(bias_vector_);
-		Eigen::MatrixXd contact_jacobian_transpose =
-			contact_jacobian_.transpose();
-		Eigen::MatrixXd contact_jacobian_fb_t
-			= GetFloatingBaseRows(contact_jacobian_transpose);
+		Eigen::MatrixXd M_fb = GetFloatingBaseRows(M_);
+		Eigen::MatrixXd c_fb = GetFloatingBaseRows(c_);
+		Eigen::MatrixXd J_c_t = J_c_.transpose();
+		Eigen::MatrixXd J_c_fb_t = GetFloatingBaseRows(J_c_t);
 
 		Eigen::MatrixXd A(kNumTwistCoords,num_decision_vars_);
-		A << mass_matrix_fb, -contact_jacobian_fb_t; 
+		A << M_fb, -J_c_fb_t; 
 
 		Eigen::VectorXd b(kNumTwistCoords);
-		b << -bias_vector_fb;
+		b << -c_fb;
 
 		TaskDefinition fb_eom_constraint = {.A=A, .b=b};
 		return fb_eom_constraint;
@@ -283,6 +314,10 @@ namespace control
 		return force_min_task;
 	}
 
+	// **************** //
+	// HELPER FUNCTIONS //
+	// **************** //
+
 	Eigen::MatrixXd HoQpController::GetFloatingBaseRows(
 			Eigen::MatrixXd &m
 			)
@@ -301,22 +336,6 @@ namespace control
 		return m_fb;
 	}
 
-	void HoQpController::UpdateDynamicsTerms(
-			Eigen::Matrix<double,kNumGenCoords, 1> q,
-			Eigen::Matrix<double,kNumGenVels, 1> u
-			)
-	{
-		// TODO: Assumes 4 contact points!
-		mass_matrix_ = robot_dynamics_.GetMassMatrix(q);
-		bias_vector_ = robot_dynamics_.GetBiasVector(q,u);
-		contact_jacobian_ = robot_dynamics_.GetStackedContactJacobianPos(q);
-		contact_jacobian_dot_ = robot_dynamics_
-			.GetStackedContactJacobianPosDerivative(q,u);
-		body_jacobian_pos_ = robot_dynamics_.GetBodyPosJacobian(q)
-			.block(0,0,2,kNumGenVels); // only keep x, y
-		body_jacobian_rot_ = robot_dynamics_.GetBodyRotJacobian(q)
-			.block(0,0,2,kNumGenVels); // only keep roll, pitch
-	}
 
 	// ******* //
 	// TESTING //

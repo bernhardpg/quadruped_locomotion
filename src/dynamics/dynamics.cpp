@@ -1,6 +1,7 @@
 #include "dynamics/dynamics.hpp"
 
 // TODO: Clean up when the different terms are computed. For efficiency, this should only be done once per update.
+// TODO: Clean up this class!
 
 Dynamics::Dynamics()
 {
@@ -16,6 +17,10 @@ Dynamics::Dynamics()
   // Create data required by the algorithms
 	data_ = pinocchio::Data(model_);
 }
+
+// ******** //
+// DYNAMICS //
+// ******** //
 
 Eigen::MatrixXd Dynamics::GetMassMatrix(
 		Eigen::Matrix<double,kNumGenCoords, 1> q
@@ -37,10 +42,48 @@ Eigen::VectorXd Dynamics::GetBiasVector(
 	return data_.nle;
 }
 
-void Dynamics::UpdateState()
+// Assumes that pinocchio::forwardKinematics(model_, data_, q, u, 0*u)
+// has already been called
+Eigen::VectorXd Dynamics::GetContactAcc(
+		Eigen::Matrix<double,kNumGenCoords,1> q,
+		Eigen::Matrix<double,kNumGenVels,1> u,
+		int foot_i
+		)
 {
-	//pinocchio::computeAllTerms(model_, data_, q, v);
+	Eigen::VectorXd J_dot_u =
+		pinocchio::getFrameClassicalAcceleration(
+			model_, data_, model_.getFrameId(kFeetFrames[foot_i]), 
+			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED
+			).toVector_impl();
+
+	return J_dot_u;
 }
+
+// TODO: For now this assumes that all legs are in contact
+Eigen::VectorXd Dynamics::GetContactAccPosStacked(
+		Eigen::Matrix<double,kNumGenCoords,1> q,
+		Eigen::Matrix<double,kNumGenVels,1> u
+		)
+{
+	pinocchio::forwardKinematics(model_, data_, q, u, 0*u);
+	int num_contacts = 4;
+
+	Eigen::MatrixXd J_dot_u_pos(num_contacts * kNumPosDims, 1);
+	J_dot_u_pos.setZero();
+
+	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	{
+		Eigen::VectorXd J_dot_u_pos_i_pos = GetContactAcc(q, u, foot_i)
+			.block<kNumPosDims,1>(0,0);
+		J_dot_u_pos.block<kNumPosDims,1>(kNumPosDims * foot_i,0)
+			= J_dot_u_pos_i_pos;
+	}
+	return J_dot_u_pos;
+}
+
+// ****************** //
+// FORWARD KINEMATICS // 
+// ****************** //
 
 Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
 		Eigen::Matrix<double,kNumGenCoords, 1> q
@@ -62,66 +105,38 @@ Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
 	return feet_positions;
 }
 
-Eigen::MatrixXd Dynamics::GetBodyPosJacobian(
+// *********************** //
+// DIFFERENTIAL KINEMATICS // 
+// *********************** //
+
+Eigen::MatrixXd Dynamics::GetBaseJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q
 		)
 {
-	Eigen::MatrixXd J(kNumTwistCoords,kNumGenVels);
-	J.setZero();
+	Eigen::MatrixXd J_b(kNumTwistCoords,kNumGenVels);
+	J_b.setZero();
+	// TODO: Compute jacobians in a single pass
 	pinocchio::computeFrameJacobian(
-			model_, data_, q, model_.getFrameId("base"), J 
+			model_, data_, q, model_.getFrameId("base"), J_b 
 			); 
-	Eigen::MatrixXd J_pos = J.block(0,0,kNumPosDims,J.cols());
 
-	return J_pos;
-}
-
-Eigen::MatrixXd Dynamics::GetBodyRotJacobian(
-		Eigen::Matrix<double,kNumGenCoords,1> q
-		)
-{
-	Eigen::MatrixXd J(kNumTwistCoords,kNumGenVels);
-	J.setZero();
-	pinocchio::computeFrameJacobian(
-			model_, data_, q, model_.getFrameId("base"), J 
-			);
-	Eigen::MatrixXd J_pos = J.block(kNumPosDims,0,kNumPosDims,J.cols());
-
-	return J_pos;
+	return J_b;
 }
 
 Eigen::MatrixXd Dynamics::GetContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 		)
 {
-	Eigen::MatrixXd J_with_floating_body(kNumTwistCoords,kNumGenVels);
-	J_with_floating_body.setZero();
+	Eigen::MatrixXd J_c(kNumTwistCoords,kNumGenVels);
+	J_c.setZero();
 	pinocchio::computeFrameJacobian(
 			model_, data_, q, model_.getFrameId(kFeetFrames[foot_i]), 
-			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_with_floating_body
+			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_c
 			); 
 
-	return J_with_floating_body;
+	return J_c;
 }
 
-Eigen::MatrixXd Dynamics::GetContactJacobianDerivative(
-		Eigen::Matrix<double,kNumGenCoords,1> q,
-		Eigen::Matrix<double,kNumGenVels,1> u,
-		int foot_i
-		)
-{
-	pinocchio::computeJointJacobiansTimeVariation(model_, data_, q, u);
-	
-	Eigen::MatrixXd J_dot_with_floating_body(kNumTwistCoords,kNumGenVels);
-	J_dot_with_floating_body.setZero();
-	pinocchio::getFrameJacobianTimeVariation(
-			model_, data_, model_.getFrameId(kFeetFrames[foot_i]), 
-			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED,
-			J_dot_with_floating_body
-			); 
-
-	return J_dot_with_floating_body;
-}
 
 Eigen::MatrixXd Dynamics::GetStackedContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q
@@ -129,16 +144,16 @@ Eigen::MatrixXd Dynamics::GetStackedContactJacobian(
 		// TODO: For now this assumes that all legs are in contact
 {
 	int num_contacts = 4; // TODO: replace
-	Eigen::MatrixXd J(num_contacts * kNumTwistCoords,kNumGenVels);
-	J.setZero();
+	Eigen::MatrixXd J_c(num_contacts * kNumTwistCoords,kNumGenVels);
+	J_c.setZero();
 
 	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
 	{
-		Eigen::MatrixXd J_foot_i = GetContactJacobian(q, foot_i);
-		J.block(foot_i * kNumTwistCoords,0,kNumTwistCoords,kNumGenVels)
-			= J_foot_i;
+		Eigen::MatrixXd J_c_foot_i = GetContactJacobian(q, foot_i);
+		J_c.block(foot_i * kNumTwistCoords,0,kNumTwistCoords,kNumGenVels)
+			= J_c_foot_i;
 	}
-	return J;
+	return J_c;
 }
 
 Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(
@@ -159,26 +174,6 @@ Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(
 	return J;
 }
 
-Eigen::MatrixXd Dynamics::GetStackedContactJacobianPosDerivative(
-		Eigen::Matrix<double,kNumGenCoords,1> q,
-		Eigen::Matrix<double,kNumGenVels,1> u
-		)
-		// TODO: For now this assumes that all legs are in contact
-{
-	Eigen::MatrixXd J_dot(kNumFeetCoords,kNumGenVels);
-	J_dot.setZero();
-
-	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
-	{
-		Eigen::MatrixXd J_dot_foot_i =
-			GetContactJacobianDerivative(q, u, foot_i);
-		auto J_dot_foot_i_pos =
-			J_dot_foot_i.block<kNumPosDims,kNumGenVels>(0,0);
-		J_dot.block<kNumPosDims,kNumGenVels>(kNumPosDims * foot_i,0)
-			= J_dot_foot_i_pos;
-	}
-	return J_dot;
-}
 
 void Dynamics::Test()
 {

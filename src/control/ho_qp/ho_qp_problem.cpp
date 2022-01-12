@@ -2,6 +2,7 @@
 
 // TODO: clean up use of variable 'x'
 // TODO: clean up this class and remove prints
+// TODO: Change from 'accum' to 'stacked'
 
 namespace control
 {
@@ -363,6 +364,9 @@ namespace control
 		slack_vars_solutions_.resize(num_slack_vars_);
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
+
+		std::cout << "A * z - b:\n"; // TODO: only for debugging of a single task
+		PrintMatrix(curr_task_.A * decision_vars_solutions_ - curr_task_.b);
 
 		std::cout << "A_p_accum * accum_Z_prev * z_p+1:\n";
 		PrintMatrix(accum_tasks_prev_.A * accum_Z_prev_ * decision_vars_solutions_);

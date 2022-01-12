@@ -32,35 +32,54 @@ namespace control
 			Eigen::VectorXd GetJointAccelerationCmd();
 
 		private:
-			// Constants
-			const double max_torque_ = 100; // TODO: Set the actual torque limit?
+			Dynamics robot_dynamics_; // TODO: Should this controller own its own dynamics object?
+
+			// ********* //
+			// Constants //
+			// ********* //
+
+			// TODO: Set actual torque limits and friction coeff?
+			const double max_torque_ = 100;
 			const double min_torque_ = -max_torque_; 
-			const double friction_coeff_ = 0.5;  // TODO: set more accurately?
-			const Eigen::VectorXd max_torque_vec
-				= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
-			const Eigen::VectorXd min_torque_vec
-				= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
+			const double friction_coeff_ = 0.5; 
+			const Eigen::VectorXd max_torque_vec_;
+			const Eigen::VectorXd min_torque_vec_;
+
+			// ********************* //
+			// DYNAMICS & KINEMATICS // 
+			// ********************* //
+
+			Eigen::MatrixXd M_;
+			Eigen::VectorXd c_;
+			Eigen::MatrixXd J_c_;
+			Eigen::VectorXd J_c_dot_u_;
+			Eigen::MatrixXd J_b_pos_;
+			Eigen::MatrixXd J_b_rot_;
+
+			void UpdateDynamicsTerms(
+					Eigen::Matrix<double,kNumGenCoords, 1> q,
+					Eigen::Matrix<double,kNumGenVels, 1> u
+					);
+
+			// ********** //
+			// CONTROLLER // 
+			// ********** //
 
 			int num_tasks_;
 			int num_contacts_;
 			int	num_decision_vars_;
 
-			bool run_once_ = false; // TODO: Only for dev
-			Dynamics robot_dynamics_; // TODO: Should this own its own dynamics object?
-
 			Eigen::VectorXd q_j_ddot_cmd_;
-
-			Eigen::MatrixXd mass_matrix_;
-			Eigen::MatrixXd bias_vector_;
-			Eigen::MatrixXd contact_jacobian_;
-			Eigen::MatrixXd contact_jacobian_dot_;
-			Eigen::MatrixXd body_jacobian_pos_;
-			Eigen::MatrixXd body_jacobian_rot_;
 
 			std::vector<std::shared_ptr<HoQpProblem>>
 			ConstructOptProblems(
 					std::vector<TaskDefinition> &tasks
 					);
+
+			// ***************** //
+			// TASK CONSTRUCTION //
+			// ***************** //
+
 			std::vector<TaskDefinition> ConstructTasks(
 					Eigen::VectorXd q, Eigen::VectorXd u
 					);
@@ -79,13 +98,13 @@ namespace control
 			TaskDefinition ConstructForceMinimizationTask();
 			TaskDefinition ConstructJointAccMinimizationTask();
 
+			// **************** //
+			// HELPER FUNCTIONS //
+			// **************** //
+
 			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
 			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);
 
-			void UpdateDynamicsTerms(
-					Eigen::Matrix<double,kNumGenCoords, 1> q,
-					Eigen::Matrix<double,kNumGenVels, 1> u
-					);
 
 
 			// ******* //
