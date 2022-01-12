@@ -17,12 +17,17 @@ namespace control
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
 		ros::Time time_begin = ros::Time::now();
+
+		is_higher_pri_problem_defined_ = higher_pri_problem_ != nullptr;
+		LoadPrevProblemData();
 		InitTaskVariables();
+
+		ROS_INFO("Num decision variables: %d", num_decision_vars_);
+		ROS_INFO("Num slack variables: %d", num_slack_vars_);
 		ros::Duration duration = ros::Time::now() - time_begin;
 		ROS_INFO("QP: Spent %lf secs on init task variables", duration.toSec());		
 
 		time_begin = ros::Time::now();
-		SetPrevProblemValues();
 		duration = ros::Time::now() - time_begin;
 		ROS_INFO("QP: Spent %lf secs on getting prev values", duration.toSec());		
 
@@ -49,6 +54,8 @@ namespace control
 		AccumulateSlackSolutions();
 		duration = ros::Time::now() - time_begin;
 		ROS_INFO("QP: Spent %lf secs on accumulating slack vars", duration.toSec());		
+
+		PrintMatrixSize("Next null space: ", accum_Z_);
 	}
 
 	// ***************** //
@@ -112,6 +119,22 @@ namespace control
 	// MATRIX INITIALIZATION //
 	// ********************* //
 
+	void HoQpProblem::InitTaskVariables()
+	{
+
+		num_slack_vars_ = curr_task_.D.rows();
+		has_eq_constraints_ = curr_task_.A.rows() > 0;
+		has_ineq_constraints_ = num_slack_vars_ > 0;
+
+		eps_matrix_ = eps_ * Eigen::MatrixXd::Identity(num_decision_vars_,num_decision_vars_);
+		eye_nv_nv_ = Eigen::MatrixXd::Identity(
+					num_slack_vars_, num_slack_vars_
+					);
+		zero_nv_nx_ = Eigen::MatrixXd::Zero(
+					num_slack_vars_, num_decision_vars_
+					);
+	}
+
 	void HoQpProblem::AccumulateTasks()
 	{
 		accum_tasks_ = ConcatenateTasks(curr_task_, accum_tasks_prev_);
@@ -132,12 +155,20 @@ namespace control
 		}
 	}
 
-	void HoQpProblem::SetPrevProblemValues()
+	void HoQpProblem::LoadPrevProblemData()
 	{
 		if (is_higher_pri_problem_defined_)
+		{
 			InitPrevProblemValuesFromPrevProblem();
+			num_decision_vars_ = accum_Z_prev_.cols();
+		}
 		else
+		{
+			num_decision_vars_ = std::max(
+					curr_task_.A.cols(), curr_task_.D.cols()
+					);
 			InitPrevProblemValuesToDefault();
+		}
 	}
 
 	void HoQpProblem::InitPrevProblemValuesToDefault()
@@ -213,11 +244,8 @@ namespace control
 
 	void HoQpProblem::ConstructNullspaceMatrixFromPrev()
 	{
-		ros::Time time_begin = ros::Time::now();
 		Eigen::MatrixXd Null_of_A_curr_times_accum_Z_prev_ =
 			CalcNullSpaceProjMatrix(curr_task_.A * accum_Z_prev_);
-		ros::Duration duration = ros::Time::now() - time_begin;
-		ROS_INFO("Nullspace: Spent %lf secs on constructing nullspace", duration.toSec());		
 
 		accum_Z_ = accum_Z_prev_ * Null_of_A_curr_times_accum_Z_prev_;
 	}
@@ -384,15 +412,6 @@ namespace control
 		bool is_convex = true;
 
 		ros::Time time_begin = ros::Time::now();
-//		drake::symbolic::Expression cost = 
-//			0.5 * all_decision_vars.transpose() * H_ * all_decision_vars
-//			+ (c_.transpose() * all_decision_vars)(0); 
-//	
-//		// H_ is known to be positive definite due to its structure
-//		prog_.AddQuadraticCost(cost, is_convex);
-//		ros::Duration duration = ros::Time::now() - time_begin;
-//		ROS_INFO("QPFormulate: Spent %lf secs on symbolic quad cost calc", duration.toSec());		
-//
 		// H_ is known to be positive definite due to its structure
 		prog_.AddQuadraticCost(H_, c_, all_decision_vars, is_convex);
 		ros::Duration duration = ros::Time::now() - time_begin;
@@ -401,11 +420,16 @@ namespace control
 
 	void HoQpProblem::SolveQp()
 	{
+		PrintMatrixSize("H_", H_);
+		PrintMatrixSize("c_", c_);
+		PrintMatrixSize("D_", D_);
+		PrintMatrixSize("f_", f_);
+
 		result_ = Solve(prog_);
-//		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
-//			<< "\nFound solution: " << result_.is_success()
-//			<< "\nSolution result: " << result_.get_solution_result()
-//			<< std::endl);
+		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
+			<< "\nFound solution: " << result_.is_success()
+			<< "\nSolution result: " << result_.get_solution_result()
+			<< std::endl);
 
 		assert(result_.is_success());
 		Eigen::VectorXd sol = result_.GetSolution();
@@ -416,28 +440,6 @@ namespace control
 		slack_vars_solutions_.resize(num_slack_vars_);
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
-	}
-
-	// **************** //
-	// HELPER FUNCTIONS //
-	// **************** //
-
-	void HoQpProblem::InitTaskVariables()
-	{
-		num_decision_vars_ =
-			std::max(curr_task_.A.cols(), curr_task_.D.cols());
-		num_slack_vars_ = curr_task_.D.rows();
-		has_eq_constraints_ = curr_task_.A.rows() > 0;
-		has_ineq_constraints_ = num_slack_vars_ > 0;
-		is_higher_pri_problem_defined_ = higher_pri_problem_ != nullptr;
-
-		eps_matrix_ = eps_ * Eigen::MatrixXd::Identity(num_decision_vars_,num_decision_vars_);
-		eye_nv_nv_ = Eigen::MatrixXd::Identity(
-					num_slack_vars_, num_slack_vars_
-					);
-		zero_nv_nx_ = Eigen::MatrixXd::Zero(
-					num_slack_vars_, num_decision_vars_
-					);
 	}
 }
 

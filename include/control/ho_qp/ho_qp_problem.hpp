@@ -91,10 +91,11 @@ namespace control
 			// MATRIX INITIALIZATION //
 			// ********************* //
 
+			void InitTaskVariables();
 			void AccumulateTasks();
 			void AccumulateSlackSolutions();
 
-			void SetPrevProblemValues();
+			void LoadPrevProblemData();
 			void InitPrevProblemValuesToDefault();
 			TaskDefinition CreateEmptyTask(int num_decision_vars);
 			void InitPrevProblemValuesFromPrevProblem();
@@ -121,10 +122,5 @@ namespace control
 			void AddQuadraticCost();
 			void SolveQp();
 
-			// **************** //
-			// HELPER FUNCTIONS //
-			// **************** //
-
-			void InitTaskVariables();
 	};
 }

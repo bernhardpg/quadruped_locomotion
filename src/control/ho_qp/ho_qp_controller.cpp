@@ -227,7 +227,6 @@ namespace control
 		Eigen::VectorXd f_max(kNumJoints);
 		f_max << max_torque_vec - bias_vector_j;
 
-		//TaskDefinition joint_torque_constraint = {.D=D, .f=f_max};
 		Eigen::VectorXd f_min(kNumJoints);
 		f_min << min_torque_vec - bias_vector_j;
 
