@@ -34,6 +34,10 @@ namespace control
 			const double max_torque_ = 100; // TODO: Set the actual torque limit?
 			const double min_torque_ = -max_torque_; 
 			const double friction_coeff_ = 0.5;  // TODO: set more accurately?
+			const Eigen::VectorXd max_torque_vec
+				= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
+			const Eigen::VectorXd min_torque_vec
+				= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
 			int num_tasks_;
 			int num_contacts_;
 			int	num_decision_vars_;
@@ -67,6 +71,7 @@ namespace control
 			TaskDefinition ConstructComRotTrajTask(
 					Eigen::VectorXd ang_vel // TODO: rename 
 					);
+			TaskDefinition ConstructForceMinimizationTask();
 
 			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
 			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);

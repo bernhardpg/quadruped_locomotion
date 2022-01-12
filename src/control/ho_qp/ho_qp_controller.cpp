@@ -91,13 +91,14 @@ namespace control
 			ConstructComRotTrajTask(fb_ang_vel);
 		TaskDefinition com_traj_task = 
 			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
+		TaskDefinition force_min_task = ConstructForceMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
 			fb_eom_task,
 			joint_torque_and_friction_task,
 			no_contact_motion_task,
-			com_traj_task
-			// TODO: Add force minimization task
+			com_traj_task,
+			force_min_task
 		};
 
 		return tasks;
@@ -214,12 +215,6 @@ namespace control
 		Eigen::MatrixXd contact_jacobian_j_t
 			= GetJointRows(contact_jacobian_transpose);
 
-		// TODO: Store these for more efficiency?
-		Eigen::VectorXd max_torque_vec
-			= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
-		Eigen::VectorXd min_torque_vec
-			= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
-
 		// Positive limit
 		Eigen::MatrixXd D(kNumJoints,num_decision_vars_);
 		D << mass_matrix_j, -contact_jacobian_j_t; 
@@ -256,6 +251,23 @@ namespace control
 
 		TaskDefinition fb_eom_constraint = {.A=A, .b=b};
 		return fb_eom_constraint;
+	}
+
+	TaskDefinition HoQpController::ConstructForceMinimizationTask()
+	{
+		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
+				kNumPosDims * num_contacts_, kNumGenVels 
+				);
+		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
+				kNumPosDims * num_contacts_, kNumPosDims * num_contacts_
+				);
+		Eigen::MatrixXd A(kNumPosDims * num_contacts_, num_decision_vars_);
+		A << zero, eye;
+
+		Eigen::VectorXd b = Eigen::VectorXd::Zero(A.rows());
+
+		TaskDefinition force_min_task = {.A=A, .b=b};
+		return force_min_task;
 	}
 
 	Eigen::MatrixXd HoQpController::GetFloatingBaseRows(

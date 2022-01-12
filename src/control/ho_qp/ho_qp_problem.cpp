@@ -16,14 +16,12 @@ namespace control
 			)
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
+		ROS_INFO("=== NEW TASK ===");
 		ros::Time time_begin = ros::Time::now();
-
 		is_higher_pri_problem_defined_ = higher_pri_problem_ != nullptr;
 		LoadPrevProblemData();
 		InitTaskVariables();
 
-		ROS_INFO("Num decision variables: %d", num_decision_vars_);
-		ROS_INFO("Num slack variables: %d", num_slack_vars_);
 		ros::Duration duration = ros::Time::now() - time_begin;
 		ROS_INFO("QP: Spent %lf secs on init task variables", duration.toSec());		
 
@@ -55,7 +53,6 @@ namespace control
 		duration = ros::Time::now() - time_begin;
 		ROS_INFO("QP: Spent %lf secs on accumulating slack vars", duration.toSec());		
 
-		PrintMatrixSize("Next null space: ", accum_Z_);
 	}
 
 	// ***************** //
@@ -104,16 +101,6 @@ namespace control
 		return accum_slack_vars_;
 	}
 
-	variable_vector_t HoQpProblem::GetAllDecisionVars()
-	{
-		int tot_num_decision_vars =
-			num_decision_vars_ + num_slack_vars_;
-		variable_vector_t all_decision_vars(tot_num_decision_vars);
-		all_decision_vars << decision_vars_, 
-										     slack_vars_;
-		return all_decision_vars;
-	}
-
 
 	// ********************* //
 	// MATRIX INITIALIZATION //
@@ -121,7 +108,6 @@ namespace control
 
 	void HoQpProblem::InitTaskVariables()
 	{
-
 		num_slack_vars_ = curr_task_.D.rows();
 		has_eq_constraints_ = curr_task_.A.rows() > 0;
 		has_ineq_constraints_ = num_slack_vars_ > 0;
@@ -371,6 +357,7 @@ namespace control
 		time_begin = ros::Time::now();
 		CreateDecisionVars();
 		CreateSlackVars();
+		SetAllDecisionVars();
 		duration = ros::Time::now() - time_begin;
 		ROS_INFO("QPFormulate: Spent %lf secs on dec and slack vars", duration.toSec());		
 
@@ -400,30 +387,33 @@ namespace control
 						);
 	}
 
+	void HoQpProblem::SetAllDecisionVars()
+	{
+		all_decision_vars_ = variable_vector_t(
+				num_decision_vars_ + num_slack_vars_
+				);
+		all_decision_vars_ << decision_vars_, 
+										      slack_vars_;
+	}
+
 	void HoQpProblem::AddIneqConstraints()
 	{
 		auto inf_vector = kInf * Eigen::VectorXd::Ones(f_.rows());
-		prog_.AddLinearConstraint(D_, -inf_vector, f_, GetAllDecisionVars());
+		prog_.AddLinearConstraint(D_, -inf_vector, f_, all_decision_vars_); 
 	}
 
 	void HoQpProblem::AddQuadraticCost()
 	{
-		auto all_decision_vars = GetAllDecisionVars();
-		bool is_convex = true;
-
-		ros::Time time_begin = ros::Time::now();
 		// H_ is known to be positive definite due to its structure
-		prog_.AddQuadraticCost(H_, c_, all_decision_vars, is_convex);
-		ros::Duration duration = ros::Time::now() - time_begin;
-		ROS_INFO("QPFormulate: Spent %lf secs on alternative quad cost", duration.toSec());		
+		prog_.AddQuadraticCost(H_, c_, all_decision_vars_, true);
 	}
 
 	void HoQpProblem::SolveQp()
 	{
-		PrintMatrixSize("H_", H_);
-		PrintMatrixSize("c_", c_);
-		PrintMatrixSize("D_", D_);
-		PrintMatrixSize("f_", f_);
+		//PrintMatrixSize("H_", H_);
+		//PrintMatrixSize("c_", c_);
+		//PrintMatrixSize("D_", D_);
+		//PrintMatrixSize("f_", f_);
 
 		result_ = Solve(prog_);
 		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()

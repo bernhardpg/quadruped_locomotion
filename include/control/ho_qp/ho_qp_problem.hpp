@@ -42,7 +42,7 @@ namespace control
 			Eigen::VectorXd GetSlackSolutions();
 			Eigen::VectorXd GetAccumSlackSolutions();
 
-			variable_vector_t GetAllDecisionVars(); // TODO rename
+			void SetAllDecisionVars(); // TODO rename
 
 		private:
 			drake::solvers::MathematicalProgram prog_; 
@@ -63,6 +63,7 @@ namespace control
 
 			variable_vector_t decision_vars_;
 			variable_vector_t slack_vars_;
+			variable_vector_t all_decision_vars_;
 
 			Eigen::VectorXd decision_vars_solutions_;
 			Eigen::VectorXd slack_vars_solutions_;
