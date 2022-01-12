@@ -193,6 +193,9 @@ namespace control {
 				break;
 			case kHoQpController:
 				{
+					std::cout << "u_:\n";
+					PrintMatrix(u_.transpose());
+
 					ho_qp_controller_.Update(q_,u_);
 					Eigen::VectorXd q_j_ddot_cmd =
 						ho_qp_controller_.GetJointAccelerationCmd();
@@ -212,7 +215,7 @@ namespace control {
 		q_j_cmd_ = EvalPosTrajAtTime(
 				q_j_cmd_traj_, seconds_in_mode_
 				);
-		q_j_dot_cmd_ = EvalPosTrajAtTime(
+		q_j_dot_cmd_ = EvalVelTrajAtTime(
 				q_j_dot_cmd_traj_, seconds_in_mode_
 				);
 	}
@@ -261,7 +264,7 @@ namespace control {
 		Eigen::MatrixXd J_constraint = robot_dynamics_
 			.GetStackedContactJacobianPos(q_);
 		Eigen::MatrixXd N_constraint =
-			CalcNullSpaceProjMatrix(J_constraint);
+			CalcSquareNullSpaceProjMatrix(J_constraint);
 
 		Eigen::MatrixXd w_task = EvalVelTrajAtTime(
 				task_vel_traj_, seconds_in_mode_

@@ -82,18 +82,23 @@ Eigen::MatrixXd CalcPseudoInverse(Eigen::MatrixXd A)
 	return CalcPseudoInverse(A, kEps); 
 }
 
-Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
+Eigen::MatrixXd CalcSquareNullSpaceProjMatrix(Eigen::MatrixXd A)
 {
 	assert((A.rows() > 0) && (A.cols() > 0));
 
 	// Alternative computation approaches can be found here:
 	// https://eigen.tuxfamily.org/dox/group__LeastSquares.html
-//	Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
-//	Eigen::MatrixXd eye =
-//		Eigen::MatrixXd::Identity(A.cols(), A.cols());
-//
-//	Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
+	Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
+	Eigen::MatrixXd eye =
+		Eigen::MatrixXd::Identity(A.cols(), A.cols());
 
+	Eigen::MatrixXd null_space_projection_matrix = eye - A_inv * A;
+	return null_space_projection_matrix;
+}
+
+Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
+{
+	assert((A.rows() > 0) && (A.cols() > 0));
 	Eigen::MatrixXd null_space_projection_matrix = A.fullPivLu().kernel();
 	return null_space_projection_matrix;
 }

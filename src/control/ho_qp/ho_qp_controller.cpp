@@ -19,12 +19,19 @@ namespace control
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
+		ROS_INFO("===== NEW UPDATE =====");
 		UpdateDynamicsTerms(q,u);
 		std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
 		std::vector<std::shared_ptr<HoQpProblem>>
 			opt_problems = ConstructOptProblems(tasks);
 		Eigen::VectorXd sol = opt_problems.back()->GetSolution();
+
+		CheckSolutionValid(tasks[0], sol);
+		CheckSolutionValid(tasks[1], sol);
+		//CheckSolutionValid(tasks[2], sol);
+
 		q_j_ddot_cmd_ = sol.block(kNumTwistCoords,0,kNumJoints,1);
+		//PrintMatrix(q_j_ddot_cmd_.transpose());
 	}
 
 	Eigen::VectorXd HoQpController::GetJointAccelerationCmd()
@@ -77,14 +84,17 @@ namespace control
 			ConstructComRotTrajTask(fb_ang_vel);
 		TaskDefinition com_traj_task = 
 			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
+
 		TaskDefinition force_min_task = ConstructForceMinimizationTask();
+		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
 			fb_eom_task,
 			//joint_torque_and_friction_task,
-			//no_contact_motion_task,
+			no_contact_motion_task,
+			//force_min_task,
+			//acc_min_task,
 			//com_traj_task,
-			force_min_task
 		};
 
 		return tasks;
@@ -237,6 +247,23 @@ namespace control
 
 		TaskDefinition fb_eom_constraint = {.A=A, .b=b};
 		return fb_eom_constraint;
+	}
+
+	TaskDefinition HoQpController::ConstructJointAccMinimizationTask()
+	{
+		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
+				kNumGenVels, kNumGenVels
+				);
+		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
+				kNumGenVels, kNumPosDims * num_contacts_
+				);
+		Eigen::MatrixXd A(kNumGenVels, num_decision_vars_);
+		A << eye, zero;
+
+		Eigen::VectorXd b = Eigen::VectorXd::Zero(A.rows());
+
+		TaskDefinition acc_min_task = {.A=A, .b=b};
+		return acc_min_task;
 	}
 
 	TaskDefinition HoQpController::ConstructForceMinimizationTask()

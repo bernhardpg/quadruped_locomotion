@@ -16,6 +16,7 @@
 
 	<node pkg="quadruped_locomotion" type="joint_state_publisher" output="screen" name="joint_state_publisher">
 		<remap from="joint_positions" to="q_j_cmd"/>
+		<remap from="joint_velocities" to="q_j_dot_cmd"/>
 	</node>
 
   <!-- Robot state publisher -->

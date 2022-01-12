@@ -32,8 +32,6 @@ namespace control
 
 			// TODO: Replace getters with direct variables for efficiency?
 			TaskDefinition GetAccumTasks();
-			Eigen::MatrixXd GetAccumD();
-			Eigen::VectorXd GetAccumF();
 			Eigen::MatrixXd GetAccumNullspaceMatrix();
 
 			int GetAccumNumSlackVars();
@@ -55,7 +53,7 @@ namespace control
 			bool is_higher_pri_problem_defined_; 
 
 			// Convenience matrices that are used multiple times
-			const double eps_ = 1e-7;
+			const double eps_ = 1e-9;
 			Eigen::MatrixXd eps_matrix_; 
 			Eigen::MatrixXd eye_nv_nv_;
 			Eigen::MatrixXd zero_nv_nx_;

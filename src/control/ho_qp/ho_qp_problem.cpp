@@ -35,16 +35,6 @@ namespace control
 		return accum_tasks_;
 	}
 
-	Eigen::MatrixXd HoQpProblem::GetAccumD()
-	{
-		return accum_tasks_.D;
-	}
-
-	Eigen::VectorXd HoQpProblem::GetAccumF()
-	{
-		return accum_tasks_.f;
-	}
-
 	Eigen::MatrixXd HoQpProblem::GetAccumNullspaceMatrix()
 	{
 		return accum_Z_;
@@ -357,6 +347,13 @@ namespace control
 				<< std::endl);
 		}
 
+		std::cout << "num_decision_vars_: " << num_decision_vars_ << std::endl;
+		std::cout << "num_slack_vars_: " << num_slack_vars_ << std::endl;
+		PrintMatrixSize("H_",H_);
+		PrintMatrixSize("c_",c_);
+		PrintMatrixSize("D_",D_);
+		PrintMatrixSize("f_",f_);
+
 		assert(result_.is_success());
 		Eigen::VectorXd sol = result_.GetSolution();
 
@@ -366,6 +363,9 @@ namespace control
 		slack_vars_solutions_.resize(num_slack_vars_);
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
+
+		std::cout << "A_p_accum * accum_Z_prev * z_p+1:\n";
+		PrintMatrix(accum_tasks_prev_.A * accum_Z_prev_ * decision_vars_solutions_);
 	}
 }
 

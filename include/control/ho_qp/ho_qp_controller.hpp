@@ -77,6 +77,7 @@ namespace control
 					Eigen::VectorXd ang_vel // TODO: rename 
 					);
 			TaskDefinition ConstructForceMinimizationTask();
+			TaskDefinition ConstructJointAccMinimizationTask();
 
 			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
 			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);
