@@ -29,8 +29,10 @@ namespace control
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);
+			Eigen::VectorXd GetJointAccelerationCmd();
 
 		private:
+			// Constants
 			const double max_torque_ = 100; // TODO: Set the actual torque limit?
 			const double min_torque_ = -max_torque_; 
 			const double friction_coeff_ = 0.5;  // TODO: set more accurately?
@@ -38,12 +40,15 @@ namespace control
 				= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
 			const Eigen::VectorXd min_torque_vec
 				= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
+
 			int num_tasks_;
 			int num_contacts_;
 			int	num_decision_vars_;
 
 			bool run_once_ = false; // TODO: Only for dev
 			Dynamics robot_dynamics_; // TODO: Should this own its own dynamics object?
+
+			Eigen::VectorXd q_j_ddot_cmd_;
 
 			Eigen::MatrixXd mass_matrix_;
 			Eigen::MatrixXd bias_vector_;

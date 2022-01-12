@@ -98,7 +98,7 @@ Eigen::MatrixXd Dynamics::GetContactJacobian(
 	J_with_floating_body.setZero();
 	pinocchio::computeFrameJacobian(
 			model_, data_, q, model_.getFrameId(kFeetFrames[foot_i]), 
-			J_with_floating_body
+			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_with_floating_body
 			); 
 
 	return J_with_floating_body;

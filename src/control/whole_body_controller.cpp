@@ -192,7 +192,15 @@ namespace control {
 				SupportConsistentControl();
 				break;
 			case kHoQpController:
-				ho_qp_controller_.Update(q_,u_);
+				{
+					ho_qp_controller_.Update(q_,u_);
+					Eigen::VectorXd q_j_ddot_cmd =
+						ho_qp_controller_.GetJointAccelerationCmd();
+					q_j_ddot_cmd_integrator_.Integrate(q_j_ddot_cmd);
+					q_j_dot_cmd_ = q_j_ddot_cmd_integrator_.GetIntegral();
+					q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
+					q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
+				}
 				break;
 			default:
 				break;
@@ -279,25 +287,38 @@ namespace control {
 		switch(target_mode)
 		{
 			case kIdle:
-				ROS_INFO("Setting mode to IDLE");
-				SetJointInitialConfigTraj();
-				control_mode_ = kJointTracking; 
+				{
+					ROS_INFO("Setting mode to IDLE");
+					SetJointInitialConfigTraj();
+					control_mode_ = kJointTracking; 
+				}
 				break;
 			case kStandup:
-				ROS_INFO("Setting mode to STANDUP");
-				q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-				SetComStandupTraj();
-				control_mode_ = kSupportConsistentTracking;
+				{
+					ROS_INFO("Setting mode to STANDUP");
+					q_j_dot_cmd_integrator_.Reset();
+					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
+					SetComStandupTraj();
+					control_mode_ = kSupportConsistentTracking;
+				}
 				break;
 			case kDance:
-				ROS_INFO("Setting mode to DANCE");
-				q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-				SetDanceTraj();
-				control_mode_ = kSupportConsistentTracking;
+				{
+					ROS_INFO("Setting mode to DANCE");
+					q_j_dot_cmd_integrator_.Reset();
+					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
+					SetDanceTraj();
+					control_mode_ = kSupportConsistentTracking;
+				}
 				break;
 			case kWalk:
-				ROS_INFO("Setting mode to WALK");
-				control_mode_ = kHoQpController;
+				{
+					ROS_INFO("Setting mode to WALK");
+					q_j_dot_cmd_integrator_.Reset();
+					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
+					q_j_ddot_cmd_integrator_.SetIntegral(q_j_dot_);
+					control_mode_ = kHoQpController;
+				}
 				break;
 			default:
 				break;

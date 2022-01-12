@@ -29,7 +29,7 @@ namespace control
 			~WholeBodyController();
 
 		private:
-			bool print_frequency_ = true;
+			bool print_frequency_ = false;
 
 			ros::NodeHandle ros_node_;
 			std::string model_name_;
@@ -96,6 +96,7 @@ namespace control
 			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
 
 			Integrator q_j_dot_cmd_integrator_;
+			Integrator q_j_ddot_cmd_integrator_;
 
 			// ************* //
 			// STATE MACHINE // 
@@ -180,7 +181,6 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
-			void PrintMatrix(Eigen::MatrixXd matr);
 			Eigen::MatrixXd EvalPosTrajAtTime(
 					drake::trajectories::PiecewisePolynomial<double> traj,
 					double curr_time);

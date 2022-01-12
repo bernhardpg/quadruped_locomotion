@@ -24,6 +24,12 @@ namespace control
 		std::vector<std::shared_ptr<HoQpProblem>>
 			opt_problems = ConstructOptProblems(tasks);
 		Eigen::VectorXd sol = opt_problems.back()->GetSolution();
+		q_j_ddot_cmd_ = sol.block(kNumTwistCoords,0,kNumJoints,1);
+	}
+
+	Eigen::VectorXd HoQpController::GetJointAccelerationCmd()
+	{
+		return q_j_ddot_cmd_;
 	}
 
 	std::vector<std::shared_ptr<HoQpProblem>>
@@ -75,9 +81,9 @@ namespace control
 
 		std::vector<TaskDefinition> tasks{
 			fb_eom_task,
-			joint_torque_and_friction_task,
-			no_contact_motion_task,
-			com_traj_task,
+			//joint_torque_and_friction_task,
+			//no_contact_motion_task,
+			//com_traj_task,
 			force_min_task
 		};
 
