@@ -23,44 +23,84 @@ namespace control
 		{
 			run_once_ = true;
 
+			ros::Time time_begin = ros::Time::now();
 			UpdateDynamicsTerms(q,u);
-			TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
-			TaskDefinition joint_torque_task = ConstructJointTorqueTask();
-			TaskDefinition friction_cone_task = ConstructFrictionConeTask();
+			ros::Duration duration = ros::Time::now() - time_begin;
+			ROS_INFO("Spent %lf secs on dynamic terms", duration.toSec());		
 
-			TaskDefinition joint_torque_and_friction_task =
-				ConcatenateTasks(joint_torque_task, friction_cone_task);
+			time_begin = ros::Time::now();
+			std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
+			duration = ros::Time::now() - time_begin;
+			ROS_INFO("Spent %lf secs on constructing tasks", duration.toSec());		
+			time_begin = ros::Time::now();
+			std::vector<std::shared_ptr<HoQpProblem>>
+				opt_problems = ConstructOptProblems(tasks);
+			duration = ros::Time::now() - time_begin;
+			ROS_INFO("Spent %lf secs on solving qps", duration.toSec());		
 
-			TaskDefinition no_contact_motion_task =
-				ConstructNoContactMotionTask(u);
-
-			auto fb_lin_vel = u.block(0,0,2,1);
-			TaskDefinition com_pos_traj_task =
-				ConstructComPosTrajTask(fb_lin_vel);
-
-			auto fb_ang_vel = u.block(kNumPosDims,0,2,1);
-			TaskDefinition com_rot_traj_task =
-				ConstructComRotTrajTask(fb_ang_vel);
-
-			TaskDefinition com_traj_task = 
-				ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
-
-			// TODO: this should be a function
-			HoQpProblem fb_eom_prob_1(fb_eom_task);
-			HoQpProblem fb_eom_prob_2(
-					joint_torque_and_friction_task, &fb_eom_prob_1
-					);
-			HoQpProblem fb_eom_prob_3(
-					no_contact_motion_task, &fb_eom_prob_2
-					);
-			HoQpProblem fb_eom_prob_4(
-					com_traj_task, &fb_eom_prob_3
-					);
-			Eigen::VectorXd sol = fb_eom_prob_4.GetSolution();
-
-			//CheckSolutionValid(fb_eom_task, sol);
+			time_begin = ros::Time::now();
+			Eigen::VectorXd sol = opt_problems.back()->GetSolution();
+			duration = ros::Time::now() - time_begin;
+			ROS_INFO("Spent %lf secs on getting solution", duration.toSec());		
 
 		}
+	}
+
+	std::vector<std::shared_ptr<HoQpProblem>>
+		HoQpController::ConstructOptProblems(
+			std::vector<TaskDefinition> &tasks
+			)
+	{
+		std::vector<std::shared_ptr<HoQpProblem>>
+			opt_problems(tasks.size());
+
+		opt_problems[0] =
+			std::shared_ptr<HoQpProblem>(new HoQpProblem(tasks[0]));
+		for (int task_i = 1; task_i < tasks.size(); ++task_i)
+		{
+			opt_problems[task_i] =
+				std::shared_ptr<HoQpProblem>(
+						new HoQpProblem(
+							tasks[task_i], opt_problems[task_i - 1]
+							)
+						);
+		}
+
+		return opt_problems;
+	}
+
+	std::vector<TaskDefinition> HoQpController::ConstructTasks(
+			Eigen::VectorXd q, Eigen::VectorXd u
+			)
+	{
+		TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
+
+		TaskDefinition joint_torque_task = ConstructJointTorqueTask();
+		TaskDefinition friction_cone_task = ConstructFrictionConeTask();
+		TaskDefinition joint_torque_and_friction_task =
+			ConcatenateTasks(joint_torque_task, friction_cone_task);
+
+		TaskDefinition no_contact_motion_task =
+			ConstructNoContactMotionTask(u);
+
+		auto fb_lin_vel = u.block(0,0,2,1);
+		TaskDefinition com_pos_traj_task =
+			ConstructComPosTrajTask(fb_lin_vel);
+		auto fb_ang_vel = u.block(kNumPosDims,0,2,1);
+		TaskDefinition com_rot_traj_task =
+			ConstructComRotTrajTask(fb_ang_vel);
+		TaskDefinition com_traj_task = 
+			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
+
+		std::vector<TaskDefinition> tasks{
+			fb_eom_task,
+			joint_torque_and_friction_task,
+			no_contact_motion_task,
+			com_traj_task
+			// TODO: Add force minimization task
+		};
+
+		return tasks;
 	}
 
 	TaskDefinition HoQpController::ConstructComPosTrajTask(
@@ -80,9 +120,6 @@ namespace control
 
 		Eigen::MatrixXd A(body_jacobian_pos_.rows(), num_decision_vars_);
 		A << body_jacobian_pos_, zero;
-
-		std::cout << "body_jacobian_pos:\n";
-		PrintMatrix(body_jacobian_pos_);
 
 		Eigen::VectorXd b(body_jacobian_pos_.rows());
 		b << k_vel * (com_vel_des - com_vel); // TODO: missing a bunch of terms
@@ -108,9 +145,6 @@ namespace control
 
 		Eigen::MatrixXd A(body_jacobian_rot_.rows(), num_decision_vars_);
 		A << body_jacobian_rot_, zero;
-
-		std::cout << "body_jacobian_rot:\n";
-		PrintMatrix(body_jacobian_rot_);
 
 		Eigen::VectorXd b(body_jacobian_pos_.rows());
 		b << -k_vel * (com_vel_des); // TODO: missing a bunch of terms here
@@ -206,9 +240,6 @@ namespace control
 
 	TaskDefinition HoQpController::ConstructFloatingBaseEomTask()
 	{
-		std::cout << "mass_matrix_:" << std::endl;
-		PrintMatrix(mass_matrix_);
-
 		Eigen::MatrixXd mass_matrix_fb =
 			GetFloatingBaseRows(mass_matrix_);
 		Eigen::MatrixXd bias_vector_fb =
@@ -267,207 +298,207 @@ namespace control
 	// TESTING //
 	// ******* //
 	// TODO: Just placeholder test code
-	void HoQpController::TestEomConstraint()
-	{
-		TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
-
-		Eigen::VectorXd sol_lp = SolveWithLinearProgram(fb_eom_task);
-		CheckSolutionValid(fb_eom_task, sol_lp);
-
-		PrintTask(fb_eom_task);
-		HoQpProblem fb_eom_prob(fb_eom_task);
-		Eigen::VectorXd sol = fb_eom_prob.GetSolution();
-		CheckSolutionValid(fb_eom_task, sol);
-
-		run_once_ = true;
-	}
-	void HoQpController::TestSingleEqTask()
-	{
-		int num_decision_vars = 5;
-
-		Eigen::MatrixXd A(2,num_decision_vars);
-		A << -1,1,0,3,3,
-					0,2,3,1,0;
-		Eigen::VectorXd b(2);
-		b << 1, 10;
-
-		TaskDefinition test_task_eq = {.A=A, .b=b};
-
-		Eigen::VectorXd sol = SolveWithLinearProgram(test_task_eq);
-		CheckSolutionValid(test_task_eq, sol);
-
-		HoQpProblem test_qp_problem = HoQpProblem(test_task_eq);
-
-		Eigen::VectorXd sol_ho_qp = test_qp_problem.GetSolution();
-		CheckSolutionValid(test_task_eq, sol_ho_qp);
-	}
-	//
-	void HoQpController::TestTwoTasksEqFirst()
-	{
-		int num_decision_vars = 2;
-
-		Eigen::MatrixXd D1(1,num_decision_vars);
-		D1 << 1,1;
-		Eigen::VectorXd f1(1);
-		f1 << 5;
-		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
-
-		Eigen::MatrixXd A2(1,num_decision_vars);
-		A2 << -1,1;
-		Eigen::VectorXd b2(1);
-		b2 << 1;
-		TaskDefinition test_task_eq = {.A=A2, .b=b2};
-
-		Eigen::MatrixXd A = A2;
-		Eigen::VectorXd b = b2;
-		Eigen::MatrixXd D = D1;
-		Eigen::VectorXd f = f1;
-
-		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
-
-		CheckSolutionValid(A, b, D, f, sol);
-
-		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_eq);
-		HoQpProblem test_qp_problem_2 =
-			HoQpProblem(test_task_ineq, &test_qp_problem_1);
-
-		Eigen::VectorXd sol_ho_qp = test_qp_problem_2.GetSolution();
-		CheckSolutionValid(A, b, D, f, sol_ho_qp);
-	}
-
-	void HoQpController::TestTwoTasksIneqFirst()
-	{
-		int num_decision_vars = 2;
-
-		Eigen::MatrixXd D1(1,num_decision_vars);
-		D1 << 1,1;
-		Eigen::VectorXd f1(1);
-		f1 << 5;
-		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
-
-		Eigen::MatrixXd A2(1,num_decision_vars);
-		A2 << -1,1;
-		Eigen::VectorXd b2(1);
-		b2 << 1;
-		TaskDefinition test_task_eq = {.A=A2, .b=b2};
-
-		Eigen::MatrixXd A = A2;
-		Eigen::VectorXd b = b2;
-		Eigen::MatrixXd D = D1;
-		Eigen::VectorXd f = f1;
-
-		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
-
-		CheckSolutionValid(A, b, D, f, sol);
-
-		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_ineq);
-		HoQpProblem test_qp_problem_2 =
-			HoQpProblem(test_task_eq, &test_qp_problem_1);
-
-		Eigen::VectorXd sol_ho_qp = test_qp_problem_2.GetSolution();
-		CheckSolutionValid(A, b, D, f, sol_ho_qp);
-	}
-
-	void HoQpController::TestThreeTasks()
-	{
-		int num_decision_vars = 2;
-
-		Eigen::MatrixXd D1(1,num_decision_vars);
-		D1 << 1,1;
-		Eigen::VectorXd f1(1);
-		f1 << 11;
-		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
-
-		Eigen::MatrixXd A2(1,num_decision_vars);
-		A2 << -1,1;
-		Eigen::VectorXd b2(1);
-		b2 << 1;
-		TaskDefinition test_task_eq = {.A=A2, .b=b2};
-
-		Eigen::MatrixXd A3(1,num_decision_vars);
-		A3 << 1,1;
-		Eigen::VectorXd b3(1);
-		b3 << 10;
-		TaskDefinition test_task_eq_2 = {.A=A3, .b=b3};
-
-		Eigen::MatrixXd A = ConcatenateMatrices(A2, A3);
-		Eigen::VectorXd b = ConcatenateVectors(b2, b3);
-		Eigen::MatrixXd D = D1;
-		Eigen::VectorXd f = f1;
-
-		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
-
-		CheckSolutionValid(A, b, D, f, sol);
-
-		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_ineq);
-		HoQpProblem test_qp_problem_2 =
-			HoQpProblem(test_task_eq, &test_qp_problem_1);
-		HoQpProblem test_qp_problem_3 =
-			HoQpProblem(test_task_eq_2, &test_qp_problem_2);
-
-		Eigen::VectorXd sol_ho_qp = test_qp_problem_3.GetSolution();
-		CheckSolutionValid(A, b, D, f, sol_ho_qp);
-	}
-
-	void HoQpController::TestFourTasks()
-	{
-		int num_decision_vars = 2;
-
-		Eigen::MatrixXd D1(1,num_decision_vars);
-		D1 << 1,1;
-		Eigen::VectorXd f1(1);
-		f1 << 11;
-		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
-
-		Eigen::MatrixXd D2(1,num_decision_vars);
-		D2 << -1,-1;
-		Eigen::VectorXd f2(1);
-		f2 << 7;
-		TaskDefinition test_task_ineq_2 = {.D=D2, .f=f2};
-
-		Eigen::MatrixXd A2(1,num_decision_vars);
-		A2 << -1,1;
-		Eigen::VectorXd b2(1);
-		b2 << 1;
-		TaskDefinition test_task_eq = {.A=A2, .b=b2};
-
-		Eigen::MatrixXd A3(1,num_decision_vars);
-		A3 << 1,1;
-		Eigen::VectorXd b3(1);
-		b3 << 10;
-		TaskDefinition test_task_eq_2 = {.A=A3, .b=b3};
-
-		Eigen::MatrixXd A = ConcatenateMatrices(A2, A3);
-		Eigen::VectorXd b = ConcatenateVectors(b2, b3);
-		Eigen::MatrixXd D = ConcatenateMatrices(D1, D2);
-		Eigen::VectorXd f = ConcatenateVectors(f1, f2);
-
-		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
-
-		CheckSolutionValid(A, b, D, f, sol);
-
+//	void HoQpController::TestEomConstraint()
+//	{
+//		TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
+//
+//		Eigen::VectorXd sol_lp = SolveWithLinearProgram(fb_eom_task);
+//		CheckSolutionValid(fb_eom_task, sol_lp);
+//
+//		PrintTask(fb_eom_task);
+//		HoQpProblem fb_eom_prob(fb_eom_task);
+//		Eigen::VectorXd sol = fb_eom_prob.GetSolution();
+//		CheckSolutionValid(fb_eom_task, sol);
+//
+//		run_once_ = true;
+//	}
+//	void HoQpController::TestSingleEqTask()
+//	{
+//		int num_decision_vars = 5;
+//
+//		Eigen::MatrixXd A(2,num_decision_vars);
+//		A << -1,1,0,3,3,
+//					0,2,3,1,0;
+//		Eigen::VectorXd b(2);
+//		b << 1, 10;
+//
+//		TaskDefinition test_task_eq = {.A=A, .b=b};
+//
+//		Eigen::VectorXd sol = SolveWithLinearProgram(test_task_eq);
+//		CheckSolutionValid(test_task_eq, sol);
+//
+//		HoQpProblem test_qp_problem = HoQpProblem(test_task_eq);
+//
+//		Eigen::VectorXd sol_ho_qp = test_qp_problem.GetSolution();
+//		CheckSolutionValid(test_task_eq, sol_ho_qp);
+//	}
+//	//
+//	void HoQpController::TestTwoTasksEqFirst()
+//	{
+//		int num_decision_vars = 2;
+//
+//		Eigen::MatrixXd D1(1,num_decision_vars);
+//		D1 << 1,1;
+//		Eigen::VectorXd f1(1);
+//		f1 << 5;
+//		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
+//
+//		Eigen::MatrixXd A2(1,num_decision_vars);
+//		A2 << -1,1;
+//		Eigen::VectorXd b2(1);
+//		b2 << 1;
+//		TaskDefinition test_task_eq = {.A=A2, .b=b2};
+//
+//		Eigen::MatrixXd A = A2;
+//		Eigen::VectorXd b = b2;
+//		Eigen::MatrixXd D = D1;
+//		Eigen::VectorXd f = f1;
+//
+//		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
+//
+//		CheckSolutionValid(A, b, D, f, sol);
+//
+//		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_eq);
+//		HoQpProblem test_qp_problem_2 =
+//			HoQpProblem(test_task_ineq, &test_qp_problem_1);
+//
+//		Eigen::VectorXd sol_ho_qp = test_qp_problem_2.GetSolution();
+//		CheckSolutionValid(A, b, D, f, sol_ho_qp);
+//	}
+//
+//	void HoQpController::TestTwoTasksIneqFirst()
+//	{
+//		int num_decision_vars = 2;
+//
+//		Eigen::MatrixXd D1(1,num_decision_vars);
+//		D1 << 1,1;
+//		Eigen::VectorXd f1(1);
+//		f1 << 5;
+//		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
+//
+//		Eigen::MatrixXd A2(1,num_decision_vars);
+//		A2 << -1,1;
+//		Eigen::VectorXd b2(1);
+//		b2 << 1;
+//		TaskDefinition test_task_eq = {.A=A2, .b=b2};
+//
+//		Eigen::MatrixXd A = A2;
+//		Eigen::VectorXd b = b2;
+//		Eigen::MatrixXd D = D1;
+//		Eigen::VectorXd f = f1;
+//
+//		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
+//
+//		CheckSolutionValid(A, b, D, f, sol);
+//
+//		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_ineq);
+//		HoQpProblem test_qp_problem_2 =
+//			HoQpProblem(test_task_eq, &test_qp_problem_1);
+//
+//		Eigen::VectorXd sol_ho_qp = test_qp_problem_2.GetSolution();
+//		CheckSolutionValid(A, b, D, f, sol_ho_qp);
+//	}
+//
+//	void HoQpController::TestThreeTasks()
+//	{
+//		int num_decision_vars = 2;
+//
+//		Eigen::MatrixXd D1(1,num_decision_vars);
+//		D1 << 1,1;
+//		Eigen::VectorXd f1(1);
+//		f1 << 11;
+//		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
+//
+//		Eigen::MatrixXd A2(1,num_decision_vars);
+//		A2 << -1,1;
+//		Eigen::VectorXd b2(1);
+//		b2 << 1;
+//		TaskDefinition test_task_eq = {.A=A2, .b=b2};
+//
+//		Eigen::MatrixXd A3(1,num_decision_vars);
+//		A3 << 1,1;
+//		Eigen::VectorXd b3(1);
+//		b3 << 10;
+//		TaskDefinition test_task_eq_2 = {.A=A3, .b=b3};
+//
+//		Eigen::MatrixXd A = ConcatenateMatrices(A2, A3);
+//		Eigen::VectorXd b = ConcatenateVectors(b2, b3);
+//		Eigen::MatrixXd D = D1;
+//		Eigen::VectorXd f = f1;
+//
+//		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
+//
+//		CheckSolutionValid(A, b, D, f, sol);
+//
 //		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_ineq);
 //		HoQpProblem test_qp_problem_2 =
 //			HoQpProblem(test_task_eq, &test_qp_problem_1);
 //		HoQpProblem test_qp_problem_3 =
 //			HoQpProblem(test_task_eq_2, &test_qp_problem_2);
-//		HoQpProblem test_qp_problem_4 =
-//			HoQpProblem(test_task_ineq_2, &test_qp_problem_3);
 //
-//		Eigen::VectorXd sol_ho_qp = test_qp_problem_4.GetSolution();
+//		Eigen::VectorXd sol_ho_qp = test_qp_problem_3.GetSolution();
 //		CheckSolutionValid(A, b, D, f, sol_ho_qp);
-
-		HoQpProblem second_test_qp_problem_1 = HoQpProblem(test_task_eq);
-		HoQpProblem second_test_qp_problem_2 =
-			HoQpProblem(test_task_ineq_2, &second_test_qp_problem_1);
-		HoQpProblem second_test_qp_problem_3 =
-			HoQpProblem(test_task_ineq, &second_test_qp_problem_2);
-		HoQpProblem second_test_qp_problem_4 =
-			HoQpProblem(test_task_eq_2, &second_test_qp_problem_3);
-
-		Eigen::VectorXd second_sol_ho_qp = second_test_qp_problem_4.GetSolution();
-		CheckSolutionValid(A, b, D, f, second_sol_ho_qp);
-	}
+//	}
+//
+//	void HoQpController::TestFourTasks()
+//	{
+//		int num_decision_vars = 2;
+//
+//		Eigen::MatrixXd D1(1,num_decision_vars);
+//		D1 << 1,1;
+//		Eigen::VectorXd f1(1);
+//		f1 << 11;
+//		TaskDefinition test_task_ineq = {.D=D1, .f=f1};
+//
+//		Eigen::MatrixXd D2(1,num_decision_vars);
+//		D2 << -1,-1;
+//		Eigen::VectorXd f2(1);
+//		f2 << 7;
+//		TaskDefinition test_task_ineq_2 = {.D=D2, .f=f2};
+//
+//		Eigen::MatrixXd A2(1,num_decision_vars);
+//		A2 << -1,1;
+//		Eigen::VectorXd b2(1);
+//		b2 << 1;
+//		TaskDefinition test_task_eq = {.A=A2, .b=b2};
+//
+//		Eigen::MatrixXd A3(1,num_decision_vars);
+//		A3 << 1,1;
+//		Eigen::VectorXd b3(1);
+//		b3 << 10;
+//		TaskDefinition test_task_eq_2 = {.A=A3, .b=b3};
+//
+//		Eigen::MatrixXd A = ConcatenateMatrices(A2, A3);
+//		Eigen::VectorXd b = ConcatenateVectors(b2, b3);
+//		Eigen::MatrixXd D = ConcatenateMatrices(D1, D2);
+//		Eigen::VectorXd f = ConcatenateVectors(f1, f2);
+//
+//		Eigen::VectorXd sol = SolveWithLinearProgram(A, b, D, f);
+//
+//		CheckSolutionValid(A, b, D, f, sol);
+//
+////		HoQpProblem test_qp_problem_1 = HoQpProblem(test_task_ineq);
+////		HoQpProblem test_qp_problem_2 =
+////			HoQpProblem(test_task_eq, &test_qp_problem_1);
+////		HoQpProblem test_qp_problem_3 =
+////			HoQpProblem(test_task_eq_2, &test_qp_problem_2);
+////		HoQpProblem test_qp_problem_4 =
+////			HoQpProblem(test_task_ineq_2, &test_qp_problem_3);
+////
+////		Eigen::VectorXd sol_ho_qp = test_qp_problem_4.GetSolution();
+////		CheckSolutionValid(A, b, D, f, sol_ho_qp);
+//
+//		HoQpProblem second_test_qp_problem_1 = HoQpProblem(test_task_eq);
+//		HoQpProblem second_test_qp_problem_2 =
+//			HoQpProblem(test_task_ineq_2, &second_test_qp_problem_1);
+//		HoQpProblem second_test_qp_problem_3 =
+//			HoQpProblem(test_task_ineq, &second_test_qp_problem_2);
+//		HoQpProblem second_test_qp_problem_4 =
+//			HoQpProblem(test_task_eq_2, &second_test_qp_problem_3);
+//
+//		Eigen::VectorXd second_sol_ho_qp = second_test_qp_problem_4.GetSolution();
+//		CheckSolutionValid(A, b, D, f, second_sol_ho_qp);
+//	}
 
 	Eigen::VectorXd HoQpController::SolveWithLinearProgram(
 			Eigen::MatrixXd A, Eigen::VectorXd b,

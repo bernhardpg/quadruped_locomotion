@@ -20,10 +20,10 @@ namespace control
 	class HoQpProblem
 	{
 		public:
-			HoQpProblem();
-			HoQpProblem(TaskDefinition new_task);
+			HoQpProblem(TaskDefinition &new_task);
 			HoQpProblem(
-					TaskDefinition new_task, HoQpProblem *higher_pri_problem_ 
+					TaskDefinition &new_task,
+					std::shared_ptr<HoQpProblem> higher_pri_problem
 					);
 
 			// ***************** //
@@ -80,7 +80,7 @@ namespace control
 			TaskDefinition accum_tasks_prev_; 
 			Eigen::VectorXd accum_slack_vars_; 
 
-			HoQpProblem *higher_pri_problem_;
+			std::shared_ptr<HoQpProblem> higher_pri_problem_;
 
 			// ********************* //
 			// MATRIX INITIALIZATION //

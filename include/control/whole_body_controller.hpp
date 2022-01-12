@@ -105,6 +105,7 @@ namespace control
 			
 			ros::Time mode_start_time_;
 			double seconds_in_mode_ = 0;
+			ros::Time last_update_;
 
 			void SetRobotMode(RobotMode target_mode);
 			void SetModeStartTime();

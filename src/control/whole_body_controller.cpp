@@ -171,6 +171,9 @@ namespace control {
 	void WholeBodyController::UpdateJointCommand()
 	{
 		seconds_in_mode_ = GetElapsedTimeSince(mode_start_time_);
+//		double dt	= GetElapsedTimeSince(last_update_);
+//		ROS_INFO("Current frequency = %f", 1/dt);
+//		last_update_ = ros::Time::now(); // TODO: remove 
 
 		if (!controller_ready_) return;
 
@@ -586,6 +589,7 @@ namespace control {
 	void WholeBodyController::SetModeStartTime()
 	{
 		mode_start_time_ = ros::Time::now();
+		last_update_ = ros::Time::now();
 	}
 
 	double WholeBodyController::GetElapsedTimeSince(ros::Time t)

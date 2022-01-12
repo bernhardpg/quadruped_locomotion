@@ -48,6 +48,13 @@ namespace control
 			Eigen::MatrixXd body_jacobian_pos_;
 			Eigen::MatrixXd body_jacobian_rot_;
 
+			std::vector<std::shared_ptr<HoQpProblem>>
+			ConstructOptProblems(
+					std::vector<TaskDefinition> &tasks
+					);
+			std::vector<TaskDefinition> ConstructTasks(
+					Eigen::VectorXd q, Eigen::VectorXd u
+					);
 			TaskDefinition ConstructFloatingBaseEomTask();
 			TaskDefinition ConstructJointTorqueTask();
 			TaskDefinition ConstructFrictionConeTask();

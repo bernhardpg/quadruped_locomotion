@@ -5,29 +5,50 @@
 
 namespace control
 {
-	HoQpProblem::HoQpProblem()
-		: HoQpProblem(TaskDefinition(), nullptr)
-	{}
-
-	HoQpProblem::HoQpProblem(TaskDefinition new_task)
-		: HoQpProblem(new_task, nullptr)
+	HoQpProblem::HoQpProblem(TaskDefinition &new_task)
+		: HoQpProblem(new_task, std::shared_ptr<HoQpProblem>(nullptr))
 	{
 	}
 
 	HoQpProblem::HoQpProblem(
-			TaskDefinition new_task, HoQpProblem *higher_pri_problem
+			TaskDefinition &new_task,
+			std::shared_ptr<HoQpProblem> higher_pri_problem
 			)
 		: curr_task_(new_task), higher_pri_problem_(higher_pri_problem)
 	{
-		std::cout << "======= NEW TASK ========\n";
+		ros::Time time_begin = ros::Time::now();
 		InitTaskVariables();
-		SetPrevProblemValues();
-		FormulateOptimizationProblem();
+		ros::Duration duration = ros::Time::now() - time_begin;
+		ROS_INFO("QP: Spent %lf secs on init task variables", duration.toSec());		
 
+		time_begin = ros::Time::now();
+		SetPrevProblemValues();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QP: Spent %lf secs on getting prev values", duration.toSec());		
+
+		time_begin = ros::Time::now();
+		FormulateOptimizationProblem();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QP: Spent %lf secs on formulating qp", duration.toSec());		
+		time_begin = ros::Time::now();
 		SolveQp();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QP: Spent %lf secs on solving qp", duration.toSec());		
+
+		time_begin = ros::Time::now();
 		AccumulateTasks();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QP: Spent %lf secs on accumulating tasks", duration.toSec());		
+
+		time_begin = ros::Time::now();
 		ConstructAccumNullspaceMatrix();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QP: Spent %lf secs on constructing nullspace", duration.toSec());		
+
+		time_begin = ros::Time::now();
 		AccumulateSlackSolutions();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QP: Spent %lf secs on accumulating slack vars", duration.toSec());		
 	}
 
 	// ***************** //
@@ -158,10 +179,28 @@ namespace control
 
 	void HoQpProblem::ConstructProblemMatrices()
 	{
+		ros::Time time_begin = ros::Time::now();
 		ConstructHMatrix();
+		ros::Duration duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulateMat: Spent %lf secs on H matrix", duration.toSec());		
+
+		time_begin = ros::Time::now();
 		ConstructCVector();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulateMat: Spent %lf secs on c vector ", duration.toSec());		
+
+
+		time_begin = ros::Time::now();
 		ConstructDMatrix();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulateMat: Spent %lf secs on D matrix", duration.toSec());		
+
+
+		time_begin = ros::Time::now();
 		ConstructFVector();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulateMat: Spent %lf secs on f vector ", duration.toSec());		
+
 	}
 
 	void HoQpProblem::ConstructAccumNullspaceMatrix()
@@ -310,12 +349,27 @@ namespace control
 
 	void HoQpProblem::FormulateOptimizationProblem()
 	{
+		ros::Time time_begin = ros::Time::now();
 		ConstructProblemMatrices();
+		ros::Duration duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulate: Spent %lf secs on constructing prob matrices", duration.toSec());		
+
+		time_begin = ros::Time::now();
 		CreateDecisionVars();
 		CreateSlackVars();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulate: Spent %lf secs on dec and slack vars", duration.toSec());		
+
+		time_begin = ros::Time::now();
 		if (has_ineq_constraints_)
 			AddIneqConstraints();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulate: Spent %lf secs on adding ineq constraints", duration.toSec());		
+
+		time_begin = ros::Time::now();
 		AddQuadraticCost();
+		duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulate: Spent %lf secs on adding quad cost", duration.toSec());		
 	}
 
 	void HoQpProblem::CreateDecisionVars()
@@ -355,10 +409,10 @@ namespace control
 	void HoQpProblem::SolveQp()
 	{
 		result_ = Solve(prog_);
-		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
-			<< "\nFound solution: " << result_.is_success()
-			<< "\nSolution result: " << result_.get_solution_result()
-			<< std::endl);
+//		ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
+//			<< "\nFound solution: " << result_.is_success()
+//			<< "\nSolution result: " << result_.get_solution_result()
+//			<< std::endl);
 
 		assert(result_.is_success());
 		Eigen::VectorXd sol = result_.GetSolution();
