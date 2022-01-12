@@ -42,7 +42,7 @@ namespace control
 			Eigen::VectorXd GetSlackSolutions();
 			Eigen::VectorXd GetAccumSlackSolutions();
 
-			symbolic_vector_t GetAllDecisionVars(); // TODO: This should have another name
+			variable_vector_t GetAllDecisionVars(); // TODO rename
 
 		private:
 			drake::solvers::MathematicalProgram prog_; 
@@ -54,10 +54,15 @@ namespace control
 			bool has_ineq_constraints_;
 			bool is_higher_pri_problem_defined_; 
 
+			// Convenience matrices that are used multiple times
 			const double eps_ = 1e-7;
+			Eigen::MatrixXd eps_matrix_; 
+			Eigen::MatrixXd eye_nv_nv_;
+			Eigen::MatrixXd zero_nv_nx_;
+			Eigen::MatrixXd A_curr_Z_prev_;
 
-			symbolic_vector_t decision_vars_;
-			symbolic_vector_t slack_vars_;
+			variable_vector_t decision_vars_;
+			variable_vector_t slack_vars_;
 
 			Eigen::VectorXd decision_vars_solutions_;
 			Eigen::VectorXd slack_vars_solutions_;

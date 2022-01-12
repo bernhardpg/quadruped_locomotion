@@ -86,6 +86,8 @@ Eigen::MatrixXd CalcNullSpaceProjMatrix(Eigen::MatrixXd A)
 {
 	assert((A.rows() > 0) && (A.cols() > 0));
 
+	// Alternative computation approaches can be found here:
+	// https://eigen.tuxfamily.org/dox/group__LeastSquares.html
 	Eigen::MatrixXd A_inv = CalcPseudoInverse(A);
 	Eigen::MatrixXd eye =
 		Eigen::MatrixXd::Identity(A.cols(), A.cols());

@@ -97,11 +97,11 @@ namespace control
 		return accum_slack_vars_;
 	}
 
-	symbolic_vector_t HoQpProblem::GetAllDecisionVars()
+	variable_vector_t HoQpProblem::GetAllDecisionVars()
 	{
 		int tot_num_decision_vars =
 			num_decision_vars_ + num_slack_vars_;
-		symbolic_vector_t all_decision_vars(tot_num_decision_vars);
+		variable_vector_t all_decision_vars(tot_num_decision_vars);
 		all_decision_vars << decision_vars_, 
 										     slack_vars_;
 		return all_decision_vars;
@@ -213,8 +213,11 @@ namespace control
 
 	void HoQpProblem::ConstructNullspaceMatrixFromPrev()
 	{
+		ros::Time time_begin = ros::Time::now();
 		Eigen::MatrixXd Null_of_A_curr_times_accum_Z_prev_ =
 			CalcNullSpaceProjMatrix(curr_task_.A * accum_Z_prev_);
+		ros::Duration duration = ros::Time::now() - time_begin;
+		ROS_INFO("Nullspace: Spent %lf secs on constructing nullspace", duration.toSec());		
 
 		accum_Z_ = accum_Z_prev_ * Null_of_A_curr_times_accum_Z_prev_;
 	}
@@ -227,12 +230,6 @@ namespace control
 				);
 		D.setZero();
 
-		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
-					num_slack_vars_, num_slack_vars_
-					);
-		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
-					num_slack_vars_, num_decision_vars_
-					);
 		Eigen::MatrixXd accum_zero = Eigen::MatrixXd::Zero(
 					num_prev_slack_vars_, num_slack_vars_
 					);
@@ -245,9 +242,9 @@ namespace control
 
 		// NOTE: This is upside down compared to the paper,
 		// but more consistent with the rest of the algorithm
-		D << zero, -eye,
+		D << zero_nv_nx_, -eye_nv_nv_,
 				 accum_tasks_prev_.D * accum_Z_prev_, accum_zero,
-				 D_curr_Z, - eye;
+				 D_curr_Z, - eye_nv_nv_;
 
 		D_ = D;
 	}
@@ -278,40 +275,29 @@ namespace control
 
 	void HoQpProblem::ConstructHMatrix()
 	{
-		Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(
-					num_slack_vars_, num_slack_vars_
-					);
-
-		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
-					num_slack_vars_, num_decision_vars_ 
-					);
-			
 		Eigen::MatrixXd H(
 				num_decision_vars_ + num_slack_vars_,
 				num_decision_vars_ + num_slack_vars_);
 		H.setZero();
 
 		Eigen::MatrixXd Z_t_A_t_A_Z(num_decision_vars_,num_decision_vars_);
-		Z_t_A_t_A_Z.setZero();
 		if (has_eq_constraints_)
 		{
-			Eigen::MatrixXd A_curr_Z_prev = curr_task_.A * accum_Z_prev_;
-			Z_t_A_t_A_Z = A_curr_Z_prev.transpose() * A_curr_Z_prev;
-
 			// Make sure that all eigenvalues of A_t_A are nonnegative,
 			// which could arise due to numerical issues
-			// TODO: It may be slow to compute all the eigenvalues at every iteration. Maybe this should always be done!
-			if (!CheckEigenValuesPositive(Z_t_A_t_A_Z))
-			{
-				Z_t_A_t_A_Z = Z_t_A_t_A_Z 
-					+ Eigen::MatrixXd::Identity(
-							Z_t_A_t_A_Z.rows(), Z_t_A_t_A_Z.cols()
-							) * eps_;
-			}
+			A_curr_Z_prev_ = curr_task_.A * accum_Z_prev_;
+			Z_t_A_t_A_Z =
+				A_curr_Z_prev_.transpose() * A_curr_Z_prev_ 
+				+ eps_matrix_;
+			// This way of splitting up the multiplication is about twice as fast as multiplying 4 matrices
+		}
+		else
+		{
+			Z_t_A_t_A_Z.setZero();
 		}
 
-		H << Z_t_A_t_A_Z, zero.transpose(),
-				 zero, eye;
+		H << Z_t_A_t_A_Z, zero_nv_nx_.transpose(),
+				 zero_nv_nx_, eye_nv_nv_;
 
 		H_ = H;
 	}
@@ -328,7 +314,7 @@ namespace control
 		Eigen::VectorXd temp(num_decision_vars_, 1);
 		if (has_eq_constraints_)
 		{
-			temp = accum_Z_prev_.transpose() * curr_task_.A.transpose()
+			temp = A_curr_Z_prev_.transpose()
 			* (curr_task_.A * x_prev_
 					- curr_task_.b);
 		}
@@ -388,22 +374,29 @@ namespace control
 
 	void HoQpProblem::AddIneqConstraints()
 	{
-		prog_.AddLinearConstraint(
-				D_ * GetAllDecisionVars() <= f_
-				);
+		auto inf_vector = kInf * Eigen::VectorXd::Ones(f_.rows());
+		prog_.AddLinearConstraint(D_, -inf_vector, f_, GetAllDecisionVars());
 	}
 
 	void HoQpProblem::AddQuadraticCost()
 	{
-		symbolic_vector_t all_decision_vars = GetAllDecisionVars();
-
-		drake::symbolic::Expression cost = 
-			0.5 * all_decision_vars.transpose() * H_ * all_decision_vars
-			+ (c_.transpose() * all_decision_vars)(0); 
-	
-		// H_ is known to be positive definite due to its structure
+		auto all_decision_vars = GetAllDecisionVars();
 		bool is_convex = true;
-		prog_.AddQuadraticCost(cost, is_convex);
+
+		ros::Time time_begin = ros::Time::now();
+//		drake::symbolic::Expression cost = 
+//			0.5 * all_decision_vars.transpose() * H_ * all_decision_vars
+//			+ (c_.transpose() * all_decision_vars)(0); 
+//	
+//		// H_ is known to be positive definite due to its structure
+//		prog_.AddQuadraticCost(cost, is_convex);
+//		ros::Duration duration = ros::Time::now() - time_begin;
+//		ROS_INFO("QPFormulate: Spent %lf secs on symbolic quad cost calc", duration.toSec());		
+//
+		// H_ is known to be positive definite due to its structure
+		prog_.AddQuadraticCost(H_, c_, all_decision_vars, is_convex);
+		ros::Duration duration = ros::Time::now() - time_begin;
+		ROS_INFO("QPFormulate: Spent %lf secs on alternative quad cost", duration.toSec());		
 	}
 
 	void HoQpProblem::SolveQp()
@@ -437,7 +430,14 @@ namespace control
 		has_eq_constraints_ = curr_task_.A.rows() > 0;
 		has_ineq_constraints_ = num_slack_vars_ > 0;
 		is_higher_pri_problem_defined_ = higher_pri_problem_ != nullptr;
+
+		eps_matrix_ = eps_ * Eigen::MatrixXd::Identity(num_decision_vars_,num_decision_vars_);
+		eye_nv_nv_ = Eigen::MatrixXd::Identity(
+					num_slack_vars_, num_slack_vars_
+					);
+		zero_nv_nx_ = Eigen::MatrixXd::Zero(
+					num_slack_vars_, num_decision_vars_
+					);
 	}
-	
 }
 
