@@ -48,6 +48,9 @@ class Dynamics
 		void PrintJointPlacements(
 				Eigen::VectorXd q
 				);
+		void PrintFootPlacements(
+				Eigen::VectorXd q, int foot_i
+				);
 		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
 				Eigen::Matrix<double,kNumGenCoords, 1> q
 				);

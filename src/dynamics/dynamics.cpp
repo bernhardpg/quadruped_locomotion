@@ -108,6 +108,25 @@ void Dynamics::PrintJointPlacements(
 	}
 }
 
+void Dynamics::PrintFootPlacements(
+		Eigen::VectorXd q, int foot_i
+		)
+{
+	pinocchio::forwardKinematics(model_, data_, q);
+	pinocchio::updateFramePlacements(model_, data_);
+
+	Eigen::Vector3d pos =
+		data_.oMf[model_.getFrameId(kFeetFrames[foot_i])]
+		.translation().transpose();
+	std::cout << "Foot: " << kFeetFrames[foot_i] << " pos: \n";
+	PrintMatrix(pos.transpose());
+
+	auto frame = model_.frames[model_.getFrameId(kFeetFrames[foot_i])];
+	auto parent_id = frame.parent;
+	std::cout << "Parent: " << model_.names[parent_id] << "\n";
+
+}
+
 Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
 		Eigen::Matrix<double,kNumGenCoords, 1> q
 		)
@@ -150,15 +169,36 @@ Eigen::MatrixXd Dynamics::GetContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 		)
 {
-	std::cout << "q:\n";
-	PrintMatrix(q.transpose());
-	PrintJointPlacements(q);
+	Eigen::VectorXd q_neutral = pinocchio::neutral(model_);
+	q_neutral(3) = 1;
+	std::cout << "q_neutral:\n";
+	PrintMatrix(q_neutral.transpose());
+
+	PrintFootPlacements(q_neutral,foot_i);
+	PrintJointPlacements(q_neutral);
 	Eigen::MatrixXd J_c(kNumTwistCoords,kNumGenVels);
 	J_c.setZero();
 	pinocchio::computeFrameJacobian(
-			model_, data_, q, model_.getFrameId(kFeetFrames[foot_i]), 
+			model_, data_, q_neutral, model_.getFrameId(kFeetFrames[foot_i]), 
+			pinocchio::ReferenceFrame::WORLD, J_c
+			); 
+
+	std::cout << "Local:\n";
+	J_c.setZero();
+	pinocchio::computeFrameJacobian(
+			model_, data_, q_neutral, model_.getFrameId(kFeetFrames[foot_i]), 
+			pinocchio::ReferenceFrame::LOCAL, J_c
+			); 
+	PrintMatrix(J_c);
+
+	std::cout << "Local_world_aligned:\n";
+	J_c.setZero();
+	pinocchio::computeFrameJacobian(
+			model_, data_, q_neutral, model_.getFrameId(kFeetFrames[foot_i]), 
 			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_c
 			); 
+
+	PrintMatrix(J_c);
 
 	return J_c;
 }
@@ -173,7 +213,7 @@ Eigen::MatrixXd Dynamics::GetStackedContactJacobian(
 	Eigen::MatrixXd J_c(num_contacts * kNumTwistCoords,kNumGenVels);
 	J_c.setZero();
 
-	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	for (int foot_i = 0; foot_i < 1; ++foot_i) // TODO: change
 	{
 		Eigen::MatrixXd J_c_foot_i = GetContactJacobian(q, foot_i);
 		J_c.block(foot_i * kNumTwistCoords,0,kNumTwistCoords,kNumGenVels)
@@ -190,7 +230,7 @@ Eigen::MatrixXd Dynamics::GetStackedContactJacobianPos(
 	Eigen::MatrixXd J(kNumFeetCoords,kNumGenVels);
 	J.setZero();
 
-	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	for (int foot_i = 0; foot_i < 1; ++foot_i)
 	{
 		Eigen::MatrixXd J_foot_i = GetContactJacobian(q, foot_i);
 		auto J_foot_i_pos = J_foot_i.block<kNumPosDims,kNumGenVels>(0,0);
