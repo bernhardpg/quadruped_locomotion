@@ -48,7 +48,10 @@ class Dynamics
 		void PrintJointPlacements(
 				Eigen::VectorXd q
 				);
-		void PrintFootPlacements(
+		void PrintFootPlacement(
+				Eigen::VectorXd q, int foot_i
+				);
+		Eigen::Vector3d GetFootPosInB(
 				Eigen::VectorXd q, int foot_i
 				);
 		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
@@ -63,6 +66,12 @@ class Dynamics
 				Eigen::Matrix<double,kNumGenCoords,1> q
 				);
 		Eigen::MatrixXd GetContactJacobian(
+				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
+				);
+		Eigen::MatrixXd GetFootJacobianInB(
+				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
+				);
+		Eigen::MatrixXd TestContactJacobian( // TODO: remove
 				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 				);
 		Eigen::MatrixXd GetStackedContactJacobian(

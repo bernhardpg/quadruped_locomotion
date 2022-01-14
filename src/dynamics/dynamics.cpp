@@ -108,24 +108,36 @@ void Dynamics::PrintJointPlacements(
 	}
 }
 
-void Dynamics::PrintFootPlacements(
+Eigen::Vector3d Dynamics::GetFootPosInB(
 		Eigen::VectorXd q, int foot_i
 		)
 {
+	Eigen::VectorXd default_pose(7); // TODO: clean up
+	default_pose << 0, 0, 0, 0, 0, 0, 1;
+	q.block(0,0,7,1) = default_pose;
+
 	pinocchio::forwardKinematics(model_, data_, q);
 	pinocchio::updateFramePlacements(model_, data_);
 
-	Eigen::Vector3d pos =
+	Eigen::Vector3d r_B =
 		data_.oMf[model_.getFrameId(kFeetFrames[foot_i])]
 		.translation().transpose();
+	return r_B;
+}
+
+void Dynamics::PrintFootPlacement(
+		Eigen::VectorXd q, int foot_i
+		)
+{
+	auto pos = GetFootPosInB(q,foot_i);
 	std::cout << "Foot: " << kFeetFrames[foot_i] << " pos: \n";
 	PrintMatrix(pos.transpose());
 
 	auto frame = model_.frames[model_.getFrameId(kFeetFrames[foot_i])];
 	auto parent_id = frame.parent;
 	std::cout << "Parent: " << model_.names[parent_id] << "\n";
-
 }
+
 
 Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
 		Eigen::Matrix<double,kNumGenCoords, 1> q
@@ -165,16 +177,72 @@ Eigen::MatrixXd Dynamics::GetBaseJacobian(
 	return J_b;
 }
 
+Eigen::MatrixXd Dynamics::GetFootJacobianInB(
+		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
+		)
+{
+	pinocchio::forwardKinematics(model_, data_, q);
+	Eigen::MatrixXd J(kNumTwistCoords,kNumGenVels);
+	J.setZero();
+	pinocchio::computeFrameJacobian(
+			model_, data_, q, model_.getFrameId(kFeetFrames[foot_i]), 
+			pinocchio::ReferenceFrame::LOCAL, J
+			); 
+
+	auto J_j = J.block(0,kNumTwistCoords,kNumPosDims,kNumJoints);
+	return J_j;
+}
+
 Eigen::MatrixXd Dynamics::GetContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 		)
 {
+	Eigen::MatrixXd J(kNumPosDims,kNumGenVels);
+	J.block(0,0,3,3) = Eigen::MatrixXd::Identity(3,3);
+	pinocchio::forwardKinematics(model_, data_, q);
+
+	const int base_id = 1;
+	Eigen::MatrixXd C_IB = data_.oMi[base_id].rotation();
+
+	Eigen::VectorXd r_B = GetFootPosInB(q, foot_i);
+	Eigen::MatrixXd r_B_skew(3,3);
+	r_B_skew << 0, -r_B(2), r_B(1),
+							r_B(2), 0, -r_B(0),
+							-r_B(1), r_B(0), 0;
+	J.block(0,3,3,3) = -C_IB * r_B_skew;
+	J.block(0,6,3,12) = C_IB * GetFootJacobianInB(q,foot_i);
+
+	std::cout << "Contact Jacobian:\n";
+	PrintMatrix(J);
+	return J;
+}
+
+Eigen::MatrixXd Dynamics::TestContactJacobian(
+		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
+		)
+{
+
 	Eigen::VectorXd q_neutral = pinocchio::neutral(model_);
 	q_neutral(3) = 1;
 	std::cout << "q_neutral:\n";
 	PrintMatrix(q_neutral.transpose());
 
-	PrintFootPlacements(q_neutral,foot_i);
+	pinocchio::forwardKinematics(model_, data_, q_neutral);
+	
+	Eigen::Matrix3d base_attitude = data_.oMi[1].rotation(); // base
+	std::cout << "base_attitude: \n" << base_attitude << std::endl;
+	auto pos = GetFootPosInB(q_neutral, foot_i);
+	Eigen::MatrixXd pos_skew(3,3);
+	pos_skew << 0, -pos(2), pos(1),
+							pos(2), 0, -pos(0),
+							-pos(1), pos(0), 0;
+
+	std::cout << "foot pos:\n"
+		<< pos << std::endl;
+
+	std::cout << "-base_attitude*foot_skew: \n"
+		<< -base_attitude * pos_skew << std::endl;
+
 	PrintJointPlacements(q_neutral);
 	Eigen::MatrixXd J_c(kNumTwistCoords,kNumGenVels);
 	J_c.setZero();
