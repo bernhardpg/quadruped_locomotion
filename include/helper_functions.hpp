@@ -7,7 +7,7 @@
 
 void PrintMatrix(Eigen::MatrixXd matr)
 {
-	std::cout << std::setprecision(2) << std::fixed
+	std::cout << std::setprecision(8) << std::fixed
 		<< matr << std::endl << std::endl;	
 }
 

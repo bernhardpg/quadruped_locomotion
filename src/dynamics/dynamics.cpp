@@ -65,8 +65,12 @@ Eigen::VectorXd Dynamics::GetContactAccPosStacked(
 		Eigen::Matrix<double,kNumGenVels,1> u
 		)
 {
-	pinocchio::forwardKinematics(model_, data_, q, u, 0*u);
 	int num_contacts = 4;
+
+	// Set u_dot = 0 to calculate J_dot * u:
+	// p_ddot = J * u_dot + J_dot * u
+	//				= J_dot * u
+	pinocchio::forwardKinematics(model_, data_, q, u, 0 * u);
 
 	Eigen::MatrixXd J_dot_u_pos(num_contacts * kNumPosDims, 1);
 	J_dot_u_pos.setZero();
@@ -75,6 +79,7 @@ Eigen::VectorXd Dynamics::GetContactAccPosStacked(
 	{
 		Eigen::VectorXd J_dot_u_pos_i_pos = GetContactAcc(q, u, foot_i)
 			.block<kNumPosDims,1>(0,0);
+
 		J_dot_u_pos.block<kNumPosDims,1>(kNumPosDims * foot_i,0)
 			= J_dot_u_pos_i_pos;
 	}
@@ -113,9 +118,9 @@ Eigen::MatrixXd Dynamics::GetBaseJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q
 		)
 {
+	// TODO: Compute jacobians in a single pass
 	Eigen::MatrixXd J_b(kNumTwistCoords,kNumGenVels);
 	J_b.setZero();
-	// TODO: Compute jacobians in a single pass
 	pinocchio::computeFrameJacobian(
 			model_, data_, q, model_.getFrameId("base"), J_b 
 			); 

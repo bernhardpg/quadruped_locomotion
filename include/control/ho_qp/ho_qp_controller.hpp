@@ -42,8 +42,10 @@ namespace control
 			const double max_torque_ = 100;
 			const double min_torque_ = -max_torque_; 
 			const double friction_coeff_ = 0.5; 
-			const Eigen::VectorXd max_torque_vec_;
-			const Eigen::VectorXd min_torque_vec_;
+			const Eigen::VectorXd max_torque_vec_
+				= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
+			const Eigen::VectorXd min_torque_vec_
+				= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
 
 			// ********************* //
 			// DYNAMICS & KINEMATICS // 
@@ -86,9 +88,7 @@ namespace control
 			TaskDefinition ConstructFloatingBaseEomTask();
 			TaskDefinition ConstructJointTorqueTask();
 			TaskDefinition ConstructFrictionConeTask();
-			TaskDefinition ConstructNoContactMotionTask(
-					Eigen::VectorXd u
-					);
+			TaskDefinition ConstructNoContactMotionTask();
 			TaskDefinition ConstructComPosTrajTask(
 					Eigen::VectorXd com_vel 
 					);
@@ -102,10 +102,10 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
+			Eigen::VectorXd GetFloatingBaseRows(Eigen::VectorXd &m);
 			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
+			Eigen::VectorXd GetJointRows(Eigen::VectorXd &v);
 			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);
-
-
 
 			// ******* //
 			// TESTING //

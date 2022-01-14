@@ -9,6 +9,10 @@ namespace control {
 		
 		SetVariablesToZero();
 
+		// TODO: Create function for handling integrators
+		q_j_dot_cmd_integrator_.SetSize(kNumJoints);
+		q_j_ddot_cmd_integrator_.SetSize(kNumJoints);
+
 		SetupRosTopics();
 		SetupRosServices();
 		WaitForPublishedTime();
@@ -201,8 +205,12 @@ namespace control {
 						ho_qp_controller_.GetJointAccelerationCmd();
 					q_j_ddot_cmd_integrator_.Integrate(q_j_ddot_cmd);
 					q_j_dot_cmd_ = q_j_ddot_cmd_integrator_.GetIntegral();
+					std::cout << "q_j_dot_cmd_:\n";
+					PrintMatrix(q_j_dot_cmd_.transpose());
 					q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
 					q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
+					std::cout << "q_j_cmd_:\n";
+					PrintMatrix(q_j_cmd_.transpose());
 				}
 				break;
 			default:
@@ -318,8 +326,9 @@ namespace control {
 				{
 					ROS_INFO("Setting mode to WALK");
 					q_j_dot_cmd_integrator_.Reset();
+					// Start joint position at current position
 					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-					q_j_ddot_cmd_integrator_.SetIntegral(q_j_dot_);
+					q_j_ddot_cmd_integrator_.Reset();
 					control_mode_ = kHoQpController;
 				}
 				break;

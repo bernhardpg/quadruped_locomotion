@@ -34,11 +34,6 @@ namespace control
 			ros::NodeHandle ros_node_;
 			std::string model_name_;
 
-			gen_coord_vector_t q_;
-			gen_vel_vector_t u_;
-			Eigen::MatrixXd q_j_;
-			Eigen::MatrixXd q_j_dot_;
-
 			Dynamics robot_dynamics_;
 
 			// **************** //
@@ -58,6 +53,17 @@ namespace control
 			// ********** //
 			// CONTROLLER //
 			// ********** //
+
+			gen_coord_vector_t q_;
+			gen_vel_vector_t u_;
+			Eigen::MatrixXd q_j_;
+			Eigen::MatrixXd q_j_dot_;
+
+			Eigen::Matrix<double,12,1> q_j_cmd_;
+			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
+
+			Integrator q_j_dot_cmd_integrator_;
+			Integrator q_j_ddot_cmd_integrator_;
 
 			enum ControlMode {
 				kJointTracking,
@@ -91,12 +97,6 @@ namespace control
 			void DirectJointControl();
 			void FeetPosControl();
 			void SupportConsistentControl();
-
-			Eigen::Matrix<double,12,1> q_j_cmd_;
-			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
-
-			Integrator q_j_dot_cmd_integrator_;
-			Integrator q_j_ddot_cmd_integrator_;
 
 			// ************* //
 			// STATE MACHINE // 

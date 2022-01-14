@@ -12,11 +12,6 @@ namespace control
 		num_contacts_ = 4; // TODO: generalize this
 		num_decision_vars_ = kNumGenVels + kNumPosDims * num_contacts_;
 		ROS_INFO("num_decision_vars: %d", num_decision_vars_);
-
-		const Eigen::VectorXd max_torque_vec_
-			= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
-		const Eigen::VectorXd min_torque_vec_
-			= Eigen::VectorXd::Ones(kNumJoints) * min_torque_;
 	}
 
 	void HoQpController::Update(
@@ -24,20 +19,24 @@ namespace control
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
-		ROS_INFO("===== NEW UPDATE =====");
-		UpdateDynamicsTerms(q,u);
-		std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
-		std::vector<std::shared_ptr<HoQpProblem>>
-			opt_problems = ConstructOptProblems(tasks);
-		Eigen::VectorXd sol = opt_problems.back()->GetSolution();
+		bool run_once = false;
+		if (!run_once)
+		{
+			ROS_INFO("===== NEW UPDATE =====");
+			UpdateDynamicsTerms(q,u);
+			std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
+			std::vector<std::shared_ptr<HoQpProblem>>
+				opt_problems = ConstructOptProblems(tasks);
+			Eigen::VectorXd sol = opt_problems.back()->GetSolution();
 
-		CheckSolutionValid(tasks[0], sol);
-		//CheckSolutionValid(tasks[1], sol);
-		//CheckSolutionValid(tasks[2], sol);
+			CheckSolutionValid(tasks[0], sol);
+			//CheckSolutionValid(tasks[1], sol);
+			//CheckSolutionValid(tasks[2], sol);
 
-		q_j_ddot_cmd_ = sol.block(kNumTwistCoords,0,kNumJoints,1);
-		std::cout << "q_j_ddot:\n";
-		PrintMatrix(q_j_ddot_cmd_.transpose());
+			q_j_ddot_cmd_ = sol.block(kNumTwistCoords,0,kNumJoints,1);
+			std::cout << "q_j_ddot:\n";
+			PrintMatrix(q_j_ddot_cmd_.transpose());
+		}
 	}
 
 	Eigen::VectorXd HoQpController::GetJointAccelerationCmd()
@@ -108,7 +107,7 @@ namespace control
 			ConcatenateTasks(joint_torque_task, friction_cone_task);
 
 		TaskDefinition no_contact_motion_task =
-			ConstructNoContactMotionTask(u);
+			ConstructNoContactMotionTask();
 
 		auto fb_lin_vel = u.block(0,0,2,1);
 		TaskDefinition com_pos_traj_task =
@@ -184,9 +183,7 @@ namespace control
 		return com_pos_traj_task;
 	}
 
-	TaskDefinition HoQpController::ConstructNoContactMotionTask(
-			Eigen::VectorXd u
-			)
+	TaskDefinition HoQpController::ConstructNoContactMotionTask()
 	{
 		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
 				kNumPosDims * num_contacts_, kNumPosDims * num_contacts_);
@@ -195,12 +192,7 @@ namespace control
 		A << J_c_, zero;
 
 		Eigen::VectorXd b(kNumPosDims * num_contacts_);
-		b << -J_c_dot_u_ * u;
-
-		std::cout << "A:\n";
-		PrintMatrix(A);
-		std::cout << "b:\n";
-		PrintMatrix(b);
+		b << -J_c_dot_u_;
 
 		TaskDefinition no_contact_motion_task = {.A=A, .b=b};
 		return no_contact_motion_task;
@@ -242,7 +234,7 @@ namespace control
 	TaskDefinition HoQpController::ConstructJointTorqueTask()
 	{
 		Eigen::MatrixXd M_j = GetJointRows(M_);
-		Eigen::MatrixXd c_j = GetJointRows(c_);
+		Eigen::VectorXd c_j = GetJointRows(c_);
 		Eigen::MatrixXd J_c_t = J_c_.transpose();
 		Eigen::MatrixXd J_c_j_t = GetJointRows(J_c_t);
 
@@ -266,7 +258,7 @@ namespace control
 	TaskDefinition HoQpController::ConstructFloatingBaseEomTask()
 	{
 		Eigen::MatrixXd M_fb = GetFloatingBaseRows(M_);
-		Eigen::MatrixXd c_fb = GetFloatingBaseRows(c_);
+		Eigen::VectorXd c_fb = GetFloatingBaseRows(c_);
 		Eigen::MatrixXd J_c_t = J_c_.transpose();
 		Eigen::MatrixXd J_c_fb_t = GetFloatingBaseRows(J_c_t);
 
@@ -318,6 +310,15 @@ namespace control
 	// HELPER FUNCTIONS //
 	// **************** //
 
+	Eigen::VectorXd HoQpController::GetFloatingBaseRows(
+			Eigen::VectorXd &v
+			)
+	{
+		Eigen::VectorXd v_fb
+			= v.block(0,0,kNumTwistCoords,v.cols());
+		return v_fb;
+	}
+
 	Eigen::MatrixXd HoQpController::GetFloatingBaseRows(
 			Eigen::MatrixXd &m
 			)
@@ -327,13 +328,22 @@ namespace control
 		return m_fb;
 	}
 
+	Eigen::VectorXd HoQpController::GetJointRows(
+			Eigen::VectorXd &v
+			)
+	{
+		Eigen::VectorXd v_j
+			= v.block(kNumTwistCoords,0,kNumJoints,1);
+		return v_j;
+	}
+
 	Eigen::MatrixXd HoQpController::GetJointRows(
 			Eigen::MatrixXd &m
 			)
 	{
-		Eigen::MatrixXd m_fb
+		Eigen::MatrixXd m_j
 			= m.block(kNumTwistCoords,0,kNumJoints,m.cols());
-		return m_fb;
+		return m_j;
 	}
 
 
