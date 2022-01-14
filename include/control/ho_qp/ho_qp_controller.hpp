@@ -38,6 +38,7 @@ namespace control
 			// Constants //
 			// ********* //
 
+			bool run_once_ = false;
 			// TODO: Set actual torque limits and friction coeff?
 			const double max_torque_ = 100;
 			const double min_torque_ = -max_torque_; 

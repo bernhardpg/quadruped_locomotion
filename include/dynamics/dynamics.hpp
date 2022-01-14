@@ -45,6 +45,9 @@ class Dynamics
 		// FORWARD KINEMATICS // 
 		// ****************** //
 
+		void PrintJointPlacements(
+				Eigen::VectorXd q
+				);
 		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
 				Eigen::Matrix<double,kNumGenCoords, 1> q
 				);

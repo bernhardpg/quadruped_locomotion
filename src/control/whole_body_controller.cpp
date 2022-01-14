@@ -197,20 +197,20 @@ namespace control {
 				break;
 			case kHoQpController:
 				{
-					std::cout << "u_:\n";
-					PrintMatrix(u_.transpose());
+					//std::cout << "u_:\n";
+					//PrintMatrix(u_.transpose());
 
 					ho_qp_controller_.Update(q_,u_);
 					Eigen::VectorXd q_j_ddot_cmd =
 						ho_qp_controller_.GetJointAccelerationCmd();
 					q_j_ddot_cmd_integrator_.Integrate(q_j_ddot_cmd);
 					q_j_dot_cmd_ = q_j_ddot_cmd_integrator_.GetIntegral();
-					std::cout << "q_j_dot_cmd_:\n";
-					PrintMatrix(q_j_dot_cmd_.transpose());
+					//std::cout << "q_j_dot_cmd_:\n";
+					//PrintMatrix(q_j_dot_cmd_.transpose());
 					q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
 					q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-					std::cout << "q_j_cmd_:\n";
-					PrintMatrix(q_j_cmd_.transpose());
+					//std::cout << "q_j_cmd_:\n";
+					//PrintMatrix(q_j_cmd_.transpose());
 				}
 				break;
 			default:

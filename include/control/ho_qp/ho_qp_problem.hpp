@@ -31,14 +31,14 @@ namespace control
 			// ***************** //
 
 			// TODO: Replace getters with direct variables for efficiency?
-			TaskDefinition GetAccumTasks();
-			Eigen::MatrixXd GetAccumNullspaceMatrix();
+			TaskDefinition GetStackedTasks();
+			Eigen::MatrixXd GetStackedNullspaceMatrix();
 
-			int GetAccumNumSlackVars();
+			int GetStackedNumSlackVars();
 
 			Eigen::VectorXd GetSolution();
 			Eigen::VectorXd GetSlackSolutions();
-			Eigen::VectorXd GetAccumSlackSolutions();
+			Eigen::VectorXd GetStackedSlackSolutions();
 
 			void SetAllDecisionVars(); // TODO rename
 
@@ -53,7 +53,7 @@ namespace control
 			bool is_higher_pri_problem_defined_; 
 
 			// Convenience matrices that are used multiple times
-			const double eps_ = 1e-9;
+			const double eps_ = 1e-15;
 			Eigen::MatrixXd eps_matrix_; 
 			Eigen::MatrixXd eye_nv_nv_;
 			Eigen::MatrixXd zero_nv_nx_;
@@ -73,18 +73,18 @@ namespace control
 			Eigen::MatrixXd D_;
 			Eigen::MatrixXd f_;
 			
-			Eigen::MatrixXd accum_Z_;
+			Eigen::MatrixXd stacked_Z_;
 
-			Eigen::MatrixXd accum_Z_prev_; 
-			Eigen::VectorXd accum_slack_solutions_prev_; 
+			Eigen::MatrixXd stacked_Z_prev_; 
+			Eigen::VectorXd stacked_slack_solutions_prev_; 
 			Eigen::VectorXd x_prev_;
 			int num_prev_slack_vars_;
 
 			TaskDefinition curr_task_;
 			
-			TaskDefinition accum_tasks_; // TODO: rename?
-			TaskDefinition accum_tasks_prev_; 
-			Eigen::VectorXd accum_slack_vars_; 
+			TaskDefinition stacked_tasks_; // TODO: rename?
+			TaskDefinition stacked_tasks_prev_; 
+			Eigen::VectorXd stacked_slack_vars_; 
 
 			std::shared_ptr<HoQpProblem> higher_pri_problem_;
 
@@ -93,8 +93,8 @@ namespace control
 			// ********************* //
 
 			void InitTaskVariables();
-			void AccumulateTasks();
-			void AccumulateSlackSolutions();
+			void StackTasks();
+			void StackSlackSolutions();
 
 			void LoadPrevProblemData();
 			void InitPrevProblemValuesToDefault();
@@ -102,7 +102,7 @@ namespace control
 			void InitPrevProblemValuesFromPrevProblem();
 
 			void ConstructProblemMatrices();
-			void ConstructAccumNullspaceMatrix();
+			void ConstructStackedNullspaceMatrix();
 			void ConstructNullspaceMatrixFromPrev();
 
 			void ConstructDMatrix();

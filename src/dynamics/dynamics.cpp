@@ -16,6 +16,7 @@ Dynamics::Dynamics()
 
   // Create data required by the algorithms
 	data_ = pinocchio::Data(model_);
+
 }
 
 // ******** //
@@ -90,6 +91,23 @@ Eigen::VectorXd Dynamics::GetContactAccPosStacked(
 // FORWARD KINEMATICS // 
 // ****************** //
 
+void Dynamics::PrintJointPlacements(
+		Eigen::VectorXd q
+		)
+{
+	pinocchio::forwardKinematics(model_, data_, q);
+
+	// Print out the placement of each joint of the kinematic tree
+	for(pinocchio::JointIndex joint_id = 0; joint_id < (pinocchio::JointIndex) model_.njoints; ++joint_id)
+	{
+		std::cout << std::setw(24) << std::left
+							<< model_.names[joint_id] << ": "
+							<< std::fixed << std::setprecision(2)
+							<< data_.oMi[joint_id].translation().transpose()
+							<< std::endl;
+	}
+}
+
 Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
 		Eigen::Matrix<double,kNumGenCoords, 1> q
 		)
@@ -132,6 +150,9 @@ Eigen::MatrixXd Dynamics::GetContactJacobian(
 		Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
 		)
 {
+	std::cout << "q:\n";
+	PrintMatrix(q.transpose());
+	PrintJointPlacements(q);
 	Eigen::MatrixXd J_c(kNumTwistCoords,kNumGenVels);
 	J_c.setZero();
 	pinocchio::computeFrameJacobian(
@@ -218,7 +239,7 @@ void Dynamics::Test()
 	pinocchio::computeFrameJacobian(
 			model_, data_, q,
 			model_.getFrameId("LF_FOOT"),
-			pinocchio::ReferenceFrame::WORLD,
+			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED,
 			J_world
 			);
 

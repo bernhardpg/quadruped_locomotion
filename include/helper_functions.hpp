@@ -7,7 +7,7 @@
 
 void PrintMatrix(Eigen::MatrixXd matr)
 {
-	std::cout << std::setprecision(8) << std::fixed
+	std::cout << std::setprecision(2) << std::fixed
 		<< matr << std::endl << std::endl;	
 }
 
@@ -63,7 +63,7 @@ void AssertSolutionValid(TaskDefinition task, Eigen::VectorXd sol)
 void CheckSolutionValid(TaskDefinition task, Eigen::VectorXd sol)
 {
 	std::cout << "=== Checking solution ===\n";
-	double eps = 1e-3;
+	double eps = 1e-7;
 	if (task.A.rows() > 0)
 	{
 		Eigen::VectorXd residue = task.A*sol - task.b;
@@ -96,7 +96,7 @@ void CheckSolutionValid(
 		Eigen::VectorXd sol)
 {
 	std::cout << "=== Checking solution ===\n";
-	double eps = 1e-4;
+	double eps = 1e-7;
 	if (A.rows() > 0)
 	{
 		Eigen::VectorXd residue = A*sol - b;

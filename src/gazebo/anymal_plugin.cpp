@@ -266,10 +266,10 @@ namespace gazebo
 		q_b(0) = base_pose.Pos().X();
 		q_b(1) = base_pose.Pos().Y();
 		q_b(2) = base_pose.Pos().Z();
-		q_b(3) = base_pose.Rot().W();
-		q_b(4) = base_pose.Rot().X();
-		q_b(5) = base_pose.Rot().Y();
-		q_b(6) = base_pose.Rot().Z();
+		q_b(3) = base_pose.Rot().X();
+		q_b(4) = base_pose.Rot().Y();
+		q_b(5) = base_pose.Rot().Z();
+		q_b(6) = base_pose.Rot().W();
 
 		return q_b;
 	}

@@ -2,8 +2,6 @@
 
 // TODO: clean up use of variable 'x'
 // TODO: clean up this class and remove prints
-// TODO: Change from 'accum' to 'stacked'
-
 namespace control
 {
 	HoQpProblem::HoQpProblem(TaskDefinition &new_task)
@@ -20,36 +18,36 @@ namespace control
 		is_higher_pri_problem_defined_ = higher_pri_problem_ != nullptr;
 		LoadPrevProblemData();
 		InitTaskVariables();
+		StackTasks();
 		FormulateOptimizationProblem();
 		SolveQp();
-		AccumulateTasks();
-		ConstructAccumNullspaceMatrix();
-		AccumulateSlackSolutions();
+		ConstructStackedNullspaceMatrix();
+		StackSlackSolutions();
 	}
 
 	// ***************** //
 	// SETTERS & GETTERS //
 	// ***************** //
 
-	TaskDefinition HoQpProblem::GetAccumTasks()
+	TaskDefinition HoQpProblem::GetStackedTasks()
 	{
-		return accum_tasks_;
+		return stacked_tasks_;
 	}
 
-	Eigen::MatrixXd HoQpProblem::GetAccumNullspaceMatrix()
+	Eigen::MatrixXd HoQpProblem::GetStackedNullspaceMatrix()
 	{
-		return accum_Z_;
+		return stacked_Z_;
 	}
 
-	int HoQpProblem::GetAccumNumSlackVars()
+	int HoQpProblem::GetStackedNumSlackVars()
 	{
-		return accum_tasks_.D.rows();	
+		return stacked_tasks_.D.rows();	
 	}
 
 	Eigen::VectorXd HoQpProblem::GetSolution()
 	{
 		Eigen::MatrixXd x =
-			x_prev_ + accum_Z_prev_ * decision_vars_solutions_;
+			x_prev_ + stacked_Z_prev_ * decision_vars_solutions_;
 		return x;
 	}
 
@@ -58,9 +56,9 @@ namespace control
 		return slack_vars_solutions_;
 	}
 
-	Eigen::VectorXd HoQpProblem::GetAccumSlackSolutions()
+	Eigen::VectorXd HoQpProblem::GetStackedSlackSolutions()
 	{
-		return accum_slack_vars_;
+		return stacked_slack_vars_;
 	}
 
 
@@ -83,21 +81,21 @@ namespace control
 					);
 	}
 
-	void HoQpProblem::AccumulateTasks()
+	void HoQpProblem::StackTasks()
 	{
-		accum_tasks_ = ConcatenateTasks(curr_task_, accum_tasks_prev_);
+		stacked_tasks_ = ConcatenateTasks(curr_task_, stacked_tasks_prev_);
 	}
 
-	void HoQpProblem::AccumulateSlackSolutions()
+	void HoQpProblem::StackSlackSolutions()
 	{
 		if (!is_higher_pri_problem_defined_)		
 		{
-			accum_slack_vars_	= GetSlackSolutions();
+			stacked_slack_vars_	= GetSlackSolutions();
 		}
 		else
 		{
-			accum_slack_vars_	= ConcatenateVectors(
-					higher_pri_problem_->GetAccumSlackSolutions(),
+			stacked_slack_vars_	= ConcatenateVectors(
+					higher_pri_problem_->GetStackedSlackSolutions(),
 					GetSlackSolutions()
 					);
 		}
@@ -108,7 +106,7 @@ namespace control
 		if (is_higher_pri_problem_defined_)
 		{
 			InitPrevProblemValuesFromPrevProblem();
-			num_decision_vars_ = accum_Z_prev_.cols();
+			num_decision_vars_ = stacked_Z_prev_.cols();
 		}
 		else
 		{
@@ -121,13 +119,13 @@ namespace control
 
 	void HoQpProblem::InitPrevProblemValuesToDefault()
 	{
-		accum_tasks_prev_ = CreateEmptyTask(num_decision_vars_);
-		accum_Z_prev_ = Eigen::MatrixXd::Identity(
+		stacked_tasks_prev_ = CreateEmptyTask(num_decision_vars_);
+		stacked_Z_prev_ = Eigen::MatrixXd::Identity(
 				num_decision_vars_, num_decision_vars_
 				);
 		x_prev_ = Eigen::VectorXd::Zero(num_decision_vars_);
 		num_prev_slack_vars_ = 0;
-		accum_slack_solutions_prev_ = Eigen::VectorXd::Zero(0);
+		stacked_slack_solutions_prev_ = Eigen::VectorXd::Zero(0);
 	}
 
 	TaskDefinition HoQpProblem::CreateEmptyTask(int num_decision_vars)
@@ -147,13 +145,13 @@ namespace control
 
 	void HoQpProblem::InitPrevProblemValuesFromPrevProblem()
 	{
-		accum_Z_prev_ = higher_pri_problem_->GetAccumNullspaceMatrix();
-		accum_tasks_prev_ = higher_pri_problem_->GetAccumTasks();
-		accum_slack_solutions_prev_ = 
-			higher_pri_problem_->GetAccumSlackSolutions();
+		stacked_Z_prev_ = higher_pri_problem_->GetStackedNullspaceMatrix();
+		stacked_tasks_prev_ = higher_pri_problem_->GetStackedTasks();
+		stacked_slack_solutions_prev_ = 
+			higher_pri_problem_->GetStackedSlackSolutions();
 		x_prev_ = higher_pri_problem_->GetSolution();
 		num_prev_slack_vars_ =
-			higher_pri_problem_->GetAccumNumSlackVars();
+			higher_pri_problem_->GetStackedNumSlackVars();
 	}
 
 	void HoQpProblem::ConstructProblemMatrices()
@@ -164,20 +162,20 @@ namespace control
 		ConstructFVector();
 	}
 
-	void HoQpProblem::ConstructAccumNullspaceMatrix()
+	void HoQpProblem::ConstructStackedNullspaceMatrix()
 	{
 		if(has_eq_constraints_)
 			ConstructNullspaceMatrixFromPrev();
 		else
-			accum_Z_ = accum_Z_prev_;
+			stacked_Z_ = stacked_Z_prev_;
 	}
 
 	void HoQpProblem::ConstructNullspaceMatrixFromPrev()
 	{
-		Eigen::MatrixXd Null_of_A_curr_times_accum_Z_prev_ =
-			CalcNullSpaceProjMatrix(curr_task_.A * accum_Z_prev_);
+		Eigen::MatrixXd Null_of_A_curr_times_stacked_Z_prev_ =
+			CalcNullSpaceProjMatrix(curr_task_.A * stacked_Z_prev_);
 
-		accum_Z_ = accum_Z_prev_ * Null_of_A_curr_times_accum_Z_prev_;
+		stacked_Z_ = stacked_Z_prev_ * Null_of_A_curr_times_stacked_Z_prev_;
 	}
 
 	void HoQpProblem::ConstructDMatrix()
@@ -188,20 +186,20 @@ namespace control
 				);
 		D.setZero();
 
-		Eigen::MatrixXd accum_zero = Eigen::MatrixXd::Zero(
+		Eigen::MatrixXd stacked_zero = Eigen::MatrixXd::Zero(
 					num_prev_slack_vars_, num_slack_vars_
 					);
 
 		Eigen::MatrixXd D_curr_Z;
 		if (has_ineq_constraints_)
-			D_curr_Z = curr_task_.D * accum_Z_prev_;
+			D_curr_Z = curr_task_.D * stacked_Z_prev_;
 		else
 			D_curr_Z = Eigen::MatrixXd::Zero(0,num_decision_vars_);
 
 		// NOTE: This is upside down compared to the paper,
 		// but more consistent with the rest of the algorithm
 		D << zero_nv_nx_, -eye_nv_nv_,
-				 accum_tasks_prev_.D * accum_Z_prev_, accum_zero,
+				 stacked_tasks_prev_.D * stacked_Z_prev_, stacked_zero,
 				 D_curr_Z, - eye_nv_nv_;
 
 		D_ = D;
@@ -224,8 +222,8 @@ namespace control
 			f_minus_D_x_prev = Eigen::VectorXd::Zero(0);
 
 		f << zero_vec,
-				 accum_tasks_prev_.f - accum_tasks_prev_.D * x_prev_
-					 + accum_slack_solutions_prev_,
+				 stacked_tasks_prev_.f - stacked_tasks_prev_.D * x_prev_
+					 + stacked_slack_solutions_prev_,
 				 f_minus_D_x_prev;
 
 		f_ = f;
@@ -243,7 +241,7 @@ namespace control
 		{
 			// Make sure that all eigenvalues of A_t_A are nonnegative,
 			// which could arise due to numerical issues
-			A_curr_Z_prev_ = curr_task_.A * accum_Z_prev_;
+			A_curr_Z_prev_ = curr_task_.A * stacked_Z_prev_;
 			Z_t_A_t_A_Z =
 				A_curr_Z_prev_.transpose() * A_curr_Z_prev_ 
 				+ eps_matrix_;
@@ -365,11 +363,19 @@ namespace control
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
 
-		std::cout << "A * z - b:\n"; // TODO: only for debugging of a single task
-		PrintMatrix(curr_task_.A * decision_vars_solutions_ - curr_task_.b);
+		std::cout << "z:\n";
+		PrintMatrix(decision_vars_solutions_.block(0,0,18,1).transpose());
 
-		std::cout << "A_p_accum * accum_Z_prev * z_p+1:\n";
-		PrintMatrix(accum_tasks_prev_.A * accum_Z_prev_ * decision_vars_solutions_);
+		std::cout << "x:\n";
+		PrintMatrix(GetSolution().block(0,0,18,1).transpose());
+
+		std::cout << "A(x_prev + Z_prev * z_p_+_1) - b\n";
+		PrintMatrix(
+				curr_task_.A * (x_prev_ + stacked_Z_prev_ * decision_vars_solutions_) - curr_task_.b);
+
+		std::cout << "A_p_stacked * stacked_Z_prev * z_p+1:\n";
+		PrintMatrix(
+				stacked_tasks_prev_.A * stacked_Z_prev_ * decision_vars_solutions_);
 	}
 }
 

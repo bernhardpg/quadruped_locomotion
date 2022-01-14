@@ -19,9 +19,9 @@ namespace control
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
-		bool run_once = false;
-		if (!run_once)
+		if (run_once_ == false)
 		{
+			run_once_ = true;
 			ROS_INFO("===== NEW UPDATE =====");
 			UpdateDynamicsTerms(q,u);
 			std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
@@ -30,7 +30,7 @@ namespace control
 			Eigen::VectorXd sol = opt_problems.back()->GetSolution();
 
 			CheckSolutionValid(tasks[0], sol);
-			//CheckSolutionValid(tasks[1], sol);
+			CheckSolutionValid(tasks[1], sol);
 			//CheckSolutionValid(tasks[2], sol);
 
 			q_j_ddot_cmd_ = sol.block(kNumTwistCoords,0,kNumJoints,1);
@@ -57,6 +57,8 @@ namespace control
 		M_ = robot_dynamics_.GetMassMatrix(q);
 		c_ = robot_dynamics_.GetBiasVector(q,u);
 		J_c_ = robot_dynamics_.GetStackedContactJacobianPos(q);
+		std::cout << "J_c\n";
+		PrintMatrix(J_c_);
 		J_c_dot_u_ = robot_dynamics_.GetContactAccPosStacked(q,u);
 
 		auto J_b = robot_dynamics_.GetBaseJacobian(q);
@@ -122,7 +124,7 @@ namespace control
 		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
-			//fb_eom_task,
+			fb_eom_task,
 			//joint_torque_and_friction_task,
 			no_contact_motion_task,
 			//force_min_task,
