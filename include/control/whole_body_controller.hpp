@@ -43,7 +43,7 @@ namespace control
 			double seconds_to_initial_config_ = 2.5; 
 			double seconds_to_standup_config_ = 2.0;
 			double traj_end_time_s_ = 2.0;
-			double standing_height_ = 0.3;
+			double standing_height_ = 0.35;
 
 			void SetJointInitialConfigTraj();
 			//void SetFeetStandupTraj(); TODO: remove

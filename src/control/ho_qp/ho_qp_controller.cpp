@@ -30,10 +30,10 @@ namespace control
 			Eigen::VectorXd sol = opt_problems.back()->GetSolution();
 
 			CheckSolutionValid(tasks[0], sol);
-			CheckSolutionValid(tasks[1], sol);
+			//CheckSolutionValid(tasks[1], sol);
 			//CheckSolutionValid(tasks[2], sol);
 
-			q_j_ddot_cmd_ = sol.block(kNumTwistCoords,0,kNumJoints,1);
+			q_j_ddot_cmd_ = sol.block<kNumJoints,1>(kNumTwistCoords,0);
 			std::cout << "q_j_ddot:\n";
 			PrintMatrix(q_j_ddot_cmd_.transpose());
 		}
@@ -57,19 +57,12 @@ namespace control
 		// TODO: Assumes 4 contact points!
 		M_ = robot_dynamics_.GetMassMatrix();
 		c_ = robot_dynamics_.GetBiasVector();
-		std::cout << "Calculated m and Cv\n";
 		J_c_ = robot_dynamics_.GetStackedContactJacobianInW();
-		std::cout << "J_c\n";
-		PrintMatrix(J_c_);
 		J_c_dot_u_ = robot_dynamics_.GetStackedContactAccInW();
-		std::cout << "J_c_dot_u\n";
-		PrintMatrix(J_c_dot_u_);
 
 		auto J_b = robot_dynamics_.GetBaseJacobianInW();
-		std::cout << "J_b\n";
-		PrintMatrix(J_b);
-		//J_b_pos_ = J_b.block(0,0,2,kNumGenVels); // only keep x, y
-		//J_b_rot_ = J_b.block(kNumPosDims,0,2,kNumGenVels); // only keep roll, pitch
+		J_b_pos_ = J_b.block(0,0,3,kNumGenVels);
+		J_b_rot_ = J_b.block(kNumPosDims,0,3,kNumGenVels);
 	}
 
 	// ********** //
@@ -109,30 +102,30 @@ namespace control
 	{
 		TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
 
-		TaskDefinition joint_torque_task = ConstructJointTorqueTask();
-		TaskDefinition friction_cone_task = ConstructFrictionConeTask();
-		TaskDefinition joint_torque_and_friction_task =
-			ConcatenateTasks(joint_torque_task, friction_cone_task);
+//		TaskDefinition joint_torque_task = ConstructJointTorqueTask();
+//		TaskDefinition friction_cone_task = ConstructFrictionConeTask();
+//		TaskDefinition joint_torque_and_friction_task =
+//			ConcatenateTasks(joint_torque_task, friction_cone_task);
 
 		TaskDefinition no_contact_motion_task =
 			ConstructNoContactMotionTask();
 
-		auto fb_lin_vel = u.block(0,0,2,1);
-		TaskDefinition com_pos_traj_task =
-			ConstructComPosTrajTask(fb_lin_vel);
-		auto fb_ang_vel = u.block(kNumPosDims,0,2,1);
-		TaskDefinition com_rot_traj_task =
-			ConstructComRotTrajTask(fb_ang_vel);
-		TaskDefinition com_traj_task = 
-			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
-
-		TaskDefinition force_min_task = ConstructForceMinimizationTask();
-		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
+//		auto fb_lin_vel = u.block(0,0,2,1);
+//		TaskDefinition com_pos_traj_task =
+//			ConstructComPosTrajTask(fb_lin_vel);
+//		auto fb_ang_vel = u.block(kNumPosDims,0,2,1);
+//		TaskDefinition com_rot_traj_task =
+//			ConstructComRotTrajTask(fb_ang_vel);
+//		TaskDefinition com_traj_task = 
+//			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
+//
+//		TaskDefinition force_min_task = ConstructForceMinimizationTask();
+//		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
 			fb_eom_task,
 			//joint_torque_and_friction_task,
-			no_contact_motion_task,
+			//no_contact_motion_task,
 			//force_min_task,
 			//acc_min_task,
 			//com_traj_task,
@@ -276,8 +269,8 @@ namespace control
 		Eigen::VectorXd b(kNumTwistCoords);
 		b << -c_fb;
 
-		TaskDefinition fb_eom_constraint = {.A=A, .b=b};
-		return fb_eom_constraint;
+		TaskDefinition fb_eom_task = {.A=A, .b=b};
+		return fb_eom_task;
 	}
 
 	TaskDefinition HoQpController::ConstructJointAccMinimizationTask()

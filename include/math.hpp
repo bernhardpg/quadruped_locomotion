@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 const double kInf = 9999999;
-const double kEps = 1e-7;
+const double kEps = 1e-15;
 
 bool CheckEigenValuesPositive(Eigen::MatrixXd m)
 {

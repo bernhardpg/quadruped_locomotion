@@ -94,8 +94,8 @@ namespace control {
 	{
 		J_task_.resize(1,kNumGenVels);
 		J_task_.setZero();
-		int z_index = 2;
-		J_task_(0, z_index) = 1;
+		const int z_index_in_vels = 5;
+		J_task_(0, z_index_in_vels) = 1;
 
 		const std::vector<double> breaks =
 		{
@@ -103,7 +103,8 @@ namespace control {
 		};
 
 		Eigen::MatrixXd curr_pose(1,1);
-		double curr_height = q_(z_index);
+		const int z_index_in_coords = 6;
+		double curr_height = q_(z_index_in_coords);
 		curr_pose << curr_height;
 
 		Eigen::MatrixXd target_pose(1,1);
@@ -123,6 +124,7 @@ namespace control {
 		traj_end_time_s_ = seconds_to_standup_config_;
 	}
 
+	// TODO: outdated
 	void WholeBodyController::SetDanceTraj()
 	{
 		J_task_.resize(3,kNumGenVels);
@@ -266,9 +268,10 @@ namespace control {
 //		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
 //	}
 
-	// TODO: Should this be its own class?
+	// TODO: Move this to its own class
 	void WholeBodyController::SupportConsistentControl()
 	{
+		robot_dynamics_.SetState(q_,u_);
 		Eigen::MatrixXd J_constraint = robot_dynamics_
 			.GetStackedContactJacobianInW();
 		Eigen::MatrixXd N_constraint =
