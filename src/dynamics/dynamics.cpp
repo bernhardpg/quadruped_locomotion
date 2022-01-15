@@ -6,22 +6,37 @@
 Dynamics::Dynamics()
 {
 	// TODO: Load URDF file from somewhere
-  urdf_filename_ = "/home/bernhardpg/catkin_ws/src/anymal_c_simple_description/urdf/anymal.urdf";
+	std::string kAnymalPath = "drake/anymal_c_simple_description/urdf/anymal.urdf";
 
-  // Load the urdf model
-  pinocchio::urdf::buildModel(
-			urdf_filename_, pinocchio::JointModelFreeFlyer(), model_, false 
-			); // Specify JointModelFreeFlyer to make root joint floating base
-	model_.names[1] = "base"; // Set name of floating base
+	drake::systems::DiagramBuilder<double> builder;
+	drake::geometry::SceneGraph<double>& scene_graph =
+      *builder.AddSystem<drake::geometry::SceneGraph>();
+  scene_graph.set_name("scene_graph");
 
-  // Create data required by the algorithms
-	data_ = pinocchio::Data(model_);
+	drake::multibody::MultibodyPlant<double>* plant = 
+      builder.AddSystem<drake::multibody::MultibodyPlant<double>>(1e-3);
+  plant->set_name("plant");
+  plant->RegisterAsSourceForSceneGraph(&scene_graph);
 
+	drake::multibody::Parser parser(plant);
+  const std::string urdf_path = drake::FindResourceOrThrow(kAnymalPath);
+	drake::multibody::ModelInstanceIndex plant_model_instance_index =
+      parser.AddModelFromFile(urdf_path);
+  (void)plant_model_instance_index;
+
+	plant->Finalize();
+
+	if (false) // For visualizing kinematic tree
+	{
+		std::cout << plant->GetTopologyGraphvizString();
+	}
 }
 
 // ******** //
 // DYNAMICS //
 // ******** //
+//
+// TODO: OLD pinocchio code.
 
 Eigen::MatrixXd Dynamics::GetMassMatrix(
 		Eigen::Matrix<double,kNumGenCoords, 1> q

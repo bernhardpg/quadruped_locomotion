@@ -15,6 +15,12 @@
 #include "anymal_constants.hpp"
 #include "helper_functions.hpp"
 
+#include <drake/multibody/tree/multibody_element.h>
+#include <drake/multibody/parsing/parser.h>
+#include <drake/geometry/scene_graph_inspector.h>
+#include <drake/systems/framework/diagram_builder.h>
+#include <drake/common/find_resource.h>
+
 class Dynamics
 {
 	public:
