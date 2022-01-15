@@ -21,7 +21,6 @@ namespace control
 	{
 		if (run_once_ == false)
 		{
-			run_once_ = true;
 			ROS_INFO("===== NEW UPDATE =====");
 			UpdateModelDynamics(q,u);
 			std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
@@ -30,8 +29,10 @@ namespace control
 			Eigen::VectorXd sol = opt_problems.back()->GetSolution();
 
 			CheckSolutionValid(tasks[0], sol);
-			//CheckSolutionValid(tasks[1], sol);
-			//CheckSolutionValid(tasks[2], sol);
+			CheckSolutionValid(tasks[1], sol);
+			CheckSolutionValid(tasks[2], sol);
+			CheckSolutionValid(tasks[3], sol);
+			CheckSolutionValid(tasks[4], sol);
 
 			q_j_ddot_cmd_ = sol.block<kNumJoints,1>(kNumTwistCoords,0);
 			std::cout << "q_j_ddot:\n";
@@ -61,8 +62,8 @@ namespace control
 		J_c_dot_u_ = robot_dynamics_.GetStackedContactAccInW();
 
 		auto J_b = robot_dynamics_.GetBaseJacobianInW();
-		J_b_pos_ = J_b.block(0,0,3,kNumGenVels);
-		J_b_rot_ = J_b.block(kNumPosDims,0,3,kNumGenVels);
+		J_b_rot_ = J_b.block(0,0,3,kNumGenVels);
+		J_b_pos_ = J_b.block(3,0,3,kNumGenVels);
 	}
 
 	// ********** //
@@ -102,47 +103,46 @@ namespace control
 	{
 		TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
 
-//		TaskDefinition joint_torque_task = ConstructJointTorqueTask();
-//		TaskDefinition friction_cone_task = ConstructFrictionConeTask();
-//		TaskDefinition joint_torque_and_friction_task =
-//			ConcatenateTasks(joint_torque_task, friction_cone_task);
+		TaskDefinition joint_torque_task = ConstructJointTorqueTask();
+		TaskDefinition friction_cone_task = ConstructFrictionConeTask();
+		TaskDefinition joint_torque_and_friction_task =
+			ConcatenateTasks(joint_torque_task, friction_cone_task);
 
 		TaskDefinition no_contact_motion_task =
 			ConstructNoContactMotionTask();
 
-//		auto fb_lin_vel = u.block(0,0,2,1);
-//		TaskDefinition com_pos_traj_task =
-//			ConstructComPosTrajTask(fb_lin_vel);
-//		auto fb_ang_vel = u.block(kNumPosDims,0,2,1);
-//		TaskDefinition com_rot_traj_task =
-//			ConstructComRotTrajTask(fb_ang_vel);
-//		TaskDefinition com_traj_task = 
-//			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
-//
-//		TaskDefinition force_min_task = ConstructForceMinimizationTask();
-//		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
+		auto v_IB_I = u.block(0,0,3,1);
+		TaskDefinition com_pos_traj_task =
+			ConstructComPosTrajTask(v_IB_I);
+		auto w_IB = u.block(kNumPosDims,0,3,1);
+		TaskDefinition com_rot_traj_task =
+			ConstructComRotTrajTask(w_IB);
+		TaskDefinition com_traj_task = 
+			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
+
+		TaskDefinition force_min_task = ConstructForceMinimizationTask();
+		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
 			fb_eom_task,
-			//joint_torque_and_friction_task,
-			//no_contact_motion_task,
-			//force_min_task,
-			//acc_min_task,
-			//com_traj_task,
+			joint_torque_and_friction_task,
+			no_contact_motion_task,
+			com_traj_task,
+			force_min_task,
 		};
 
 		return tasks;
 	}
 
 	TaskDefinition HoQpController::ConstructComPosTrajTask(
-			Eigen::VectorXd com_vel 
+			Eigen::VectorXd v_IB_I 
 			)
 	{
-		Eigen::VectorXd com_vel_des(2);
-		com_vel_des << 1, 0; // TODO: Take from traj generator
+		Eigen::VectorXd vd_IB_I(3);
+		vd_IB_I << -0.2, 0, 0; // TODO: Take from traj generator
 
 		double k_pos = 1.0;
-		double k_vel = 0.1;
+		double k_vel = 1.0;
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
@@ -153,18 +153,18 @@ namespace control
 		A << J_b_pos_, zero;
 
 		Eigen::VectorXd b(J_b_pos_.rows());
-		b << k_vel * (com_vel_des - com_vel); // TODO: missing a bunch of terms
+		b << k_vel * (vd_IB_I - v_IB_I); // TODO: missing a bunch of terms
 
 		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
 		return com_pos_traj_task;
 	}
 
 	TaskDefinition HoQpController::ConstructComRotTrajTask(
-			Eigen::VectorXd ang_vel
+			Eigen::VectorXd w_IB 
 			)
 	{
-		Eigen::VectorXd com_vel_des(2);
-		com_vel_des << 0, 0;
+		Eigen::VectorXd wd_IB(3);
+		wd_IB << 0, 0, 0;
 
 		double k_pos = 1.0;
 		double k_vel = 0.1;
@@ -178,7 +178,7 @@ namespace control
 		A << J_b_rot_, zero;
 
 		Eigen::VectorXd b(J_b_pos_.rows());
-		b << -k_vel * (com_vel_des); // TODO: missing a bunch of terms here
+		b << k_vel * (wd_IB - w_IB); // TODO: missing a bunch of terms here
 
 		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
 		return com_pos_traj_task;
@@ -329,6 +329,7 @@ namespace control
 		return m_fb;
 	}
 
+	// TODO: Use Eigenderived instead of separate functions
 	Eigen::VectorXd HoQpController::GetJointRows(
 			Eigen::VectorXd &v
 			)

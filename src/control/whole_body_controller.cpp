@@ -198,7 +198,7 @@ namespace control {
 				SupportConsistentControl();
 				break;
 			case kHoQpController:
-				{
+				{// TODO: clean up this
 					//std::cout << "u_:\n";
 					//PrintMatrix(u_.transpose());
 

@@ -202,7 +202,7 @@ namespace gazebo
 	{
 		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			this->SetJointTorque(kJointNames[i], tau_cmds[i]);
+			this->SetJointTorque("anymal::" + kJointNames[i], tau_cmds[i]);
 		}
 	}
 
@@ -230,7 +230,7 @@ namespace gazebo
 		joint_vector_t q_j;
 		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			q_j(i) = this->GetJointPosition(kJointNames[i]);
+			q_j(i) = this->GetJointPosition("anymal::" + kJointNames[i]);
 		}
 
 		return q_j;
@@ -241,7 +241,7 @@ namespace gazebo
 		joint_vector_t v_j;
 		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			v_j(i) = this->GetJointVelocity(kJointNames[i]);
+			v_j(i) = this->GetJointVelocity("anymal::" + kJointNames[i]);
 		}
 
 		return v_j;
@@ -252,7 +252,7 @@ namespace gazebo
 		joint_vector_t tau_j;
 		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			tau_j(i) = this->GetJointTorque(kJointNames[i]);
+			tau_j(i) = this->GetJointTorque("anymal::" + kJointNames[i]);
 		}
 
 		return tau_j;
