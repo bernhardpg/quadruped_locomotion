@@ -57,14 +57,15 @@ namespace control
 		// TODO: Assumes 4 contact points!
 		M_ = robot_dynamics_.GetMassMatrix();
 		c_ = robot_dynamics_.GetBiasVector();
-		J_c_ = robot_dynamics_.GetStackedContactJacobianPos(q);
+		std::cout << "Calculated m and Cv\n";
+		J_c_ = robot_dynamics_.GetStackedContactJacobianInW();
 		std::cout << "J_c\n";
 		PrintMatrix(J_c_);
-		J_c_dot_u_ = robot_dynamics_.GetContactAccPosStacked(q,u);
+		//J_c_dot_u_ = robot_dynamics_.GetContactAccPosStacked(q,u);
 
-		auto J_b = robot_dynamics_.GetBaseJacobian(q);
-		J_b_pos_ = J_b.block(0,0,2,kNumGenVels); // only keep x, y
-		J_b_rot_ = J_b.block(kNumPosDims,0,2,kNumGenVels); // only keep roll, pitch
+//		auto J_b = robot_dynamics_.GetBaseJacobian(q);
+//		J_b_pos_ = J_b.block(0,0,2,kNumGenVels); // only keep x, y
+//		J_b_rot_ = J_b.block(kNumPosDims,0,2,kNumGenVels); // only keep roll, pitch
 	}
 
 	// ********** //

@@ -200,9 +200,9 @@ namespace gazebo
 			const std::vector<double> &tau_cmds
 			)
 	{
-		for (size_t i = 0; i < this->joint_names_.size(); ++i)
+		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			this->SetJointTorque(this->joint_names_[i], tau_cmds[i]);
+			this->SetJointTorque(kJointNames[i], tau_cmds[i]);
 		}
 	}
 
@@ -228,9 +228,9 @@ namespace gazebo
 	joint_vector_t AnymalPlugin::GetJointPositions()
 	{
 		joint_vector_t q_j;
-		for (size_t i = 0; i < this->joint_names_.size(); ++i)
+		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			q_j(i) = this->GetJointPosition(this->joint_names_[i]);
+			q_j(i) = this->GetJointPosition(kJointNames[i]);
 		}
 
 		return q_j;
@@ -239,9 +239,9 @@ namespace gazebo
 	joint_vector_t AnymalPlugin::GetJointVelocities()
 	{
 		joint_vector_t v_j;
-		for (size_t i = 0; i < this->joint_names_.size(); ++i)
+		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			v_j(i) = this->GetJointVelocity(this->joint_names_[i]);
+			v_j(i) = this->GetJointVelocity(kJointNames[i]);
 		}
 
 		return v_j;
@@ -250,9 +250,9 @@ namespace gazebo
 	joint_vector_t AnymalPlugin::GetJointTorques()
 	{
 		joint_vector_t tau_j;
-		for (size_t i = 0; i < this->joint_names_.size(); ++i)
+		for (size_t i = 0; i < kJointNames.size(); ++i)
 		{
-			tau_j(i) = this->GetJointTorque(this->joint_names_[i]);
+			tau_j(i) = this->GetJointTorque(kJointNames[i]);
 		}
 
 		return tau_j;
@@ -263,13 +263,13 @@ namespace gazebo
 		ignition::math::Pose3d base_pose = this->base_->WorldPose();			
 
 		Eigen::Matrix<double, 7, 1> q_b;
-		q_b(0) = base_pose.Pos().X();
-		q_b(1) = base_pose.Pos().Y();
-		q_b(2) = base_pose.Pos().Z();
-		q_b(6) = base_pose.Rot().W();
-		q_b(3) = base_pose.Rot().X();
-		q_b(4) = base_pose.Rot().Y();
-		q_b(5) = base_pose.Rot().Z();
+		q_b(0) = base_pose.Rot().W();
+		q_b(1) = base_pose.Rot().X();
+		q_b(2) = base_pose.Rot().Y();
+		q_b(3) = base_pose.Rot().Z();
+		q_b(4) = base_pose.Pos().X();
+		q_b(5) = base_pose.Pos().Y();
+		q_b(6) = base_pose.Pos().Z();
 
 		return q_b;
 	}
@@ -282,12 +282,12 @@ namespace gazebo
 			this->base_->WorldAngularVel();			
 
 		Eigen::VectorXd u_b(6);
-		u_b(0) = base_linear_velocity.X();
-		u_b(1) = base_linear_velocity.Y();
-		u_b(2) = base_linear_velocity.Z();
-		u_b(3) = base_angular_velocity.X();
-		u_b(4) = base_angular_velocity.Y();
-		u_b(5) = base_angular_velocity.Z();
+		u_b(0) = base_angular_velocity.X();
+		u_b(1) = base_angular_velocity.Y();
+		u_b(2) = base_angular_velocity.Z();
+		u_b(3) = base_linear_velocity.X();
+		u_b(4) = base_linear_velocity.Y();
+		u_b(5) = base_linear_velocity.Z();
 
 		return u_b;
 	}

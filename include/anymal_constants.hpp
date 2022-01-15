@@ -25,23 +25,22 @@ const std::vector<std::string> kFeetFrames =
 const std::vector<std::string> kJointNames =
 {
 	"LF_HAA",
-	"LF_HFE",
-	"LF_KFE",
-	"LH_HAA",
-	"LH_HFE",
-	"LH_KFE",
 	"RF_HAA",
-	"RF_HFE",
-	"RF_KFE",
+	"LH_HAA",
 	"RH_HAA",
+	"LF_HFE",
+	"RF_HFE",
+	"LH_HFE",
 	"RH_HFE",
+	"LF_KFE",
+	"RF_KFE",
+	"LH_KFE",
 	"RH_KFE"
 };
  // Foot ordering: LF LH RF RH
 const Eigen::MatrixXd initial_joint_config = (Eigen::MatrixXd(kNumJoints,1) << 
-	0, 2, -2.5,
-	0, -2, 2.5,
-	0, 2, -2.5,
-	0, -2, 2.5)
+		0,0,0,0,
+		2,2,-2,-2,
+		-2.5,-2.5,2.5,2.5)
 .finished();
 

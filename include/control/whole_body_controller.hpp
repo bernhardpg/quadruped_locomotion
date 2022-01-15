@@ -46,7 +46,7 @@ namespace control
 			double standing_height_ = 0.3;
 
 			void SetJointInitialConfigTraj();
-			void SetFeetStandupTraj();
+			//void SetFeetStandupTraj(); TODO: remove
 			void SetComStandupTraj();
 			void SetDanceTraj();
 
@@ -95,7 +95,7 @@ namespace control
 
 			void UpdateJointCommand();
 			void DirectJointControl();
-			void FeetPosControl();
+			//void FeetPosControl(); TODO clean up
 			void SupportConsistentControl();
 
 			// ************* //

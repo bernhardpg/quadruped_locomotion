@@ -92,8 +92,9 @@ void JointStatePublisher::PublishGenVels()
 Eigen::Matrix<double, 7, 1> JointStatePublisher::GetDefaultBodyPose()
 {
 	Eigen::Matrix<double, 7, 1> q_b;
-	q_b << 0, 0, 0, // pos
-			0, 0, 0, 1; // identity quaternion
+	q_b <<
+			1, 0, 0, 0, // identity quaternion
+			0, 0, 0; // pos
 	return q_b;
 }
 
