@@ -36,15 +36,8 @@ class Dynamics
 				);
 		Eigen::MatrixXd GetMassMatrix();
 		Eigen::VectorXd GetBiasVector();
-//		Eigen::VectorXd GetContactAcc(
-//				Eigen::Matrix<double,kNumGenCoords,1> q,
-//				Eigen::Matrix<double,kNumGenVels,1> u,
-//				int foot_i
-//				);
-//		Eigen::VectorXd GetContactAccPosStacked(
-//				Eigen::Matrix<double,kNumGenCoords,1> q,
-//				Eigen::Matrix<double,kNumGenVels,1> u
-//				);
+		Eigen::VectorXd GetContactAccInW(int foot_i);
+		Eigen::VectorXd GetStackedContactAccInW();
 
 		// ****************** //
 		// FORWARD KINEMATICS // 

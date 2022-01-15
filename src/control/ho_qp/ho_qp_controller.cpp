@@ -61,11 +61,13 @@ namespace control
 		J_c_ = robot_dynamics_.GetStackedContactJacobianInW();
 		std::cout << "J_c\n";
 		PrintMatrix(J_c_);
-		//J_c_dot_u_ = robot_dynamics_.GetContactAccPosStacked(q,u);
+		J_c_dot_u_ = robot_dynamics_.GetStackedContactAccInW();
+		std::cout << "J_c_dot_u\n";
+		PrintMatrix(J_c_dot_u_);
 
-//		auto J_b = robot_dynamics_.GetBaseJacobian(q);
-//		J_b_pos_ = J_b.block(0,0,2,kNumGenVels); // only keep x, y
-//		J_b_rot_ = J_b.block(kNumPosDims,0,2,kNumGenVels); // only keep roll, pitch
+		auto J_b = robot_dynamics_.GetBaseJacobian(q);
+		//J_b_pos_ = J_b.block(0,0,2,kNumGenVels); // only keep x, y
+		//J_b_rot_ = J_b.block(kNumPosDims,0,2,kNumGenVels); // only keep roll, pitch
 	}
 
 	// ********** //

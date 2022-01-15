@@ -56,6 +56,13 @@ void Dynamics::SetState(
 	plant_->SetVelocities(context_.get(), u);
 }
 
+Eigen::MatrixXd Dynamics::GetMassMatrix()
+{
+	Eigen::MatrixXd M(kNumGenVels,kNumGenVels);
+	plant_->CalcMassMatrix(*context_, &M);
+	return M;
+}
+
 Eigen::VectorXd Dynamics::GetBiasVector()
 {
 	Eigen::VectorXd Cv(kNumGenVels);
@@ -63,50 +70,41 @@ Eigen::VectorXd Dynamics::GetBiasVector()
 	return Cv;
 }
 
-// TODO: Old pinocchio code
-// Assumes that pinocchio::forwardKinematics(model_, data_, q, u, 0*u)
-// has already been called
-//Eigen::VectorXd Dynamics::GetContactAcc(
-//		Eigen::Matrix<double,kNumGenCoords,1> q,
-//		Eigen::Matrix<double,kNumGenVels,1> u,
-//		int foot_i
-//		)
-//{
-//	Eigen::VectorXd J_dot_u =
-//		pinocchio::getFrameClassicalAcceleration(
-//			model_, data_, model_.getFrameId(kFeetFrames[foot_i]), 
-//			pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED
-//			).toVector_impl();
-//
-//	return J_dot_u;
-//}
-//
-//// TODO: For now this assumes that all legs are in contact
-//Eigen::VectorXd Dynamics::GetContactAccPosStacked(
-//		Eigen::Matrix<double,kNumGenCoords,1> q,
-//		Eigen::Matrix<double,kNumGenVels,1> u
-//		)
-//{
-//	int num_contacts = 4;
-//
-//	// Set u_dot = 0 to calculate J_dot * u:
-//	// p_ddot = J * u_dot + J_dot * u
-//	//				= J_dot * u
-//	pinocchio::forwardKinematics(model_, data_, q, u, 0 * u);
-//
-//	Eigen::MatrixXd J_dot_u_pos(num_contacts * kNumPosDims, 1);
-//	J_dot_u_pos.setZero();
-//
-//	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
-//	{
-//		Eigen::VectorXd J_dot_u_pos_i_pos = GetContactAcc(q, u, foot_i)
-//			.block<kNumPosDims,1>(0,0);
-//
-//		J_dot_u_pos.block<kNumPosDims,1>(kNumPosDims * foot_i,0)
-//			= J_dot_u_pos_i_pos;
-//	}
-//	return J_dot_u_pos;
-//}
+Eigen::VectorXd Dynamics::GetContactAccInW(int foot_i)
+{
+	// Calculate J_dot * u as acceleration
+	// p_ddot = J * u_dot + J_dot * u
+	//				= J_dot * u
+
+	const auto &foot_frame =
+		plant_->GetBodyByName(kFeetFrames[foot_i]).body_frame();
+	const auto &W_frame = plant_->world_frame();
+
+	Eigen::VectorXd J_dot_u =
+		plant_->CalcBiasTranslationalAcceleration(
+			*context_, drake::multibody::JacobianWrtVariable::kV,
+			foot_frame, Eigen::VectorXd::Zero(3),
+			W_frame, W_frame);
+
+	return J_dot_u;
+}
+
+// TODO: For now this assumes that all legs are in contact
+Eigen::VectorXd Dynamics::GetStackedContactAccInW()
+{
+	int num_contacts = 4;
+
+	Eigen::MatrixXd J_dot_u_pos(num_contacts * kNumPosDims, 1);
+	J_dot_u_pos.setZero();
+
+	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	{
+		Eigen::VectorXd J_dot_u_pos_i_pos = GetContactAccInW(foot_i);
+		J_dot_u_pos.block<kNumPosDims,1>(kNumPosDims * foot_i,0)
+			= J_dot_u_pos_i_pos;
+	}
+	return J_dot_u_pos;
+}
 
 // ****************** //
 // FORWARD KINEMATICS // 
@@ -199,16 +197,6 @@ Eigen::MatrixXd Dynamics::GetContactJacobianInW(int foot_i)
 
 	return J_c;
 }
-
-// Drake ordering:
-// [LF_HAA RF_HAA LH_HAA RH_HAA ...
-//  LF_HFE RF_HFE LH_HFE RH_HFE ...
-//  LF_KFE RF_KFE LH_KFE RF_KFE]
-// Anymal ordering
-// [LF_HAA LF_HFE LF_KFE ...
-//	LH_HAA LH_HFE LH_KFE ...
-//  RF_HAA RF_HFE RF_KFE ...
-//	RH_HAA RH_HFE RH_KFE]
 
 Eigen::MatrixXd Dynamics::GetStackedContactJacobianInW()
 		// TODO: For now this assumes that all legs are in contact
