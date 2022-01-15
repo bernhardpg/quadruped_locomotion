@@ -26,6 +26,62 @@ Dynamics::Dynamics()
 
 	plant->Finalize();
 
+	auto diagram = builder.Build();
+	std::unique_ptr<drake::systems::Context<double> > diagram_context =
+		diagram->CreateDefaultContext();
+
+	// Create plant_context to set velocity.
+	drake::systems::Context<double>& context =
+      diagram->GetMutableSubsystemContext(*plant, diagram_context.get());
+
+	Eigen::VectorXd q = plant->GetPositions(context);
+	q(0) = 0.9238795;
+	q(3) = 0.382683;
+	q(7) = 0.4;
+	plant->SetPositions(&context,q);
+	Eigen::VectorXd u = plant->GetVelocities(context);
+
+	std::cout << "Joint names:\n";
+	for (drake::multibody::JointIndex i(0); i < plant->num_joints(); ++i)
+	{
+		std::cout << plant->get_joint(i).name() << std::endl;
+	}
+
+	std::cout << "q:\n";
+	PrintMatrix(q.transpose());
+
+	std::cout << "u:\n";
+	PrintMatrix(u.transpose());
+
+	const auto &LF_FOOT=
+		plant->GetBodyByName("LF_FOOT");
+
+	const auto &W = plant->world_frame();
+	auto pose = plant->EvalBodyPoseInWorld(context, LF_FOOT);
+	std::cout << "LF_FOOT position" << std::endl;
+	std::cout << pose.translation() << std::endl;
+
+	Eigen::MatrixXd J_c(6,18);
+	plant->CalcJacobianSpatialVelocity(
+			context, drake::multibody::JacobianWrtVariable::kV,
+			LF_FOOT.body_frame(), Eigen::VectorXd::Zero(3),
+			W, W, &J_c
+			);
+	// Drake has the following ordering for jacobians:
+	// [LF_HAA . . . LF_HFE . . . LF_KFE . . .]
+	std::cout << "J_c:\n";
+	PrintMatrix(J_c);
+
+	Eigen::MatrixXd M(18,18);
+	plant->CalcMassMatrix(context, &M);
+	std::cout << "M:\n";
+	PrintMatrix(M);
+	
+	Eigen::VectorXd Cv(18,1);
+	plant->CalcBiasTerm(context, &Cv);
+	std::cout << "Cv:\n";
+	PrintMatrix(Cv);
+
 	if (false) // For visualizing kinematic tree
 	{
 		std::cout << plant->GetTopologyGraphvizString();
