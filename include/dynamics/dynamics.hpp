@@ -38,11 +38,12 @@ class Dynamics
 		Eigen::VectorXd GetBiasVector();
 		Eigen::VectorXd GetContactAccInW(int foot_i);
 		Eigen::VectorXd GetStackedContactAccInW();
+		Eigen::MatrixXd GetBaseJacobianInW();
 
 		// ****************** //
 		// FORWARD KINEMATICS // 
 		// ****************** //
-//
+
 //		void PrintJointPlacements(
 //				Eigen::VectorXd q
 //				);
@@ -63,18 +64,6 @@ class Dynamics
 		Eigen::MatrixXd GetContactJacobianInW(int foot_i);
 		Eigen::MatrixXd GetStackedContactJacobianInW();
 
-//		Eigen::MatrixXd GetBaseJacobian(
-//				Eigen::Matrix<double,kNumGenCoords,1> q
-//				);
-//		Eigen::MatrixXd GetContactJacobian(
-//				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
-//				);
-//		Eigen::MatrixXd TestContactJacobian( // TODO: remove
-//				Eigen::Matrix<double,kNumGenCoords,1> q, int foot_i
-//				);
-//
-//		void Test(); // TODO: Remove
-
 	private:
 		std::unique_ptr<drake::geometry::SceneGraph<double>> scene_graph_;
 		std::unique_ptr<drake::multibody::MultibodyPlant<double>> plant_;
@@ -83,8 +72,4 @@ class Dynamics
 		std::unique_ptr<drake::systems::Context<double>> diagram_context_;
 
 		void BuildPlantFromUrdf();
-
-		std::string urdf_filename_;
-		pinocchio::Model model_;
-		pinocchio::Data data_;
 };

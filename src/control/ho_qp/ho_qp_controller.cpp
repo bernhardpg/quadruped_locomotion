@@ -65,7 +65,9 @@ namespace control
 		std::cout << "J_c_dot_u\n";
 		PrintMatrix(J_c_dot_u_);
 
-		auto J_b = robot_dynamics_.GetBaseJacobian(q);
+		auto J_b = robot_dynamics_.GetBaseJacobianInW();
+		std::cout << "J_b\n";
+		PrintMatrix(J_b);
 		//J_b_pos_ = J_b.block(0,0,2,kNumGenVels); // only keep x, y
 		//J_b_rot_ = J_b.block(kNumPosDims,0,2,kNumGenVels); // only keep roll, pitch
 	}
