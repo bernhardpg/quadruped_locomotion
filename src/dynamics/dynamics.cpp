@@ -5,115 +5,127 @@
 
 Dynamics::Dynamics()
 {
-	// TODO: Load URDF file from somewhere
-	std::string kAnymalPath = "drake/anymal_c_simple_description/urdf/anymal.urdf";
+	BuildPlantFromUrdf();
 
+//	Eigen::VectorXd q = plant_->GetPositions(context);
+//	q(0) = 0.9238795;
+//	q(3) = 0.382683;
+//	q(7) = 0.4;
+//	plant_->SetPositions(&context,q);
+//	Eigen::VectorXd u = plant_->GetVelocities(context);
+//
+//	std::cout << "Joint names:\n";
+//	for (drake::multibody::JointIndex i(0); i < plant_->num_joints(); ++i)
+//	{
+//		std::cout << plant_->get_joint(i).name() << std::endl;
+//	}
+//
+//	std::cout << "q:\n";
+//	PrintMatrix(q.transpose());
+//
+//	std::cout << "u:\n";
+//	PrintMatrix(u.transpose());
+//
+//	const auto &LF_FOOT=
+//		plant_->GetBodyByName("LF_FOOT");
+//
+//	const auto &W = plant_->world_frame();
+//	auto pose = plant_->EvalBodyPoseInWorld(context, LF_FOOT);
+//	std::cout << "LF_FOOT position" << std::endl;
+//	std::cout << pose.translation() << std::endl;
+//
+//	Eigen::MatrixXd J_c(6,18);
+//	plant_->CalcJacobianSpatialVelocity(
+//			context, drake::multibody::JacobianWrtVariable::kV,
+//			LF_FOOT.body_frame(), Eigen::VectorXd::Zero(3),
+//			W, W, &J_c
+//			);
+//	// Drake has the following ordering for jacobians:
+//	// [LF_HAA . . . LF_HFE . . . LF_KFE . . .]
+//	std::cout << "J_c:\n";
+//	PrintMatrix(J_c);
+//
+//	Eigen::MatrixXd M(18,18);
+//	plant_->CalcMassMatrix(context, &M);
+//	std::cout << "M:\n";
+//	PrintMatrix(M);
+//	
+//	Eigen::VectorXd Cv(18,1);
+//	plant_->CalcBiasTerm(context, &Cv);
+//	std::cout << "Cv:\n";
+//	PrintMatrix(Cv);
+//
+//	if (false) // For visualizing kinematic tree
+//	{
+//		std::cout << plant_->GetTopologyGraphvizString();
+//	}
+}
+
+void Dynamics::BuildPlantFromUrdf()
+{
 	drake::systems::DiagramBuilder<double> builder;
-	drake::geometry::SceneGraph<double>& scene_graph =
-      *builder.AddSystem<drake::geometry::SceneGraph>();
-  scene_graph.set_name("scene_graph");
+	scene_graph_ = std::unique_ptr<drake::geometry::SceneGraph<double>>
+		(builder.AddSystem<drake::geometry::SceneGraph>());
+  scene_graph_->set_name("scene_graph"); 
 
-	drake::multibody::MultibodyPlant<double>* plant = 
-      builder.AddSystem<drake::multibody::MultibodyPlant<double>>(1e-3);
-  plant->set_name("plant");
-  plant->RegisterAsSourceForSceneGraph(&scene_graph);
+	plant_ = std::unique_ptr<drake::multibody::MultibodyPlant<double>>
+		(builder.AddSystem<drake::multibody::MultibodyPlant<double>>(1e-3));
+  plant_->set_name("plant");
+  //plant_->RegisterAsSourceForSceneGraph(&scene_graph_);
 
-	drake::multibody::Parser parser(plant);
+	drake::multibody::Parser parser(plant_.get()); // Pass a raw pointer
+	// TODO: Load URDF file from somewhere else
+	const std::string kAnymalPath =
+		"drake/anymal_c_simple_description/urdf/anymal.urdf";
   const std::string urdf_path = drake::FindResourceOrThrow(kAnymalPath);
-	drake::multibody::ModelInstanceIndex plant_model_instance_index =
-      parser.AddModelFromFile(urdf_path);
-  (void)plant_model_instance_index;
+	drake::multibody::ModelInstanceIndex plant_model_instance_index
+		= parser.AddModelFromFile(urdf_path);
 
-	plant->Finalize();
+  (void)plant_model_instance_index; // TODO: What does this do?
 
-	auto diagram = builder.Build();
-	std::unique_ptr<drake::systems::Context<double> > diagram_context =
-		diagram->CreateDefaultContext();
+	plant_->Finalize();
 
-	// Create plant_context to set velocity.
-	drake::systems::Context<double>& context =
-      diagram->GetMutableSubsystemContext(*plant, diagram_context.get());
+	diagram_ =
+		std::unique_ptr<drake::systems::Diagram<double>>
+		(builder.Build());
+	diagram_context_ = diagram_->CreateDefaultContext();
 
-	Eigen::VectorXd q = plant->GetPositions(context);
-	q(0) = 0.9238795;
-	q(3) = 0.382683;
-	q(7) = 0.4;
-	plant->SetPositions(&context,q);
-	Eigen::VectorXd u = plant->GetVelocities(context);
-
-	std::cout << "Joint names:\n";
-	for (drake::multibody::JointIndex i(0); i < plant->num_joints(); ++i)
-	{
-		std::cout << plant->get_joint(i).name() << std::endl;
-	}
-
-	std::cout << "q:\n";
-	PrintMatrix(q.transpose());
-
-	std::cout << "u:\n";
-	PrintMatrix(u.transpose());
-
-	const auto &LF_FOOT=
-		plant->GetBodyByName("LF_FOOT");
-
-	const auto &W = plant->world_frame();
-	auto pose = plant->EvalBodyPoseInWorld(context, LF_FOOT);
-	std::cout << "LF_FOOT position" << std::endl;
-	std::cout << pose.translation() << std::endl;
-
-	Eigen::MatrixXd J_c(6,18);
-	plant->CalcJacobianSpatialVelocity(
-			context, drake::multibody::JacobianWrtVariable::kV,
-			LF_FOOT.body_frame(), Eigen::VectorXd::Zero(3),
-			W, W, &J_c
-			);
-	// Drake has the following ordering for jacobians:
-	// [LF_HAA . . . LF_HFE . . . LF_KFE . . .]
-	std::cout << "J_c:\n";
-	PrintMatrix(J_c);
-
-	Eigen::MatrixXd M(18,18);
-	plant->CalcMassMatrix(context, &M);
-	std::cout << "M:\n";
-	PrintMatrix(M);
-	
-	Eigen::VectorXd Cv(18,1);
-	plant->CalcBiasTerm(context, &Cv);
-	std::cout << "Cv:\n";
-	PrintMatrix(Cv);
-
-	if (false) // For visualizing kinematic tree
-	{
-		std::cout << plant->GetTopologyGraphvizString();
-	}
+	context_ = std::unique_ptr<drake::systems::Context<double>>
+		(&diagram_->GetMutableSubsystemContext(
+				*plant_, diagram_context_.get())
+		 );
 }
 
 // ******** //
 // DYNAMICS //
 // ******** //
-//
-// TODO: OLD pinocchio code.
 
-Eigen::MatrixXd Dynamics::GetMassMatrix(
-		Eigen::Matrix<double,kNumGenCoords, 1> q
-		)
-{
-	pinocchio::crba(model_, data_, q); // Computes upper triangle of M
-	// Make M symmetric
-	data_.M.triangularView<Eigen::StrictlyLower>() =
-		data_.M.transpose().triangularView<Eigen::StrictlyLower>();
-	return data_.M;
-}
-
-Eigen::VectorXd Dynamics::GetBiasVector(
+void Dynamics::SetState(
 		Eigen::Matrix<double,kNumGenCoords, 1> q,
 		Eigen::Matrix<double,kNumGenVels, 1> u
 		)
 {
-	pinocchio::nonLinearEffects(model_, data_, q, u);
-	return data_.nle;
+	// TODO: Need to reorder these
+	plant_->SetPositions(context_.get(), q);
+	plant_->SetVelocities(context_.get(), u);
 }
 
+
+Eigen::MatrixXd Dynamics::GetMassMatrix()
+{
+	Eigen::MatrixXd M(kNumGenVels,kNumGenVels);
+	plant_->CalcMassMatrix(*context_, &M);
+	return M;
+}
+
+Eigen::VectorXd Dynamics::GetBiasVector()
+{
+	Eigen::VectorXd Cv(kNumGenVels);
+	plant_->CalcBiasTerm(*context_, &Cv);
+	return Cv;
+}
+
+// TODO: Old pinocchio code
 // Assumes that pinocchio::forwardKinematics(model_, data_, q, u, 0*u)
 // has already been called
 Eigen::VectorXd Dynamics::GetContactAcc(

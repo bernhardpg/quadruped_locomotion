@@ -30,13 +30,12 @@ class Dynamics
 		// DYNAMICS //
 		// ******** //
 
-		Eigen::MatrixXd GetMassMatrix(
-				Eigen::Matrix<double,kNumGenCoords, 1> q
-				);
-		Eigen::VectorXd GetBiasVector(
+		void SetState(
 				Eigen::Matrix<double,kNumGenCoords, 1> q,
 				Eigen::Matrix<double,kNumGenVels, 1> u
 				);
+		Eigen::MatrixXd GetMassMatrix();
+		Eigen::VectorXd GetBiasVector();
 		Eigen::VectorXd GetContactAcc(
 				Eigen::Matrix<double,kNumGenCoords,1> q,
 				Eigen::Matrix<double,kNumGenVels,1> u,
@@ -90,6 +89,14 @@ class Dynamics
 		void Test(); // TODO: Remove
 
 	private:
+		std::unique_ptr<drake::geometry::SceneGraph<double>> scene_graph_;
+		std::unique_ptr<drake::multibody::MultibodyPlant<double>> plant_;
+		std::unique_ptr<drake::systems::Context<double>> context_;
+		std::unique_ptr<drake::systems::Diagram<double>> diagram_;
+		std::unique_ptr<drake::systems::Context<double>> diagram_context_;
+
+		void BuildPlantFromUrdf();
+
 		std::string urdf_filename_;
 		pinocchio::Model model_;
 		pinocchio::Data data_;

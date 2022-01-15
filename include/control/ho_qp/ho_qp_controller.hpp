@@ -59,7 +59,7 @@ namespace control
 			Eigen::MatrixXd J_b_pos_;
 			Eigen::MatrixXd J_b_rot_;
 
-			void UpdateDynamicsTerms(
+			void UpdateModelDynamics(
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);

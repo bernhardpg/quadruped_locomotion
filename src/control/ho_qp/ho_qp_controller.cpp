@@ -23,7 +23,7 @@ namespace control
 		{
 			run_once_ = true;
 			ROS_INFO("===== NEW UPDATE =====");
-			UpdateDynamicsTerms(q,u);
+			UpdateModelDynamics(q,u);
 			std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
 			std::vector<std::shared_ptr<HoQpProblem>>
 				opt_problems = ConstructOptProblems(tasks);
@@ -48,14 +48,15 @@ namespace control
 	// DYNAMICS & KINEMATICS // 
 	// ********************* //
 
-	void HoQpController::UpdateDynamicsTerms(
+	void HoQpController::UpdateModelDynamics(
 			Eigen::Matrix<double,kNumGenCoords, 1> q,
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
+		robot_dynamics_.SetState(q,u);
 		// TODO: Assumes 4 contact points!
-		M_ = robot_dynamics_.GetMassMatrix(q);
-		c_ = robot_dynamics_.GetBiasVector(q,u);
+		M_ = robot_dynamics_.GetMassMatrix();
+		c_ = robot_dynamics_.GetBiasVector();
 		J_c_ = robot_dynamics_.GetStackedContactJacobianPos(q);
 		std::cout << "J_c\n";
 		PrintMatrix(J_c_);
