@@ -5,21 +5,13 @@
 - Differential inverse kinematics control
 - Support consistent differential inverse kinematics control
 - TODO: COM zero moment point motion planner for any gait sequence
-- TODO: Hierarchical Optimization control of joint accelerations
 
-## HO
-- [X] Clean up HOQP class
-- [X] Make sure that all indices of inequality constraint matrices are correct
-- [X] Implement cost function
-- [X] Make sure that all indices of cost function are correct
-- [X] Solve a single task
-- [ ] Add support for empty matrix
-- [ ] Solve all tasks in order
-- [ ] Implement higher-level solutions instead of placeholder functions
-
-## ZMP Motion planner
-- [X] Specify a format for gait sequence
-- [X] Get polygons from vel_cmd and gait sequence
+## Current plan
+- [ ] Generalize to arbitrary feet in contact for HoQpController
+- [ ] Implement end-effector task for HoQpController
+- [ ] Fix support polygons from ZMP motion planner
+- [ ] Fix gait sequence feet order
+- [ ] Get end-effector trajectory from ZMP motion planner
 - [ ] Get A and b from polygon
 - [ ] Implement zmp constraints
 - [ ] Implement current position as constraint on first spline
