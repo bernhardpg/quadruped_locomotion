@@ -1,7 +1,6 @@
 #include "control/ho_qp/ho_qp_problem.hpp"
 
 // TODO: clean up use of variable 'x'
-// TODO: clean up this class and remove prints
 namespace control
 {
 	HoQpProblem::HoQpProblem(TaskDefinition &new_task)
@@ -346,13 +345,6 @@ namespace control
 				<< std::endl);
 		}
 
-		std::cout << "num_decision_vars_: " << num_decision_vars_ << std::endl;
-		std::cout << "num_slack_vars_: " << num_slack_vars_ << std::endl;
-//		PrintMatrixSize("H_",H_);
-//		PrintMatrixSize("c_",c_);
-//		PrintMatrixSize("D_",D_);
-//		PrintMatrixSize("f_",f_);
-
 		assert(result_.is_success());
 		Eigen::VectorXd sol = result_.GetSolution();
 
@@ -362,23 +354,6 @@ namespace control
 		slack_vars_solutions_.resize(num_slack_vars_);
 		slack_vars_solutions_ << sol
 			.block(num_decision_vars_,0,num_slack_vars_,1);
-
-//		std::cout << "z:\n";
-//		PrintMatrix(decision_vars_solutions_.transpose());
-//
-//		std::cout << "x:\n";
-//		PrintMatrix(GetSolution().transpose());
-//
-//		if (has_eq_constraints_)
-//		{
-//			std::cout << "A(x_prev + Z_prev * z_p_+_1) - b\n";
-//			PrintMatrix(
-//					curr_task_.A * (x_prev_ + stacked_Z_prev_ * decision_vars_solutions_) - curr_task_.b);
-//		}
-//
-//		std::cout << "A_p_stacked * stacked_Z_prev * z_p+1:\n";
-//		PrintMatrix(
-//				stacked_tasks_prev_.A * stacked_Z_prev_ * decision_vars_solutions_);
 	}
 }
 

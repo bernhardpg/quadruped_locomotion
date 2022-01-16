@@ -22,7 +22,6 @@ namespace control
 	{
 		public:
 			HoQpController();
-			HoQpController(int num_tasks);
 			~HoQpController(){};
 
 			void Update(
@@ -68,7 +67,6 @@ namespace control
 			// CONTROLLER // 
 			// ********** //
 
-			int num_tasks_;
 			int num_contacts_;
 			int	num_decision_vars_;
 

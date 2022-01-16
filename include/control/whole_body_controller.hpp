@@ -46,7 +46,6 @@ namespace control
 			double standing_height_ = 0.35;
 
 			void SetJointInitialConfigTraj();
-			//void SetFeetStandupTraj(); TODO: remove
 			void SetComStandupTraj();
 			void SetDanceTraj();
 
@@ -61,6 +60,7 @@ namespace control
 
 			Eigen::Matrix<double,12,1> q_j_cmd_;
 			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
+			Eigen::Matrix<double,12,1> q_j_ddot_cmd_;
 
 			Integrator q_j_dot_cmd_integrator_;
 			Integrator q_j_ddot_cmd_integrator_;
@@ -95,7 +95,6 @@ namespace control
 
 			void UpdateJointCommand();
 			void DirectJointControl();
-			//void FeetPosControl(); TODO clean up
 			void SupportConsistentControl();
 
 			// ************* //

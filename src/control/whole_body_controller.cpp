@@ -59,37 +59,6 @@ namespace control {
 		traj_end_time_s_ = seconds_to_initial_config_;
 	}
 
-	// TODO: unused, remove
-//	void WholeBodyController::SetFeetStandupTraj()
-//	{
-//		const std::vector<double> breaks = {
-//			0.0, seconds_to_standup_config_
-//		};
-//
-//		Eigen::MatrixXd feet_start_pos(kNumFeetCoords,1);
-//		feet_start_pos = robot_dynamics_.GetFeetPositions(q_);
-//
-//		Eigen::MatrixXd feet_standing_pos = feet_start_pos;
-//		for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
-//		{
-//			int foot_i_z_index = 2 + foot_i * kNumPosDims;
-//			feet_standing_pos(foot_i_z_index) = standing_height_;
-//		}
-//
-//		std::vector<Eigen::MatrixXd> samples;
-//		samples.push_back(feet_start_pos);
-//		samples.push_back(feet_standing_pos);
-//
-//		auto feet_standup_pos_traj
-//			= CreateFirstOrderHoldTraj(breaks, samples);
-//		auto feet_standup_vel_traj
-//			= feet_standup_pos_traj.derivative(1);
-//
-//		feet_cmd_pos_traj_ = feet_standup_pos_traj;
-//		feet_cmd_vel_traj_ = feet_standup_vel_traj;
-//		traj_end_time_s_ = seconds_to_standup_config_;
-//	}
-
 	void WholeBodyController::SetComStandupTraj()
 	{
 		J_task_.resize(1,kNumGenVels);
@@ -198,26 +167,23 @@ namespace control {
 				SupportConsistentControl();
 				break;
 			case kHoQpController:
-				{// TODO: clean up this
-					//std::cout << "u_:\n";
-					//PrintMatrix(u_.transpose());
-
+				{
 					ho_qp_controller_.Update(q_,u_);
-					Eigen::VectorXd q_j_ddot_cmd =
-						ho_qp_controller_.GetJointAccelerationCmd();
-					q_j_ddot_cmd_integrator_.Integrate(q_j_ddot_cmd);
-					q_j_dot_cmd_ = q_j_ddot_cmd_integrator_.GetIntegral();
-					//std::cout << "q_j_dot_cmd_:\n";
-					//PrintMatrix(q_j_dot_cmd_.transpose());
-					q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
-					q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-					//std::cout << "q_j_cmd_:\n";
-					//PrintMatrix(q_j_cmd_.transpose());
+					q_j_ddot_cmd_ = ho_qp_controller_.GetJointAccelerationCmd();
+					IntegrateJointAccelerations();
 				}
 				break;
 			default:
 				break;
 		}
+	}
+
+	void WholeBodyController::IntegrateJointAccelerations()
+	{
+		q_j_ddot_cmd_integrator_.Integrate(q_j_ddot_cmd_);
+		q_j_dot_cmd_ = q_j_ddot_cmd_integrator_.GetIntegral();
+		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
+		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
 	}
 
 	void WholeBodyController::DirectJointControl()
@@ -229,44 +195,6 @@ namespace control {
 				q_j_dot_cmd_traj_, seconds_in_mode_
 				);
 	}
-
-//	void WholeBodyController::FeetPosControl()
-//	{
-//		gen_coord_vector_t q_with_standard_body_config;
-//		q_with_standard_body_config
-//			.block<kNumPoseCoords,1>(0,0) << 0,0,0,1,0,0,0;
-//		q_with_standard_body_config.block<kNumJoints,1>(kNumPoseCoords,0)
-//			= q_j_; // TODO: not currently using body pose feedback
-//
-//		feet_vector_t feet_pos_desired =
-//			EvalPosTrajAtTime(
-//					feet_cmd_pos_traj_, seconds_in_mode_
-//					);
-//
-//		feet_vector_t feet_vel_desired = 
-//			EvalVelTrajAtTime(
-//					feet_cmd_vel_traj_, seconds_in_mode_
-//					);
-//
-//		feet_vector_t curr_feet_pos =
-//			robot_dynamics_.GetFeetPositions(q_with_standard_body_config);
-//		feet_vector_t feet_pos_error = feet_pos_desired - curr_feet_pos;
-//
-//		feet_vector_t feet_vel_ff = feet_vel_desired;
-//
-//		Eigen::MatrixXd J_contact_with_floating_base = robot_dynamics_
-//			.GetStackedContactJacobianPos(q_);
-//		Eigen::MatrixXd J_contact_joints = J_contact_with_floating_base
-//			.block<kNumFeetCoords,kNumJoints>(0,kNumTwistCoords);
-//		Eigen::MatrixXd J_inv = CalcPseudoInverse(J_contact_joints);
-//		
-//		// Feet position controller
-//		q_j_dot_cmd_ = J_inv
-//			* (k_pos_p_ * feet_pos_error + feet_vel_ff);
-//
-//		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
-//		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-//	}
 
 	// TODO: Move this to its own class
 	void WholeBodyController::SupportConsistentControl()
@@ -473,7 +401,7 @@ namespace control {
 
 	void WholeBodyController::ProcessQueueThread()
 	{
-		static const double timeout = 0.01; // TODO: I should check this number
+		static const double timeout = 0.01; // TODO: Verify that this is okay
 		while (ros_node_.ok())
 		{
 			ros_process_queue_.callAvailable(
