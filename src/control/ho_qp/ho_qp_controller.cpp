@@ -20,9 +20,23 @@ namespace control
 			std::vector<std::shared_ptr<HoQpProblem>>
 				opt_problems = ConstructOptProblems(tasks);
 
-			Eigen::VectorXd sol = opt_problems.back()->GetSolution();
-			q_j_ddot_cmd_ = sol.block<kNumJoints,1>(kNumTwistCoords,0);
+			solution_ = opt_problems.back()->GetSolution();
+			q_j_ddot_cmd_ = solution_.block<kNumJoints,1>(kNumTwistCoords,0);
+			CalcJointTorquesCmd();
 		}
+	}
+
+	void HoQpController::CalcJointTorquesCmd()
+	{
+		Eigen::MatrixXd temp(kNumJoints,num_decision_vars_);
+		temp << M_j_, -J_c_j_t_;
+
+		tau_cmd_ = temp * solution_ + c_j_;
+	}
+
+	Eigen::VectorXd HoQpController::GetJointTorqueCmd()
+	{
+		return tau_cmd_;
 	}
 
 	Eigen::VectorXd HoQpController::GetJointAccelerationCmd()
@@ -49,6 +63,11 @@ namespace control
 		auto J_b = robot_dynamics_.GetBaseJacobianInW();
 		J_b_rot_ = J_b.block(0,0,3,kNumGenVels);
 		J_b_pos_ = J_b.block(3,0,3,kNumGenVels);
+
+		M_j_ = GetJointRows(M_);
+		c_j_ = GetJointRows(c_);
+		Eigen::MatrixXd J_c_t = J_c_.transpose();
+		J_c_j_t_ = GetJointRows(J_c_t);
 	}
 
 	// ********** //
@@ -219,19 +238,14 @@ namespace control
 
 	TaskDefinition HoQpController::ConstructJointTorqueTask()
 	{
-		Eigen::MatrixXd M_j = GetJointRows(M_);
-		Eigen::VectorXd c_j = GetJointRows(c_);
-		Eigen::MatrixXd J_c_t = J_c_.transpose();
-		Eigen::MatrixXd J_c_j_t = GetJointRows(J_c_t);
-
 		Eigen::MatrixXd D(kNumJoints,num_decision_vars_);
-		D << M_j, -J_c_j_t; 
+		D << M_j_, -J_c_j_t_; 
 
 		Eigen::VectorXd f_max(kNumJoints);
-		f_max << max_torque_vec_ - c_j;
+		f_max << max_torque_vec_ - c_j_;
 
 		Eigen::VectorXd f_min(kNumJoints);
-		f_min << min_torque_vec_ - c_j;
+		f_min << min_torque_vec_ - c_j_;
 
 		// Positive and negative limit
 		Eigen::MatrixXd D_tot = ConcatenateMatrices(D,-D);

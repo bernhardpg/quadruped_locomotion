@@ -171,6 +171,7 @@ namespace control {
 					ho_qp_controller_.Update(q_,u_);
 					q_j_ddot_cmd_ = ho_qp_controller_.GetJointAccelerationCmd();
 					IntegrateJointAccelerations();
+					tau_j_cmd_ = ho_qp_controller_.GetJointTorqueCmd();
 				}
 				break;
 			default:
@@ -301,8 +302,19 @@ namespace control {
 					&this->ros_publish_queue_
 					);
 
+		ros::AdvertiseOptions tau_j_cmd_ao =
+			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
+					"/tau_j_cmd",
+					1,
+					ros::SubscriberStatusCallback(),
+					ros::SubscriberStatusCallback(),
+					ros::VoidPtr(),
+					&this->ros_publish_queue_
+					);
+
 		q_j_cmd_pub_= ros_node_.advertise(q_j_cmd_ao);
 		q_j_dot_cmd_pub_= ros_node_.advertise(q_j_dot_cmd_ao);
+		tau_j_cmd_pub_ = ros_node_.advertise(tau_j_cmd_ao);
 
 		// Set up subscriptions
 		ros::SubscribeOptions gen_coord_so =
@@ -417,6 +429,7 @@ namespace control {
 			UpdateJointCommand();
 			PublishJointPosCmd();
 			PublishJointVelCmd();
+			PublishJointTorqueCmd();
 			loop_rate_.sleep();	
 		}
 	}
@@ -433,6 +446,13 @@ namespace control {
 		std_msgs::Float64MultiArray q_j_dot_cmd_msg;
 		tf::matrixEigenToMsg(q_j_dot_cmd_, q_j_dot_cmd_msg);
 		q_j_dot_cmd_pub_.publish(q_j_dot_cmd_msg);
+	}
+
+	void WholeBodyController::PublishJointTorqueCmd()
+	{
+		std_msgs::Float64MultiArray tau_j_cmd_msg;
+		tf::matrixEigenToMsg(tau_j_cmd_, tau_j_cmd_msg);
+		tau_j_cmd_pub_.publish(tau_j_cmd_msg);
 	}
 
 	void WholeBodyController::OnGenCoordMsg(

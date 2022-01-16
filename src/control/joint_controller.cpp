@@ -16,6 +16,7 @@ namespace control
 		q_j_dot_.setZero();
 		q_j_cmd_.setZero();
 		q_j_dot_cmd_.setZero();
+		tau_j_ff_cmd_.setZero();
 		tau_cmd_.setZero();
 
 		InitDynamicReconfigureRos();
@@ -39,6 +40,12 @@ namespace control
 			.subscribe<std_msgs::Float64MultiArray>(
 					"/q_j_dot_cmd", 1,
 					boost::bind(&JointController::OnJointVelCmdMsg, this, _1)
+					);
+
+		tau_joint_cmd_sub_ = node_handle_
+			.subscribe<std_msgs::Float64MultiArray>(
+					"/tau_j_cmd", 1,
+					boost::bind(&JointController::OnJointTorqueCmdMsg, this, _1)
 					);
 
 		gen_coord_sub_ = node_handle_
@@ -98,7 +105,8 @@ namespace control
 		Eigen::VectorXd q_j_error = q_j_cmd_ - q_j_;
 		Eigen::VectorXd q_j_dot_error = q_j_dot_cmd_ - q_j_dot_;
 		tau_cmd_ = k_joints_p_ * (q_j_cmd_ - q_j_)
-			+ k_joints_d_ * (q_j_dot_cmd_ - q_j_dot_);
+			+ k_joints_d_ * (q_j_dot_cmd_ - q_j_dot_)
+			+ tau_j_ff_cmd_;
 	}
 
 	void JointController::OnGenCoordMsg(
@@ -140,6 +148,17 @@ namespace control
 		for (size_t i = 0; i < kNumJoints; ++i)
 		{
 			q_j_dot_cmd_(i)	 = msg->data[i];
+		}
+	}
+
+	void JointController::OnJointTorqueCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		if (!received_cmd_) received_cmd_ = true;	
+		for (size_t i = 0; i < kNumJoints; ++i)
+		{
+			tau_j_ff_cmd_(i)	 = msg->data[i];
 		}
 	}
 }

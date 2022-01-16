@@ -7,6 +7,7 @@
 - TODO: COM zero moment point motion planner for any gait sequence
 
 ## Current plan
+- [X] Calculate feed forward torques to pass to joint controller
 - [ ] Generalize to arbitrary feet in contact for HoQpController
 - [ ] Implement end-effector task for HoQpController
 - [ ] Fix support polygons from ZMP motion planner

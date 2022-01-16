@@ -29,6 +29,7 @@ namespace control
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);
 			Eigen::VectorXd GetJointAccelerationCmd();
+			Eigen::VectorXd GetJointTorqueCmd();
 
 		private:
 			Dynamics robot_dynamics_; // TODO: Should this controller own its own dynamics object?
@@ -52,8 +53,11 @@ namespace control
 			// ********************* //
 
 			Eigen::MatrixXd M_;
+			Eigen::MatrixXd M_j_;
 			Eigen::VectorXd c_;
+			Eigen::VectorXd c_j_;
 			Eigen::MatrixXd J_c_;
+			Eigen::MatrixXd J_c_j_t_;
 			Eigen::VectorXd J_c_dot_u_;
 			Eigen::MatrixXd J_b_pos_;
 			Eigen::MatrixXd J_b_rot_;
@@ -62,6 +66,7 @@ namespace control
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);
+			void CalcJointTorquesCmd();
 
 			// ********** //
 			// CONTROLLER // 
@@ -70,6 +75,8 @@ namespace control
 			int num_contacts_;
 			int	num_decision_vars_;
 
+			Eigen::VectorXd solution_;
+			Eigen::VectorXd tau_cmd_;
 			Eigen::VectorXd q_j_ddot_cmd_;
 
 			std::vector<std::shared_ptr<HoQpProblem>>

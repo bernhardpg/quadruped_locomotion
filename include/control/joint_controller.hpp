@@ -26,6 +26,7 @@ namespace control
 			Eigen::Matrix<double, kNumJoints, 1> q_j_dot_;
 			Eigen::Matrix<double, kNumJoints, 1> q_j_cmd_;
 			Eigen::Matrix<double, kNumJoints, 1> q_j_dot_cmd_;
+			Eigen::Matrix<double, kNumJoints, 1> tau_j_ff_cmd_;
 			Eigen::Matrix<double, kNumJoints, 1> tau_cmd_;
 
 			double k_joints_p_= 100; // TODO: Tune these
@@ -45,6 +46,7 @@ namespace control
 			ros::Publisher torque_cmd_pub_;
 			ros::Subscriber q_joint_cmd_sub_;
 			ros::Subscriber q_joint_dot_cmd_sub_;
+			ros::Subscriber tau_joint_cmd_sub_;
 			ros::Subscriber gen_coord_sub_;
 			ros::Subscriber gen_vel_sub_;
 
@@ -58,6 +60,9 @@ namespace control
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 			void OnJointVelCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
+			void OnJointTorqueCmdMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 

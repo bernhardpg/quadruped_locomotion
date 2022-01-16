@@ -43,7 +43,7 @@ namespace control
 			double seconds_to_initial_config_ = 2.5; 
 			double seconds_to_standup_config_ = 2.0;
 			double traj_end_time_s_ = 2.0;
-			double standing_height_ = 0.35;
+			double standing_height_ = 0.6;
 
 			void SetJointInitialConfigTraj();
 			void SetComStandupTraj();
@@ -61,6 +61,7 @@ namespace control
 			Eigen::Matrix<double,12,1> q_j_cmd_;
 			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
 			Eigen::Matrix<double,12,1> q_j_ddot_cmd_;
+			Eigen::Matrix<double,12,1> tau_j_cmd_;
 
 			Integrator q_j_dot_cmd_integrator_;
 			Integrator q_j_ddot_cmd_integrator_;
@@ -97,6 +98,8 @@ namespace control
 			void DirectJointControl();
 			void SupportConsistentControl();
 
+			void IntegrateJointAccelerations();
+
 			// ************* //
 			// STATE MACHINE // 
 			// ************* //
@@ -126,6 +129,7 @@ namespace control
 			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
 			ros::Publisher q_j_dot_cmd_pub_;
+			ros::Publisher tau_j_cmd_pub_;
 
 			// Subscriptions
 			ros::Subscriber gen_coord_sub_;
@@ -145,6 +149,7 @@ namespace control
 
 			void PublishJointPosCmd();
 			void PublishJointVelCmd();
+			void PublishJointTorqueCmd();
 
 			bool CmdStandupService(
 							const std_srvs::Empty::Request &_req,
