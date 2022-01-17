@@ -277,11 +277,13 @@ namespace control {
 
 	void WholeBodyController::SetupRosTopics()
 	{
-		ROS_INFO("Initialized controller node");
+		SetupJointCmdAdvertisement();
+		SetupStateSubscriptions();
+		SetupLegCmdSubscriptions();
+	}
 
-		// TODO: All of these constructions can be moved into their own functions, this is essentially just repeated code.
-
-		// Set up advertisements
+	void WholeBodyController::SetupJointCmdAdvertisement()
+	{
 		ros::AdvertiseOptions q_j_cmd_ao =
 			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
 					"/q_j_cmd",
@@ -315,8 +317,10 @@ namespace control {
 		q_j_cmd_pub_= ros_node_.advertise(q_j_cmd_ao);
 		q_j_dot_cmd_pub_= ros_node_.advertise(q_j_dot_cmd_ao);
 		tau_j_cmd_pub_ = ros_node_.advertise(tau_j_cmd_ao);
+	}
 
-		// Set up subscriptions
+	void WholeBodyController::SetupStateSubscriptions()
+	{
 		ros::SubscribeOptions gen_coord_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/" + model_name_ + "/gen_coord",
@@ -337,8 +341,50 @@ namespace control {
 
 		gen_coord_sub_ = ros_node_.subscribe(gen_coord_so);
 		gen_vel_sub_ = ros_node_.subscribe(gen_vel_so);
+	}
 
-		ROS_INFO("Finished setting up ROS topics");
+	void WholeBodyController::SetupLegCmdSubscriptions()
+	{
+		ros::SubscribeOptions legs_pos_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/legs_pos_cmd",
+					1,
+					boost::bind(&WholeBodyController::OnLegsPosCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		ros::SubscribeOptions legs_vel_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/legs_vel_cmd",
+					1,
+					boost::bind(&WholeBodyController::OnLegsVelCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		ros::SubscribeOptions legs_acc_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/legs_acc_cmd",
+					1,
+					boost::bind(&WholeBodyController::OnLegsAccCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		ros::SubscribeOptions legs_contact_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/legs_contact_cmd",
+					1,
+					boost::bind(&WholeBodyController::OnLegsContactCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		legs_pos_cmd_sub_ = ros_node_.subscribe(legs_pos_cmd_so);
+		legs_vel_cmd_sub_ = ros_node_.subscribe(legs_vel_cmd_so);
+		legs_acc_cmd_sub_ = ros_node_.subscribe(legs_acc_cmd_so);
+		legs_contact_cmd_sub_ = ros_node_.subscribe(legs_contact_cmd_so);
 	}
 
 	void WholeBodyController::SetupRosServices()
@@ -471,6 +517,34 @@ namespace control {
 		SetGenVels(msg->data);
 	}
 
+	void WholeBodyController::OnLegsPosCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		SetLegPosCmd(msg->data);
+	}
+
+	void WholeBodyController::OnLegsVelCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		SetLegVelCmd(msg->data);
+	}
+
+	void WholeBodyController::OnLegsAccCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		SetLegAccCmd(msg->data);
+	}
+
+	void WholeBodyController::OnLegsContactCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		SetLegContactCmd(msg->data);
+	}
+
 
 	// ***************** //
 	// SETTERS & GETTERS //
@@ -503,7 +577,39 @@ namespace control {
 		for (int i = 0; i < 18; ++i)
 			u_(i) = gen_vels[i];
 
-		q_j_dot_ = GetJointsPos();
+		q_j_dot_ = GetJointsVel();
+	}
+
+	void WholeBodyController::SetLegPosCmd(
+			const std::vector<double> &leg_pos_cmd
+			)
+	{
+		for (int i = 0; i < leg_pos_cmd.size(); ++i)
+			r_c_cmd_(i) = leg_pos_cmd[i];
+	}
+
+	void WholeBodyController::SetLegVelCmd(
+			const std::vector<double> &leg_vel_cmd
+			)
+	{
+		for (int i = 0; i < leg_vel_cmd.size(); ++i)
+			r_c_dot_cmd_(i) = leg_vel_cmd[i];
+	}
+
+	void WholeBodyController::SetLegAccCmd(
+			const std::vector<double> &leg_acc_cmd
+			)
+	{
+		for (int i = 0; i < leg_acc_cmd.size(); ++i)
+			r_c_ddot_cmd_(i) = leg_acc_cmd[i];
+	}
+
+	void WholeBodyController::SetLegContactCmd(
+			const std::vector<double> &leg_contact_cmd
+			)
+	{
+		for (int i = 0; i < leg_contact_cmd.size(); ++i)
+			legs_in_contact_(i) = leg_contact_cmd[i];
 	}
 
 	// **************** //
@@ -571,6 +677,18 @@ namespace control {
 
 		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
 		q_j_dot_cmd_integrator_.Reset();
+
+		legs_in_contact_.resize(kNumLegs);
+		legs_in_contact_.setZero();
+
+		r_c_cmd_.resize(k3D * kNumLegs);
+		r_c_cmd_.setZero();
+
+		r_c_dot_cmd_.resize(k3D * kNumLegs);
+		r_c_dot_cmd_.setZero();
+
+		r_c_ddot_cmd_.resize(k3D * kNumLegs);
+		r_c_ddot_cmd_.setZero();
 	}
 	
 	void WholeBodyController::SetModeStartTime()

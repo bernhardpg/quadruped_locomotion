@@ -55,6 +55,12 @@ namespace control
 
 			gen_coord_vector_t q_;
 			gen_vel_vector_t u_;
+
+			Eigen::VectorXd r_c_cmd_;
+			Eigen::VectorXd r_c_dot_cmd_;
+			Eigen::VectorXd r_c_ddot_cmd_;
+			Eigen::VectorXd legs_in_contact_;
+
 			Eigen::MatrixXd q_j_;
 			Eigen::MatrixXd q_j_dot_;
 
@@ -135,6 +141,11 @@ namespace control
 			ros::Subscriber gen_coord_sub_;
 			ros::Subscriber gen_vel_sub_;
 
+			ros::Subscriber legs_pos_cmd_sub_;
+			ros::Subscriber legs_vel_cmd_sub_;
+			ros::Subscriber legs_acc_cmd_sub_;
+			ros::Subscriber legs_contact_cmd_sub_;
+
 			// Queues and their threads
 			ros::CallbackQueue ros_process_queue_;
 			ros::CallbackQueue ros_publish_queue_;
@@ -142,6 +153,9 @@ namespace control
 			std::thread ros_publish_queue_thread_;
 
 			void SetupRosTopics();
+			void SetupJointCmdAdvertisement();
+			void SetupStateSubscriptions();
+			void SetupLegCmdSubscriptions();
 			void SetupRosServices();
 			void SpinRosThreads();
 			void PublishQueueThread();
@@ -170,6 +184,18 @@ namespace control
 			void OnGenVelMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
+			void OnLegsPosCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
+			void OnLegsVelCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
+			void OnLegsAccCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
+			void OnLegsContactCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
 			void PublishJointVelCmd(double vel_cmd);
 
 			// ***************** //
@@ -180,6 +206,10 @@ namespace control
 			joint_vector_t GetJointsVel();
 			void SetGenCoords(const std::vector<double> &gen_coords);
 			void SetGenVels(const std::vector<double> &gen_vels);
+			void SetLegPosCmd(const std::vector<double> &leg_pos_cmd);
+			void SetLegVelCmd(const std::vector<double> &leg_vel_cmd);
+			void SetLegAccCmd(const std::vector<double> &leg_acc_cmd);
+			void SetLegContactCmd(const std::vector<double> &leg_contact_cmd);
 
 			// **************** //
 			// HELPER FUNCTIONS //

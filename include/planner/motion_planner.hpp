@@ -73,9 +73,9 @@ class MotionPlanner
 		Eigen::VectorXd EvalLegAccAtT(double t, int leg_i);
 
 		Eigen::VectorXd GetLegsInContactAtT(double time);
-		Eigen::MatrixXd GetStackedLegPosAtT(double time);
-		Eigen::MatrixXd GetStackedLegVelAtT(double time);
-		Eigen::MatrixXd GetStackedLegAccAtT(double time);
+		Eigen::VectorXd GetStackedLegPosAtT(double time);
+		Eigen::VectorXd GetStackedLegVelAtT(double time);
+		Eigen::VectorXd GetStackedLegAccAtT(double time);
 
 		void PublishLegTrajectories(double time);
 		void PublishLegsInContact(double time);

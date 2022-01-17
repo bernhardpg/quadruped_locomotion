@@ -50,7 +50,7 @@ void MotionPlanner::PublishLegVelCmd(double time)
 {
 	std_msgs::Float64MultiArray legs_vel_cmd;
 	tf::matrixEigenToMsg(
-			GetStackedLegPosAtT(time), legs_vel_cmd
+			GetStackedLegVelAtT(time), legs_vel_cmd
 			);
 	legs_vel_cmd_pub_.publish(legs_vel_cmd);
 }
@@ -59,7 +59,7 @@ void MotionPlanner::PublishLegAccCmd(double time)
 {
 	std_msgs::Float64MultiArray legs_acc_cmd;
 	tf::matrixEigenToMsg(
-			GetStackedLegPosAtT(time), legs_acc_cmd
+			GetStackedLegAccAtT(time), legs_acc_cmd
 			);
 	legs_acc_cmd_pub_.publish(legs_acc_cmd);
 }
@@ -75,35 +75,37 @@ Eigen::VectorXd MotionPlanner::GetLegsInContactAtT(double time)
 {
 	int i = GetGaitStepFromTime(time);
 	return gait_sequence_.col(i);
-
 }
 
-Eigen::MatrixXd MotionPlanner::GetStackedLegPosAtT(double time)
+Eigen::VectorXd MotionPlanner::GetStackedLegPosAtT(double time)
 {
-	Eigen::MatrixXd stacked_leg_pos(k3D, kNumLegs);
+	Eigen::VectorXd stacked_leg_pos(k3D * kNumLegs);
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
 	{
-		stacked_leg_pos.col(leg_i) = EvalLegPosAtT(time, leg_i);
+		stacked_leg_pos.block<k3D,1>(leg_i * k3D,0) =
+			EvalLegPosAtT(time, leg_i);
 	}
 	return stacked_leg_pos;
 }
 
-Eigen::MatrixXd MotionPlanner::GetStackedLegVelAtT(double time)
+Eigen::VectorXd MotionPlanner::GetStackedLegVelAtT(double time)
 {
-	Eigen::MatrixXd stacked_leg_vel(k3D, kNumLegs);
+	Eigen::VectorXd stacked_leg_vel(k3D * kNumLegs);
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
 	{
-		stacked_leg_vel.col(leg_i) = EvalLegVelAtT(time, leg_i);
+		stacked_leg_vel.block<k3D,1>(leg_i * k3D,0) =
+			EvalLegVelAtT(time, leg_i);
 	}
 	return stacked_leg_vel;
 }
 
-Eigen::MatrixXd MotionPlanner::GetStackedLegAccAtT(double time)
+Eigen::VectorXd MotionPlanner::GetStackedLegAccAtT(double time)
 {
-	Eigen::MatrixXd stacked_leg_acc(k3D, kNumLegs);
+	Eigen::VectorXd stacked_leg_acc(k3D * kNumLegs);
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
 	{
-		stacked_leg_acc.col(leg_i) = EvalLegAccAtT(time, leg_i);
+		stacked_leg_acc.block<k3D,1>(leg_i * k3D,0) =
+			EvalLegAccAtT(time, leg_i);
 	}
 	return stacked_leg_acc;
 }
@@ -112,9 +114,18 @@ Eigen::VectorXd MotionPlanner::EvalLegPosAtT(double time, int leg_i)
 {
 	double time_rel = std::fmod(time, t_per_gait_sequence_);
 	Eigen::VectorXd leg_pos(3);
-	leg_pos <<
-		leg_trajectories_[leg_i].xy.value(time_rel),
-		leg_trajectories_[leg_i].z.value(time_rel);
+	leg_pos.setZero();
+
+	const bool inside_traj_time =
+		(time_rel < leg_trajectories_[leg_i].start_time)
+			|| (time_rel > leg_trajectories_[leg_i].end_time);
+
+	if (!inside_traj_time)
+	{
+		leg_pos <<
+			leg_trajectories_[leg_i].xy.value(time_rel),
+			leg_trajectories_[leg_i].z.value(time_rel);
+	}
 
 	return leg_pos;
 }
@@ -123,9 +134,18 @@ Eigen::VectorXd MotionPlanner::EvalLegVelAtT(double time, int leg_i)
 {
 	double time_rel = std::fmod(time, t_per_gait_sequence_);
 	Eigen::VectorXd leg_vel(3);
-	leg_vel <<
-		leg_trajectories_[leg_i].xy.value(time_rel),
-		leg_trajectories_[leg_i].z.value(time_rel);
+	leg_vel.setZero();
+
+	const bool inside_traj_time =
+		(time_rel < leg_trajectories_[leg_i].start_time)
+			|| (time_rel > leg_trajectories_[leg_i].end_time);
+
+	if (!inside_traj_time)
+	{
+		leg_vel <<
+			leg_trajectories_[leg_i].xy.value(time_rel),
+			leg_trajectories_[leg_i].z.value(time_rel);
+	}
 
 	return leg_vel;
 }
@@ -134,9 +154,18 @@ Eigen::VectorXd MotionPlanner::EvalLegAccAtT(double time, int leg_i)
 {
 	double time_rel = std::fmod(time, t_per_gait_sequence_);
 	Eigen::VectorXd leg_acc(3);
-	leg_acc <<
-		leg_trajectories_[leg_i].xy.value(time_rel),
-		leg_trajectories_[leg_i].z.value(time_rel);
+	leg_acc.setZero();
+
+	const bool inside_traj_time =
+		(time_rel < leg_trajectories_[leg_i].start_time)
+			|| (time_rel > leg_trajectories_[leg_i].end_time);
+
+	if (!inside_traj_time)
+	{
+		leg_acc <<
+			leg_trajectories_[leg_i].xy.value(time_rel),
+			leg_trajectories_[leg_i].z.value(time_rel);
+	}
 
 	return leg_acc;
 }
@@ -604,7 +633,6 @@ std::vector<Eigen::MatrixXd> MotionPlanner::GenerateStanceSequence(
 	std::vector<Eigen::MatrixXd> stance_sequence;
 	stance_sequence.push_back(current_stance);
 
-	PrintMatrix(current_stance);
 	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
 	{
 		Eigen::MatrixXd next_stance =
@@ -612,7 +640,6 @@ std::vector<Eigen::MatrixXd> MotionPlanner::GenerateStanceSequence(
 					vel_cmd, gait_step_i, stance_sequence[gait_step_i - 1]
 					);
 		stance_sequence.push_back(next_stance);
-		PrintMatrix(next_stance);
 	}
 	return stance_sequence;
 }
