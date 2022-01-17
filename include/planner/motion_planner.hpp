@@ -52,17 +52,23 @@ class MotionPlanner
 		// ************* //
 		// VISUALIZATION //
 		// ************* //
+
 		void PublishTrajectoryVisualization();
 		void PublishPolygonVisualizationAtTime(double time);
 		void PublishPolygonsVisualization();
+		void PublishLegTrajectories();
+
+		Eigen::VectorXd EvalLegPosAtT(double t, int leg_i);
 
 	private:
 		// *** //
 		// ROS //
 		// *** //
+
 		ros::NodeHandle ros_node_;
-		ros::Publisher traj_pub_;
-		ros::Publisher polygons_pub_;
+		ros::Publisher traj_pub_; // TODO: rename
+		ros::Publisher leg_traj_pub_; // TODO: rename
+		ros::Publisher polygons_pub_; // TODO: rename
 		void InitRos();
 
 		// ******************* //
@@ -98,7 +104,6 @@ class MotionPlanner
 		// TODO: move these into a feet motion planner
 		std::vector<LegMotion> leg_motions_;
 		std::vector<LegTrajectory> leg_trajectories_;
-
 		std::vector<LegMotion> CreateLegMotions(); 
 		std::vector<LegTrajectory> CreateLegTrajectories(
 				std::vector<LegMotion> leg_motions
@@ -123,6 +128,7 @@ class MotionPlanner
 		// ******************** //
 		// OPTIMIZATION PROBLEM //
 		// ******************** //
+
 		void SetupOptimizationProgram();
 		void InitDecisionVariables();
 		void AddAccelerationCost();

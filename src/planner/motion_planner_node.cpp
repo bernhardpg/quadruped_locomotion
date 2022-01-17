@@ -16,8 +16,10 @@ int main( int argc, char** argv )
   ros::Rate r(30);
   while (ros::ok())
   {
+		double time = ros::Time::now().toSec();
+		planner.PublishLegTrajectories();
 		planner.PublishTrajectoryVisualization();
-		planner.PublishPolygonVisualizationAtTime(ros::Time::now().toSec());
+		planner.PublishPolygonVisualizationAtTime(time);
     r.sleep();
   }
 }

@@ -29,6 +29,54 @@ MotionPlanner::MotionPlanner(
 	leg_trajectories_ = CreateLegTrajectories(leg_motions_);
 }
 
+void MotionPlanner::PublishLegTrajectories()
+{
+	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+	{
+		visualization_msgs::Marker line_strip;
+		line_strip.header.frame_id = "world";
+		line_strip.header.stamp = ros::Time::now();
+		line_strip.ns = "leg_trajectories";
+		line_strip.action = visualization_msgs::Marker::ADD;
+		// Set no rotation: The rest set to 0 by initialization
+		line_strip.pose.orientation.w = 1.0;
+
+		line_strip.id = leg_i;
+		line_strip.type = visualization_msgs::Marker::LINE_STRIP;
+
+		line_strip.scale.x = 0.01; // = width
+		line_strip.color.g = 1.0;
+		line_strip.color.a = 1.0;
+
+		geometry_msgs::Point p;
+		const double dt = 0.1;
+		for (double t = leg_trajectories_[leg_i].start_time;
+				t < leg_trajectories_[leg_i].end_time - dt; t += dt_)
+		{
+			Eigen::VectorXd pos_at_t = EvalLegPosAtT(t, leg_i);
+
+			p.x = pos_at_t(0);
+			p.y = pos_at_t(1);
+			p.z = pos_at_t(2);
+
+			line_strip.points.push_back(p);
+		}
+
+		leg_traj_pub_.publish(line_strip);
+	}
+}
+
+Eigen::VectorXd MotionPlanner::EvalLegPosAtT(double time, int leg_i)
+{
+	double time_rel = std::fmod(time, t_per_gait_sequence_);
+	Eigen::VectorXd leg_pos(3);
+	leg_pos <<
+		leg_trajectories_[leg_i].xy.value(time_rel),
+		leg_trajectories_[leg_i].z.value(time_rel);
+
+	return leg_pos;
+}
+
 // TODO: move all these into a leg motion planner
 std::vector<LegTrajectory> MotionPlanner::CreateLegTrajectories(
 		std::vector<LegMotion> leg_motions
@@ -40,8 +88,8 @@ std::vector<LegTrajectory> MotionPlanner::CreateLegTrajectories(
 		LegTrajectory leg_i_traj; 
 		leg_i_traj.xy = CreateXYLegTrajectory(leg_motions[leg_i]);
 		leg_i_traj.z = CreateZLegTrajectory(leg_motions[leg_i]);
-		leg_i_traj.start_time - leg_motions[leg_i].t_liftoff;
-		leg_i_traj.end_time - leg_motions[leg_i].t_touchdown;
+		leg_i_traj.start_time = leg_motions[leg_i].t_liftoff;
+		leg_i_traj.end_time = leg_motions[leg_i].t_touchdown;
 
 		leg_trajs.push_back(leg_i_traj);
 	}
@@ -99,7 +147,6 @@ std::vector<LegMotion> MotionPlanner::CreateLegMotions()
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
 	{
 		leg_motions.push_back(CreateLegMotionForLeg(leg_i));
-		std::cout << leg_motions[leg_i] << std::endl;
 	}
 
 	return leg_motions;
@@ -365,6 +412,10 @@ void MotionPlanner::InitRos()
   traj_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("visualization_trajectory", 10);
+
+  leg_traj_pub_ =
+		ros_node_.advertise<visualization_msgs::Marker>
+		("leg_visualization_trajectory", 10);
 
   polygons_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
