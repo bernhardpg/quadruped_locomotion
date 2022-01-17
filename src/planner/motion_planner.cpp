@@ -10,11 +10,11 @@ MotionPlanner::MotionPlanner(
 		n_traj_segments_(n_traj_segments),
 		degree_(degree)
 {
+	// TODO: I will need to also initialize the start time
 	InitRos();
 
-	vel_cmd_ = Eigen::Vector2d(0.25, 0);
+	vel_cmd_ = Eigen::Vector2d(0.25, 0); // TODO: take from ros topic
 	InitGaitSequence();
-	// TODO: I will need to also initialize the start time
 
 	// TODO: Remember to update robot dynamcis with gen coords
 	robot_dynamics_.SetStateDefault();
@@ -29,41 +29,83 @@ MotionPlanner::MotionPlanner(
 	leg_trajectories_ = CreateLegTrajectories(leg_motions_);
 }
 
-void MotionPlanner::PublishLegTrajectories()
+void MotionPlanner::PublishLegTrajectories(double time)
 {
+	PublishLegPosCmd(time);
+	PublishLegVelCmd(time);
+	PublishLegAccCmd(time);
+	PublishLegsInContact(time);
+}
+
+void MotionPlanner::PublishLegPosCmd(double time)
+{
+	std_msgs::Float64MultiArray legs_pos_cmd;
+	tf::matrixEigenToMsg(
+			GetStackedLegPosAtT(time), legs_pos_cmd
+			);
+	legs_pos_cmd_pub_.publish(legs_pos_cmd);
+}
+
+void MotionPlanner::PublishLegVelCmd(double time)
+{
+	std_msgs::Float64MultiArray legs_vel_cmd;
+	tf::matrixEigenToMsg(
+			GetStackedLegPosAtT(time), legs_vel_cmd
+			);
+	legs_vel_cmd_pub_.publish(legs_vel_cmd);
+}
+
+void MotionPlanner::PublishLegAccCmd(double time)
+{
+	std_msgs::Float64MultiArray legs_acc_cmd;
+	tf::matrixEigenToMsg(
+			GetStackedLegPosAtT(time), legs_acc_cmd
+			);
+	legs_acc_cmd_pub_.publish(legs_acc_cmd);
+}
+
+void MotionPlanner::PublishLegsInContact(double time)
+{
+	std_msgs::Float64MultiArray legs_in_contact_msg;
+	tf::matrixEigenToMsg(GetLegsInContactAtT(time), legs_in_contact_msg);
+	legs_in_contact_pub_.publish(legs_in_contact_msg);
+}
+
+Eigen::VectorXd MotionPlanner::GetLegsInContactAtT(double time)
+{
+	int i = GetGaitStepFromTime(time);
+	return gait_sequence_.col(i);
+
+}
+
+Eigen::MatrixXd MotionPlanner::GetStackedLegPosAtT(double time)
+{
+	Eigen::MatrixXd stacked_leg_pos(k3D, kNumLegs);
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
 	{
-		visualization_msgs::Marker line_strip;
-		line_strip.header.frame_id = "world";
-		line_strip.header.stamp = ros::Time::now();
-		line_strip.ns = "leg_trajectories";
-		line_strip.action = visualization_msgs::Marker::ADD;
-		// Set no rotation: The rest set to 0 by initialization
-		line_strip.pose.orientation.w = 1.0;
-
-		line_strip.id = leg_i;
-		line_strip.type = visualization_msgs::Marker::LINE_STRIP;
-
-		line_strip.scale.x = 0.01; // = width
-		line_strip.color.g = 1.0;
-		line_strip.color.a = 1.0;
-
-		geometry_msgs::Point p;
-		const double dt = 0.1;
-		for (double t = leg_trajectories_[leg_i].start_time;
-				t < leg_trajectories_[leg_i].end_time - dt; t += dt_)
-		{
-			Eigen::VectorXd pos_at_t = EvalLegPosAtT(t, leg_i);
-
-			p.x = pos_at_t(0);
-			p.y = pos_at_t(1);
-			p.z = pos_at_t(2);
-
-			line_strip.points.push_back(p);
-		}
-
-		leg_traj_pub_.publish(line_strip);
+		stacked_leg_pos.col(leg_i) = EvalLegPosAtT(time, leg_i);
 	}
+	return stacked_leg_pos;
+}
+
+Eigen::MatrixXd MotionPlanner::GetStackedLegVelAtT(double time)
+{
+	Eigen::MatrixXd stacked_leg_vel(k3D, kNumLegs);
+	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+	{
+		stacked_leg_vel.col(leg_i) = EvalLegVelAtT(time, leg_i);
+	}
+	return stacked_leg_vel;
+}
+
+Eigen::MatrixXd MotionPlanner::GetStackedLegAccAtT(double time)
+{
+	Eigen::MatrixXd stacked_leg_acc(k3D, kNumLegs);
+	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+	{
+		stacked_leg_acc.col(leg_i) = EvalLegAccAtT(time, leg_i);
+	}
+	return stacked_leg_acc;
 }
 
 Eigen::VectorXd MotionPlanner::EvalLegPosAtT(double time, int leg_i)
@@ -77,6 +119,28 @@ Eigen::VectorXd MotionPlanner::EvalLegPosAtT(double time, int leg_i)
 	return leg_pos;
 }
 
+Eigen::VectorXd MotionPlanner::EvalLegVelAtT(double time, int leg_i)
+{
+	double time_rel = std::fmod(time, t_per_gait_sequence_);
+	Eigen::VectorXd leg_vel(3);
+	leg_vel <<
+		leg_trajectories_[leg_i].xy.value(time_rel),
+		leg_trajectories_[leg_i].z.value(time_rel);
+
+	return leg_vel;
+}
+
+Eigen::VectorXd MotionPlanner::EvalLegAccAtT(double time, int leg_i)
+{
+	double time_rel = std::fmod(time, t_per_gait_sequence_);
+	Eigen::VectorXd leg_acc(3);
+	leg_acc <<
+		leg_trajectories_[leg_i].xy.value(time_rel),
+		leg_trajectories_[leg_i].z.value(time_rel);
+
+	return leg_acc;
+}
+
 // TODO: move all these into a leg motion planner
 std::vector<LegTrajectory> MotionPlanner::CreateLegTrajectories(
 		std::vector<LegMotion> leg_motions
@@ -86,10 +150,18 @@ std::vector<LegTrajectory> MotionPlanner::CreateLegTrajectories(
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
 	{
 		LegTrajectory leg_i_traj; 
-		leg_i_traj.xy = CreateXYLegTrajectory(leg_motions[leg_i]);
-		leg_i_traj.z = CreateZLegTrajectory(leg_motions[leg_i]);
+
 		leg_i_traj.start_time = leg_motions[leg_i].t_liftoff;
 		leg_i_traj.end_time = leg_motions[leg_i].t_touchdown;
+
+		leg_i_traj.xy = CreateXYLegTrajectory(leg_motions[leg_i]);
+		leg_i_traj.z = CreateZLegTrajectory(leg_motions[leg_i]);
+
+		leg_i_traj.d_xy = leg_i_traj.xy.derivative(1);
+		leg_i_traj.d_z = leg_i_traj.z.derivative(1);
+
+		leg_i_traj.dd_xy = leg_i_traj.xy.derivative(2);
+		leg_i_traj.dd_z = leg_i_traj.z.derivative(2);
 
 		leg_trajs.push_back(leg_i_traj);
 	}
@@ -275,7 +347,7 @@ void MotionPlanner::PublishPolygonVisualizationAtTime(double time)
 	p.z = 0;
 	polygon_msg.points.push_back(p);
 
-	polygons_pub_.publish(polygon_msg);
+	visualize_polygons_pub_.publish(polygon_msg);
 }
 
 void MotionPlanner::PublishPolygonsVisualization()
@@ -318,7 +390,7 @@ void MotionPlanner::PublishPolygonsVisualization()
 		p.z = 0;
 		polygon_msg.points.push_back(p);
 
-		polygons_pub_.publish(polygon_msg);
+		visualize_polygons_pub_.publish(polygon_msg);
 	}
 }
 
@@ -354,13 +426,13 @@ void MotionPlanner::PublishTrajectoryVisualization()
 	traj_points.type = visualization_msgs::Marker::POINTS;
 
 	// Configure figure
-	start_end_points.scale.x = 0.1;
-  start_end_points.scale.y = 0.1;
+	start_end_points.scale.x = 0.05;
+  start_end_points.scale.y = 0.05;
 	start_end_points.color.r = 1.0;
 	start_end_points.color.a = 1.0;
 
-  traj_points.scale.x = 0.05;
-  traj_points.scale.y = 0.05;
+  traj_points.scale.x = 0.02;
+  traj_points.scale.y = 0.02;
 	traj_points.color.g = 1.0;
 	traj_points.color.a = 1.0;
 
@@ -398,9 +470,46 @@ void MotionPlanner::PublishTrajectoryVisualization()
 		line_strip.points.push_back(p);
 	}
 
-	traj_pub_.publish(line_strip);
-	traj_pub_.publish(traj_points);
-	traj_pub_.publish(start_end_points);
+	visualize_com_traj_pub_.publish(line_strip);
+	visualize_com_traj_pub_.publish(traj_points);
+	visualize_com_traj_pub_.publish(start_end_points);
+}
+
+void MotionPlanner::PublishLegTrajectoriesVisualization()
+{
+	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+	{
+		visualization_msgs::Marker line_strip;
+		line_strip.header.frame_id = "world";
+		line_strip.header.stamp = ros::Time::now();
+		line_strip.ns = "leg_trajectories";
+		line_strip.action = visualization_msgs::Marker::ADD;
+		// Set no rotation: The rest set to 0 by initialization
+		line_strip.pose.orientation.w = 1.0;
+
+		line_strip.id = leg_i;
+		line_strip.type = visualization_msgs::Marker::LINE_STRIP;
+
+		line_strip.scale.x = 0.01; // = width
+		line_strip.color.g = 1.0;
+		line_strip.color.a = 1.0;
+
+		geometry_msgs::Point p;
+		const double dt = 0.1;
+		for (double t = leg_trajectories_[leg_i].start_time;
+				t <= leg_trajectories_[leg_i].end_time; t += dt_)
+		{
+			Eigen::VectorXd pos_at_t = EvalLegPosAtT(t, leg_i);
+
+			p.x = pos_at_t(0);
+			p.y = pos_at_t(1);
+			p.z = pos_at_t(2);
+
+			line_strip.points.push_back(p);
+		}
+
+		visualize_leg_traj_pub_.publish(line_strip);
+	}
 }
 
 // *** //
@@ -409,17 +518,33 @@ void MotionPlanner::PublishTrajectoryVisualization()
 
 void MotionPlanner::InitRos()
 {
-  traj_pub_ =
+  visualize_com_traj_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("visualization_trajectory", 10);
 
-  leg_traj_pub_ =
+  visualize_leg_traj_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("leg_visualization_trajectory", 10);
 
-  polygons_pub_ =
+  visualize_polygons_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("visualization_polygons", 10);
+
+  legs_in_contact_pub_ =
+		ros_node_.advertise<std_msgs::Float64MultiArray>
+		("legs_contact_cmd", 10);
+
+  legs_pos_cmd_pub_ =
+		ros_node_.advertise<std_msgs::Float64MultiArray>
+		("legs_pos_cmd", 10);
+
+  legs_vel_cmd_pub_ =
+		ros_node_.advertise<std_msgs::Float64MultiArray>
+		("legs_vel_cmd", 10);
+
+  legs_acc_cmd_pub_ =
+		ros_node_.advertise<std_msgs::Float64MultiArray>
+		("legs_acc_cmd", 10);
 }
 
 // ******************* //

@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /Marker1
         - /Marker2
+        - /Marker3
       Splitter Ratio: 0.5
     Tree Height: 1160
   - Class: rviz/Selection
@@ -70,6 +71,14 @@ Visualization Manager:
         polygons: true
       Queue Size: 100
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: leg_visualization_trajectory
+      Name: Marker
+      Namespaces:
+        leg_trajectories: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -98,7 +107,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 21.48039436340332
+      Distance: 2.1693756580352783
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -114,9 +123,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7403980493545532
+      Pitch: 0.28539881110191345
       Target Frame: <Fixed Frame>
-      Yaw: 3.495396614074707
+      Yaw: 0.9372243881225586
     Saved: ~
 Window Geometry:
   Displays:
@@ -134,5 +143,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1440
-  X: 1440
+  X: 0
   Y: 54

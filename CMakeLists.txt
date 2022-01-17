@@ -19,6 +19,7 @@ find_package(
 	gazebo REQUIRED
 	Eigen3 REQUIRED
 	drake CONFIG REQUIRED PATHS /opt/drake
+	message_generation
 )
 
 generate_dynamic_reconfigure_options(

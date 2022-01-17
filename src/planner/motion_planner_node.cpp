@@ -17,7 +17,8 @@ int main( int argc, char** argv )
   while (ros::ok())
   {
 		double time = ros::Time::now().toSec();
-		planner.PublishLegTrajectories();
+		planner.PublishLegTrajectories(time);
+		planner.PublishLegTrajectoriesVisualization();
 		planner.PublishTrajectoryVisualization();
 		planner.PublishPolygonVisualizationAtTime(time);
     r.sleep();

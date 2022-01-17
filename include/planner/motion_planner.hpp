@@ -12,6 +12,9 @@
 #include <Eigen/Core>
 #include <iomanip>
 
+#include <std_msgs/Float64MultiArray.h>
+#include <eigen_conversions/eigen_msg.h>
+
 #include "variable_types.hpp"
 #include "dynamics/dynamics.hpp"
 #include "helper_functions.hpp"
@@ -31,6 +34,10 @@ struct LegTrajectory
 	double end_time;
 	drake::trajectories::PiecewisePolynomial<double> xy;
 	drake::trajectories::PiecewisePolynomial<double> z;
+	drake::trajectories::PiecewisePolynomial<double> d_xy;
+	drake::trajectories::PiecewisePolynomial<double> d_z;
+	drake::trajectories::PiecewisePolynomial<double> dd_xy;
+	drake::trajectories::PiecewisePolynomial<double> dd_z;
 };
 
 std::ostream& operator<<(std::ostream& os, const LegMotion& lm) {
@@ -56,9 +63,25 @@ class MotionPlanner
 		void PublishTrajectoryVisualization();
 		void PublishPolygonVisualizationAtTime(double time);
 		void PublishPolygonsVisualization();
-		void PublishLegTrajectories();
+		void PublishLegTrajectoriesVisualization();
+
+		// LEGS // 
+		// TODO: Move into own module
 
 		Eigen::VectorXd EvalLegPosAtT(double t, int leg_i);
+		Eigen::VectorXd EvalLegVelAtT(double t, int leg_i);
+		Eigen::VectorXd EvalLegAccAtT(double t, int leg_i);
+
+		Eigen::VectorXd GetLegsInContactAtT(double time);
+		Eigen::MatrixXd GetStackedLegPosAtT(double time);
+		Eigen::MatrixXd GetStackedLegVelAtT(double time);
+		Eigen::MatrixXd GetStackedLegAccAtT(double time);
+
+		void PublishLegTrajectories(double time);
+		void PublishLegsInContact(double time);
+		void PublishLegPosCmd(double time);
+		void PublishLegVelCmd(double time);
+		void PublishLegAccCmd(double time);
 
 	private:
 		// *** //
@@ -66,9 +89,14 @@ class MotionPlanner
 		// *** //
 
 		ros::NodeHandle ros_node_;
-		ros::Publisher traj_pub_; // TODO: rename
-		ros::Publisher leg_traj_pub_; // TODO: rename
-		ros::Publisher polygons_pub_; // TODO: rename
+		ros::Publisher visualize_com_traj_pub_; 
+		ros::Publisher visualize_leg_traj_pub_; 
+		ros::Publisher visualize_polygons_pub_; 
+
+		ros::Publisher legs_in_contact_pub_; 
+		ros::Publisher legs_pos_cmd_pub_; 
+		ros::Publisher legs_vel_cmd_pub_; 
+		ros::Publisher legs_acc_cmd_pub_; 
 		void InitRos();
 
 		// ******************* //
