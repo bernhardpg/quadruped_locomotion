@@ -105,18 +105,19 @@ Eigen::VectorXd Dynamics::GetContactAccInW(int foot_i)
 	return J_dot_u;
 }
 
-// TODO: For now this assumes that all legs are in contact
-Eigen::VectorXd Dynamics::GetStackedContactAccInW()
+Eigen::VectorXd Dynamics::GetStackedContactAccInW(
+		std::vector<int> legs_in_contact
+		)
 {
-	int num_contacts = 4;
+	const int num_contacts = legs_in_contact.size();
 
-	Eigen::MatrixXd J_dot_u_pos(num_contacts * kNumPosDims, 1);
+	Eigen::MatrixXd J_dot_u_pos(num_contacts * k3D, 1);
 	J_dot_u_pos.setZero();
 
-	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	for (int i = 0; i < num_contacts; ++i)
 	{
-		Eigen::VectorXd J_dot_u_pos_i_pos = GetContactAccInW(foot_i);
-		J_dot_u_pos.block<kNumPosDims,1>(kNumPosDims * foot_i,0)
+		Eigen::VectorXd J_dot_u_pos_i_pos = GetContactAccInW(legs_in_contact[i]);
+		J_dot_u_pos.block<k3D,1>(k3D * i,0)
 			= J_dot_u_pos_i_pos;
 	}
 	return J_dot_u_pos;
@@ -137,7 +138,7 @@ Eigen::VectorXd Dynamics::GetFootPosInW(int foot_i)
 
 Eigen::MatrixXd Dynamics::GetStackedFootPosInW()
 {
-	Eigen::MatrixXd stacked_foot_pos(kNumPosDims, kNumLegs);
+	Eigen::MatrixXd stacked_foot_pos(k3D, kNumLegs);
 	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
 	{
 		stacked_foot_pos.col(foot_i) = GetFootPosInW(foot_i);
@@ -161,29 +162,36 @@ Eigen::MatrixXd Dynamics::GetContactJacobianInW(int foot_i)
 		plant_->GetBodyByName(kFeetFrames[foot_i]).body_frame();
 	const auto &W_frame = plant_->world_frame();
 
-	Eigen::MatrixXd J_c(kNumPosDims,kNumGenVels);
+	Eigen::MatrixXd J_c(k3D,kNumGenVels);
 	plant_->CalcJacobianTranslationalVelocity(
 			*context_, drake::multibody::JacobianWrtVariable::kV,
 			foot_frame, Eigen::VectorXd::Zero(3),
 			W_frame, W_frame, &J_c
 			);
+	std::cout << "Partial J_c\n";
+	PrintMatrix(J_c);
 
 	return J_c;
 }
 
-Eigen::MatrixXd Dynamics::GetStackedContactJacobianInW()
-		// TODO: For now this assumes that all legs are in contact
+Eigen::MatrixXd Dynamics::GetStackedContactJacobianInW(
+		std::vector<int> legs_in_contact
+		)
 {
-	int num_contacts = 4; // TODO: replace
-	Eigen::MatrixXd J_c(num_contacts * kNumPosDims,kNumGenVels);
+	const int num_contacts = legs_in_contact.size();
+	std::cout << "number of legs in contact: " << num_contacts << std::endl;
+	Eigen::MatrixXd J_c(num_contacts * k3D, kNumGenVels);
 	J_c.setZero();
 
-	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i) // TODO: change
+	for (int i = 0; i < num_contacts; ++i) 
 	{
-		Eigen::MatrixXd J_c_foot_i = GetContactJacobianInW(foot_i);
-		J_c.block<kNumPosDims,kNumGenVels>(foot_i * kNumPosDims,0)
-			= J_c_foot_i;
+		std::cout << "leg in contact: " << legs_in_contact[i] << std::endl;
+		Eigen::MatrixXd J_c_leg_i = GetContactJacobianInW(legs_in_contact[i]);
+		J_c.block<k3D,kNumGenVels>(i * k3D,0)
+			= J_c_leg_i;
 	}
+	std::cout << "J_c\n";
+	PrintMatrix(J_c);
 	return J_c;
 }
 

@@ -32,4 +32,5 @@
         args="-d $(find anymal_c_simple_description)/config/rviz/standalone.rviz"
         output="screen"/>
 
+
 </launch>

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <launch>
 	<!--<node name="motion_planner" pkg="quadruped_locomotion" type="motion_planner_node"/>-->
 

@@ -168,6 +168,11 @@ namespace control {
 				break;
 			case kHoQpController:
 				{
+					// TODO: Add SetComCmd here
+					ho_qp_controller_.SetLegCmd(
+							r_c_cmd_, r_c_dot_cmd_, r_c_ddot_cmd_,
+							legs_in_contact_
+							);
 					ho_qp_controller_.Update(q_,u_);
 					q_j_ddot_cmd_ = ho_qp_controller_.GetJointAccelerationCmd();
 					IntegrateJointAccelerations();
@@ -201,8 +206,9 @@ namespace control {
 	void WholeBodyController::SupportConsistentControl()
 	{
 		robot_dynamics_.SetState(q_,u_);
+		const std::vector<int> all_legs = {0,1,2,3};
 		Eigen::MatrixXd J_constraint = robot_dynamics_
-			.GetStackedContactJacobianInW();
+			.GetStackedContactJacobianInW(all_legs);
 		Eigen::MatrixXd N_constraint =
 			CalcSquareNullSpaceProjMatrix(J_constraint);
 
@@ -608,8 +614,15 @@ namespace control {
 			const std::vector<double> &leg_contact_cmd
 			)
 	{
-		for (int i = 0; i < leg_contact_cmd.size(); ++i)
-			legs_in_contact_(i) = leg_contact_cmd[i];
+		// TODO: this conversion should happen elsewhere
+		legs_in_contact_.clear();
+		for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+		{
+			if (leg_contact_cmd[leg_i] == 1)
+			{
+				legs_in_contact_.push_back(leg_i);
+			}
+		}
 	}
 
 	// **************** //
@@ -678,8 +691,7 @@ namespace control {
 		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
 		q_j_dot_cmd_integrator_.Reset();
 
-		legs_in_contact_.resize(kNumLegs);
-		legs_in_contact_.setZero();
+		legs_in_contact_.clear();
 
 		r_c_cmd_.resize(k3D * kNumLegs);
 		r_c_cmd_.setZero();

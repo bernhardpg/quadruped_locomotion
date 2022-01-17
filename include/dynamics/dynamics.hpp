@@ -38,7 +38,9 @@ class Dynamics
 		Eigen::MatrixXd GetMassMatrix();
 		Eigen::VectorXd GetBiasVector();
 		Eigen::VectorXd GetContactAccInW(int foot_i);
-		Eigen::VectorXd GetStackedContactAccInW();
+		Eigen::VectorXd GetStackedContactAccInW(
+				std::vector<int> legs_in_contact
+				);
 
 		// ****************** //
 		// FORWARD KINEMATICS // 
@@ -53,7 +55,9 @@ class Dynamics
 		// *********************** //
 
 		Eigen::MatrixXd GetContactJacobianInW(int foot_i);
-		Eigen::MatrixXd GetStackedContactJacobianInW();
+		Eigen::MatrixXd GetStackedContactJacobianInW(
+				std::vector<int> legs_in_contact
+				);
 		Eigen::MatrixXd GetBaseJacobianInW();
 
 	private:

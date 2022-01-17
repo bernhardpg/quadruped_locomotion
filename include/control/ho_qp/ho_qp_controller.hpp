@@ -28,11 +28,18 @@ namespace control
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);
+			void SetLegCmd(
+					Eigen::VectorXd r_c_cmd,
+					Eigen::VectorXd r_c_dot_cmd,
+					Eigen::VectorXd r_c_ddot_cmd,
+					std::vector<int> legs_in_contact
+					);
+
 			Eigen::VectorXd GetJointAccelerationCmd();
 			Eigen::VectorXd GetJointTorqueCmd();
 
 		private:
-			Dynamics robot_dynamics_; // TODO: Should this controller own its own dynamics object?
+			Dynamics robot_dynamics_;
 
 			// ********* //
 			// Constants //
@@ -72,8 +79,13 @@ namespace control
 			// CONTROLLER // 
 			// ********** //
 
-			int num_contacts_;
-			int	num_decision_vars_;
+			Eigen::VectorXd r_c_cmd_;
+			Eigen::VectorXd r_c_dot_cmd_;
+			Eigen::VectorXd r_c_ddot_cmd_;
+			std::vector<int> legs_in_contact_;
+			
+			int num_contacts_ = 0;
+			int	num_decision_vars_ = 0;
 
 			Eigen::VectorXd solution_;
 			Eigen::VectorXd tau_cmd_;
@@ -99,7 +111,7 @@ namespace control
 					Eigen::VectorXd com_vel 
 					);
 			TaskDefinition ConstructComRotTrajTask(
-					Eigen::VectorXd ang_vel // TODO: rename 
+					Eigen::VectorXd ang_vel
 					);
 			TaskDefinition ConstructForceMinimizationTask();
 			TaskDefinition ConstructJointAccMinimizationTask();
@@ -108,10 +120,14 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
-			Eigen::VectorXd GetFloatingBaseRows(Eigen::VectorXd &m);
-			Eigen::MatrixXd GetFloatingBaseRows(Eigen::MatrixXd &m);
-			Eigen::VectorXd GetJointRows(Eigen::VectorXd &v);
-			Eigen::MatrixXd GetJointRows(Eigen::MatrixXd &m);
+			template <typename Derived>
+			Derived GetFloatingBaseRows(
+					const Eigen::DenseBase<Derived> &m
+					);
+			template <typename Derived>
+			Derived GetJointRows(
+					const Eigen::DenseBase<Derived> &m
+					);
 
 			// ******* //
 			// TESTING //

@@ -22,7 +22,7 @@
 
 namespace control
 {
-	class WholeBodyController
+	class WholeBodyController // TODO: Is this really more of a state machine?
 	{
 		public:
 			WholeBodyController(int frequency);
@@ -59,7 +59,7 @@ namespace control
 			Eigen::VectorXd r_c_cmd_;
 			Eigen::VectorXd r_c_dot_cmd_;
 			Eigen::VectorXd r_c_ddot_cmd_;
-			Eigen::VectorXd legs_in_contact_;
+			std::vector<int> legs_in_contact_;
 
 			Eigen::MatrixXd q_j_;
 			Eigen::MatrixXd q_j_dot_;
