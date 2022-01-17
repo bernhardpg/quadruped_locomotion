@@ -41,6 +41,11 @@ void Dynamics::BuildPlantFromUrdf()
 		(&diagram_->GetMutableSubsystemContext(
 				*plant_, diagram_context_.get())
 		 );
+
+//	if (false) // For visualizing kinematic tree
+//	{
+//		std::cout << plant_->GetTopologyGraphvizString();
+//	}
 }
 
 // ******** //
@@ -54,6 +59,17 @@ void Dynamics::SetState(
 {
 	plant_->SetPositions(context_.get(), q);
 	plant_->SetVelocities(context_.get(), u);
+}
+
+void Dynamics::SetStateDefault()
+{
+	Eigen::VectorXd q(kNumGenCoords);
+	q.setZero();
+	q.block<4,1>(0,0) << 1,0,0,0;
+	Eigen::VectorXd u(kNumGenVels);
+	u.setZero();
+
+	SetState(q,u);
 }
 
 Eigen::MatrixXd Dynamics::GetMassMatrix()
@@ -110,73 +126,30 @@ Eigen::VectorXd Dynamics::GetStackedContactAccInW()
 // FORWARD KINEMATICS // 
 // ****************** //
 
-//void Dynamics::PrintJointPlacements(
-//		Eigen::VectorXd q
-//		)
-//{
-//	pinocchio::forwardKinematics(model_, data_, q);
-//
-//	// Print out the placement of each joint of the kinematic tree
-//	for(pinocchio::JointIndex joint_id = 0; joint_id < (pinocchio::JointIndex) model_.njoints; ++joint_id)
-//	{
-//		std::cout << std::setw(24) << std::left
-//							<< model_.names[joint_id] << ": "
-//							<< std::fixed << std::setprecision(2)
-//							<< data_.oMi[joint_id].translation().transpose()
-//							<< std::endl;
-//	}
-//}
-//
-//Eigen::Vector3d Dynamics::GetFootPosInB(
-//		Eigen::VectorXd q, int foot_i
-//		)
-//{
-//	Eigen::VectorXd default_pose(7); // TODO: clean up
-//	default_pose << 0, 0, 0, 0, 0, 0, 1;
-//	q.block(0,0,7,1) = default_pose;
-//
-//	pinocchio::forwardKinematics(model_, data_, q);
-//	pinocchio::updateFramePlacements(model_, data_);
-//
-//	Eigen::Vector3d r_B =
-//		data_.oMf[model_.getFrameId(kFeetFrames[foot_i])]
-//		.translation().transpose();
-//	return r_B;
-//}
-//
-//void Dynamics::PrintFootPlacement(
-//		Eigen::VectorXd q, int foot_i
-//		)
-//{
-//	auto pos = GetFootPosInB(q,foot_i);
-//	std::cout << "Foot: " << kFeetFrames[foot_i] << " pos: \n";
-//	PrintMatrix(pos.transpose());
-//
-//	auto frame = model_.frames[model_.getFrameId(kFeetFrames[foot_i])];
-//	auto parent_id = frame.parent;
-//	std::cout << "Parent: " << model_.names[parent_id] << "\n";
-//}
-//
-//
-//Eigen::Matrix<double,kNumFeetCoords,1> Dynamics::GetFeetPositions(
-//		Eigen::Matrix<double,kNumGenCoords, 1> q
-//		)
-//{
-//	pinocchio::forwardKinematics(model_, data_, q);
-//	pinocchio::updateFramePlacements(model_, data_);
-//
-//	Eigen::Matrix<double,kNumFeetCoords,1> feet_positions; // LF LH RF RH
-//
-//	for (int foot_i = 0; foot_i < kFeetFrames.size(); ++foot_i)
-//	{
-//		Eigen::Vector3d pos =
-//			data_.oMf[model_.getFrameId(kFeetFrames[foot_i])]
-//			.translation().transpose();
-//		feet_positions.block<kNumPosDims,1>(foot_i * kNumPosDims, 0) = pos;
-//	}
-//
-//	return feet_positions;
-//}
+Eigen::VectorXd Dynamics::GetFootPosInW(int foot_i)
+{
+	const auto &foot_body =
+		plant_->GetBodyByName(kFeetFrames[foot_i]);
+
+	auto pose = plant_->EvalBodyPoseInWorld(*context_, foot_body);
+	return pose.translation();
+}
+
+Eigen::MatrixXd Dynamics::GetStackedFootPosInW()
+{
+	Eigen::MatrixXd stacked_foot_pos(kNumPosDims, kNumLegs);
+	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	{
+		stacked_foot_pos.col(foot_i) = GetFootPosInW(foot_i);
+	}
+
+	return stacked_foot_pos;
+}
+
+Eigen::MatrixXd Dynamics::GetStacked2DFootPosInW()
+{
+	return GetStackedFootPosInW().topRows(2);
+}
 
 // *********************** //
 // DIFFERENTIAL KINEMATICS // 
@@ -232,27 +205,3 @@ Eigen::MatrixXd Dynamics::GetBaseJacobianInW()
 	return J_b;
 }
 
-//	// TODO: Drake functionality that is to be structured in functions
-//	const auto &LF_FOOT=
-//		plant_->GetBodyByName("LF_FOOT");
-//
-//	const auto &W = plant_->world_frame();
-//	auto pose = plant_->EvalBodyPoseInWorld(context, LF_FOOT);
-//	std::cout << "LF_FOOT position" << std::endl;
-//	std::cout << pose.translation() << std::endl;
-//
-//	Eigen::MatrixXd J_c(6,18);
-//	plant_->CalcJacobianSpatialVelocity(
-//			context, drake::multibody::JacobianWrtVariable::kV,
-//			LF_FOOT.body_frame(), Eigen::VectorXd::Zero(3),
-//			W, W, &J_c
-//			);
-//	// Drake has the following ordering for jacobians:
-//	// [LF_HAA . . . LF_HFE . . . LF_KFE . . .]
-//	std::cout << "J_c:\n";
-//	PrintMatrix(J_c);
-//
-//	if (false) // For visualizing kinematic tree
-//	{
-//		std::cout << plant_->GetTopologyGraphvizString();
-//	}

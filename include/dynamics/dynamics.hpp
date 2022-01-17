@@ -34,35 +34,27 @@ class Dynamics
 				Eigen::Matrix<double,kNumGenCoords, 1> q,
 				Eigen::Matrix<double,kNumGenVels, 1> u
 				);
+		void SetStateDefault();
 		Eigen::MatrixXd GetMassMatrix();
 		Eigen::VectorXd GetBiasVector();
 		Eigen::VectorXd GetContactAccInW(int foot_i);
 		Eigen::VectorXd GetStackedContactAccInW();
-		Eigen::MatrixXd GetBaseJacobianInW();
 
 		// ****************** //
 		// FORWARD KINEMATICS // 
 		// ****************** //
 
-//		void PrintJointPlacements(
-//				Eigen::VectorXd q
-//				);
-//		void PrintFootPlacement(
-//				Eigen::VectorXd q, int foot_i
-//				);
-//		Eigen::Vector3d GetFootPosInB(
-//				Eigen::VectorXd q, int foot_i
-//				);
-//		Eigen::Matrix<double,kNumFeetCoords,1> GetFeetPositions(
-//				Eigen::Matrix<double,kNumGenCoords, 1> q
-//				);
-//
+		Eigen::VectorXd GetFootPosInW(int foot_i);
+		Eigen::MatrixXd GetStackedFootPosInW();
+		Eigen::MatrixXd GetStacked2DFootPosInW();
+
 		// *********************** //
 		// DIFFERENTIAL KINEMATICS // 
 		// *********************** //
 
 		Eigen::MatrixXd GetContactJacobianInW(int foot_i);
 		Eigen::MatrixXd GetStackedContactJacobianInW();
+		Eigen::MatrixXd GetBaseJacobianInW();
 
 	private:
 		std::unique_ptr<drake::geometry::SceneGraph<double>> scene_graph_;
@@ -70,6 +62,7 @@ class Dynamics
 		std::unique_ptr<drake::systems::Context<double>> context_;
 		std::unique_ptr<drake::systems::Diagram<double>> diagram_;
 		std::unique_ptr<drake::systems::Context<double>> diagram_context_;
+
 
 		void BuildPlantFromUrdf();
 };

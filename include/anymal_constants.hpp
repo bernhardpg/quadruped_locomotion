@@ -6,7 +6,8 @@ const int kNumJoints = 12;
 const int kNumGenCoords = kNumPoseCoords + kNumJoints;
 const int kNumGenVels = kNumTwistCoords + kNumJoints;
 const int kNumLegs = 4;
-const int kNumPosDims = 3;
+const int kNumPosDims = 3; // TODO: change name to k3D
+const int k2D = 2;
 const int kNumFeetCoords = kNumLegs * kNumPosDims;
 
 typedef Eigen::Matrix<double,kNumJoints,1> joint_vector_t;
@@ -17,8 +18,8 @@ typedef Eigen::Matrix<double,kNumFeetCoords,1> feet_vector_t;
 const std::vector<std::string> kFeetFrames = 
 {
 	"LF_FOOT",
-	"LH_FOOT",
 	"RF_FOOT",
+	"LH_FOOT",
 	"RH_FOOT"
 };
 

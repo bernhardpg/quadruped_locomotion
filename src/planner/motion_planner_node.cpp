@@ -17,7 +17,7 @@ int main( int argc, char** argv )
   while (ros::ok())
   {
 		planner.PublishTrajectoryVisualization();
-		planner.PublishPolygonsVisualization();
+		planner.PublishPolygonVisualizationAtTime(ros::Time::now().toSec());
     r.sleep();
   }
 }

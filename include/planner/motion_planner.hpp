@@ -12,6 +12,8 @@
 #include <iomanip>
 
 #include "variable_types.hpp"
+#include "dynamics/dynamics.hpp"
+#include "helper_functions.hpp"
 
 class MotionPlanner
 {
@@ -25,6 +27,7 @@ class MotionPlanner
 		// VISUALIZATION //
 		// ************* //
 		void PublishTrajectoryVisualization();
+		void PublishPolygonVisualizationAtTime(double time);
 		void PublishPolygonsVisualization();
 
 	private:
@@ -39,23 +42,20 @@ class MotionPlanner
 		// ******************* //
 		// GAIT AND TRAJECTORY //
 		// ******************* //
+
+		Dynamics robot_dynamics_;
+
 		int n_legs_ = 4;
 		int n_gait_steps_;
 		int n_gait_dims_;;
-		double t_stride_;
+		double t_per_gait_sequence_;
 		double t_per_step_;
 		Eigen::MatrixXd gait_sequence_;
 
 		Eigen::Vector2d vel_cmd_;
 		int curr_gait_step_;
-		Eigen::MatrixXd current_stance_; // [LF LH RH RF] TODO: Change direction to LF LH RF RH to reflect URDF
-		std::vector<std::vector<Eigen::Vector2d>> support_polygons_;
-		std::vector<Eigen::MatrixXd> stance_sequence_;;
-
-		Eigen::Vector3d LF_KFE_pos_;
-		Eigen::Vector3d RF_KFE_pos_;
-		Eigen::Vector3d LH_KFE_pos_;
-		Eigen::Vector3d RH_KFE_pos_;
+		Eigen::MatrixXd current_stance_;
+		std::vector<Eigen::MatrixXd> stance_sequence_;
 
 		int degree_;
 		int n_traj_segments_;
@@ -64,10 +64,22 @@ class MotionPlanner
 		Eigen::Vector2d pos_initial_;
 		Eigen::Vector2d pos_final_;
 
+		std::vector<std::vector<Eigen::Vector2d>> support_polygons_;
 
 		void AddTestPolygons();
 		void InitGaitSequence();
 		void GenerateSupportPolygons();
+
+		std::vector<Eigen::MatrixXd> GenerateStanceSequence(
+				const Eigen::VectorXd &vel_cmd,
+				const Eigen::MatrixXd &current_stance
+				);
+		Eigen::MatrixXd GenerateStanceForNextTimestep(
+				const Eigen::VectorXd &vel_cmd,
+				const int gait_step_i,
+				const Eigen::MatrixXd &prev_stance
+				);
+		int GetGaitStepFromTime(double t);
 
 		// ******************** //
 		// OPTIMIZATION PROBLEM //

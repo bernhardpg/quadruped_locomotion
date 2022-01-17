@@ -107,6 +107,7 @@ target_link_libraries(joint_state_publisher ${roscpp_LIBRARIES} ${catkin_LIBRARI
 # Motion planner
 add_library(motion_planner src/planner/motion_planner.cpp)
 target_link_libraries(motion_planner drake::drake)
+target_link_libraries(motion_planner dynamics)
 
 add_executable(motion_planner_node src/planner/motion_planner_node.cpp)
 target_link_libraries(motion_planner_node ${roscpp_LIBRARIES} ${catkin_LIBRARIES})

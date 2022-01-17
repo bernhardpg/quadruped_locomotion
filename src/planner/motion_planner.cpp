@@ -9,10 +9,20 @@ MotionPlanner::MotionPlanner(
 		degree_(degree)
 {
 	InitRos();
+
+	vel_cmd_ = Eigen::Vector2d(0.25, 0);
 	InitGaitSequence();
+
+	// TODO: Remember to update robot dynamcis with gen coords
+	robot_dynamics_.SetStateDefault();
+	current_stance_ = robot_dynamics_.GetStacked2DFootPosInW();
+	// TODO: For now, this assumes that we always start at the first gait step
+	stance_sequence_ = GenerateStanceSequence(vel_cmd_, current_stance_);
+
 	GenerateSupportPolygons(); // TODO: Place this at the right spot
 	SetupOptimizationProgram();
 }
+
 
 Eigen::VectorXd MotionPlanner::EvalTrajAtT(double t)
 {
@@ -46,6 +56,49 @@ void MotionPlanner::GenerateTrajectory()
 // ************* //
 // VISUALIZATION //
 // ************* //
+
+// TODO: These visualization functions are uneccesarily messy
+void MotionPlanner::PublishPolygonVisualizationAtTime(double time)
+{
+	int polygon_i = GetGaitStepFromTime(time);
+
+	visualization_msgs::Marker polygon_msg;
+	polygon_msg.header.frame_id = "world";
+	polygon_msg.header.stamp = ros::Time::now();
+	polygon_msg.ns = "polygons";
+	polygon_msg.action = visualization_msgs::Marker::ADD;
+	polygon_msg.pose.orientation.w = 1.0; // Set no rotation
+	polygon_msg.type = visualization_msgs::Marker::LINE_STRIP;
+
+	polygon_msg.scale.x = 0.01; // = width
+	polygon_msg.color.b = 1.0;
+	polygon_msg.color.a = 1.0;
+
+	geometry_msgs::Point p;
+
+	polygon_msg.points.clear(); // clear previous points
+	polygon_msg.id = 0; // Replace the polygon on every iteration
+
+	for (
+			int point_j = 0;
+			point_j < support_polygons_[polygon_i].size();
+			++point_j
+			)
+	{
+		p.x = support_polygons_[polygon_i][point_j](0);
+		p.y = support_polygons_[polygon_i][point_j](1);
+		p.z = 0;
+		polygon_msg.points.push_back(p);
+	}
+
+	// Close polygon
+	p.x = support_polygons_[polygon_i][0](0);
+	p.y = support_polygons_[polygon_i][0](1);
+	p.z = 0;
+	polygon_msg.points.push_back(p);
+
+	polygons_pub_.publish(polygon_msg);
+}
 
 void MotionPlanner::PublishPolygonsVisualization()
 {
@@ -191,54 +244,12 @@ void MotionPlanner::InitRos()
 // GAIT AND TRAJECTORY //
 // ******************* //
 
-void MotionPlanner::AddTestPolygons()
-{
-	// TODO: Only for testing
-	std::vector<Eigen::Vector2d> polygon;
-	polygon.push_back(Eigen::Vector2d(0,0));
-	polygon.push_back(Eigen::Vector2d(0,3));
-	polygon.push_back(Eigen::Vector2d(2,0));
-	support_polygons_.push_back(polygon);
-
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,1));
-	polygon.push_back(Eigen::Vector2d(2.5,1.5));
-	polygon.push_back(Eigen::Vector2d(2,3.5));
-	support_polygons_.push_back(polygon);
-
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,2));
-	polygon.push_back(Eigen::Vector2d(2,2));
-	polygon.push_back(Eigen::Vector2d(0,5));
-	support_polygons_.push_back(polygon);
-
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,2));
-	polygon.push_back(Eigen::Vector2d(2.5,3.5));
-	polygon.push_back(Eigen::Vector2d(2,4.5));
-	support_polygons_.push_back(polygon);
-
-	polygon.clear();
-	polygon.push_back(Eigen::Vector2d(0,3));
-	polygon.push_back(Eigen::Vector2d(2,3));
-	polygon.push_back(Eigen::Vector2d(0,6));
-	support_polygons_.push_back(polygon);
-}
-
 void MotionPlanner::InitGaitSequence()
 {
 	// TODO: This should come from a ROS topic
-	vel_cmd_ = Eigen::Vector2d(0.25, 0);
-	n_gait_dims_ = 2;
 	n_gait_steps_ = 20;
-	t_stride_ = 10;
-	t_per_step_ = t_stride_ / (double) n_gait_steps_;
-
-	// TODO: Hardcoded and it is actually not correct to use KFE
-	LF_KFE_pos_ << 0.36, -0.29, 0.28; 
-	RF_KFE_pos_ << 0.36, 0.29, 0.28; 
-	LH_KFE_pos_ << -0.36, -0.29, 0.28; 
-	RH_KFE_pos_ << -0.36, 0.29, 0.28; 
+	t_per_gait_sequence_ = 10;
+	t_per_step_ = t_per_gait_sequence_ / (double) n_gait_steps_;
 
 	gait_sequence_.resize(n_legs_, n_gait_steps_);
 	gait_sequence_ << 
@@ -246,42 +257,28 @@ void MotionPlanner::InitGaitSequence()
 		1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1,
 		1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+}
 
-	curr_gait_step_ = 0;
-
-	current_stance_.resize(n_gait_dims_, n_legs_);
-	current_stance_ <<
-		LF_KFE_pos_(0), LH_KFE_pos_(0), RH_KFE_pos_(0), RF_KFE_pos_(0),
-		LF_KFE_pos_(1), LH_KFE_pos_(1), RH_KFE_pos_(1), RF_KFE_pos_(1);
+int MotionPlanner::GetGaitStepFromTime(double t)
+{
+	double t_rel = std::fmod(t, t_per_gait_sequence_);
+		
+	int gait_step_i = t_rel / t_per_step_;
+	return gait_step_i;
 }
 
 void MotionPlanner::GenerateSupportPolygons()
 {
-	stance_sequence_.clear();
-	stance_sequence_.push_back(current_stance_);
-	std::cout << current_stance_ << std::endl;
-
-	// TODO: Factor into separate functions
-	// TODO: For now, this assumes that we always start at the first gait step
-	// Generate stance sequence along vel_cmd_ direction
-	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
-	{
-		Eigen::MatrixXd new_stance(n_gait_dims_, n_legs_);
-		new_stance = 
-			current_stance_.colwise()
-			+ vel_cmd_ * gait_step_i * t_per_step_;
-		stance_sequence_.push_back(new_stance);
-	}
-
-	// Generate support polygons from stance sequence	
 	support_polygons_.clear();
+
 	std::vector<Eigen::Vector2d> new_polygon;
 	for (int gait_step_i = 0; gait_step_i < n_gait_steps_; ++gait_step_i)
 	{
 		new_polygon.clear();
 		auto curr_stance = stance_sequence_[gait_step_i];
-		// Find legs that are in contact
-		for (int leg_i = 0; leg_i < n_legs_; ++leg_i)	
+
+		std::vector<int> leg_visualization_order = {0,2,3,1}; 
+		for (int leg_i : leg_visualization_order)	
 		{
 			if (gait_sequence_(leg_i, gait_step_i) == 1)	
 			{
@@ -291,6 +288,56 @@ void MotionPlanner::GenerateSupportPolygons()
 		support_polygons_.push_back(new_polygon);
 	}
 }
+
+std::vector<Eigen::MatrixXd> MotionPlanner::GenerateStanceSequence(
+		const Eigen::VectorXd &vel_cmd,
+		const Eigen::MatrixXd &current_stance
+		)
+{
+	std::vector<Eigen::MatrixXd> stance_sequence;
+	stance_sequence.push_back(current_stance);
+
+	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
+	{
+		Eigen::MatrixXd next_stance =
+			GenerateStanceForNextTimestep(
+					vel_cmd, gait_step_i, stance_sequence[gait_step_i - 1]
+					);
+		stance_sequence.push_back(next_stance);
+	}
+	return stance_sequence;
+}
+
+Eigen::MatrixXd MotionPlanner::GenerateStanceForNextTimestep(
+		const Eigen::VectorXd &vel_cmd,
+		const int gait_step_i,
+		const Eigen::MatrixXd &prev_stance
+		)
+{
+	Eigen::MatrixXd next_stance(k2D, kNumLegs);
+	next_stance.setZero();
+
+	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	{
+		Eigen::MatrixXd prev_foot_pos = prev_stance.col(foot_i);
+
+		Eigen::MatrixXd next_foot_pos(k2D,1);
+		if (gait_sequence_(foot_i, gait_step_i) == 1)
+		{
+			next_foot_pos = prev_foot_pos;
+		}
+		else
+		{
+			next_foot_pos = prev_foot_pos
+				+ vel_cmd * t_per_step_;
+		}
+		
+		next_stance.col(foot_i) = next_foot_pos;
+	}
+
+	return next_stance;
+}
+
 
 // ******************** //
 // OPTIMIZATION PROBLEM //
