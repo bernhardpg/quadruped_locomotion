@@ -15,6 +15,23 @@
 #include "dynamics/dynamics.hpp"
 #include "helper_functions.hpp"
 
+// TODO: Move this into its own leg motion planner
+struct LegMotion
+{
+	double t_liftoff;
+	double t_touchdown;
+	Eigen::Vector2d start_pos;
+	Eigen::Vector2d end_pos;
+};
+
+std::ostream& operator<<(std::ostream& os, const LegMotion& lm) {
+    return os << "t_liftoff: " << lm.t_liftoff << std::endl
+              << "t_touchdown: " << lm.t_touchdown << std::endl
+              << "start_pos: " << lm.start_pos.transpose() << std::endl
+              << "end_pos: " << lm.end_pos.transpose() << std::endl;
+
+}
+
 class MotionPlanner
 {
 	public:
@@ -66,9 +83,14 @@ class MotionPlanner
 
 		std::vector<std::vector<Eigen::Vector2d>> support_polygons_;
 
-		void AddTestPolygons();
 		void InitGaitSequence();
 		void GenerateSupportPolygons();
+
+		void CreateLegTrajectories(
+				std::vector<LegMotion> leg_motions
+				);
+		void CreateLegMotions(); // TODO: move
+		LegMotion CreateLegMotionForLeg(const int leg_i);
 
 		std::vector<Eigen::MatrixXd> GenerateStanceSequence(
 				const Eigen::VectorXd &vel_cmd,
@@ -108,6 +130,10 @@ class MotionPlanner
 		// **************** //
 		// HELPER FUNCTIONS //
 		// **************** //
+		int GetLegStateAtStep(int gait_step_i, int leg_i);
+		double GetTimeAtGaitStep(int gait_step_i);
+		Eigen::VectorXd GetFootPosAtStep(int gait_step_i, int leg_i);
+
 		Eigen::MatrixXd GetTransformationMatrixAtT(
 				double t, symbolic_vector_t v
 				);

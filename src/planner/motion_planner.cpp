@@ -1,5 +1,7 @@
 #include "planner/motion_planner.hpp"
 
+// TODO: clean up this class
+
 MotionPlanner::MotionPlanner(
 		int degree,
 		int n_traj_segments
@@ -12,6 +14,7 @@ MotionPlanner::MotionPlanner(
 
 	vel_cmd_ = Eigen::Vector2d(0.25, 0);
 	InitGaitSequence();
+	// TODO: I will need to also initialize the start time
 
 	// TODO: Remember to update robot dynamcis with gen coords
 	robot_dynamics_.SetStateDefault();
@@ -21,8 +24,90 @@ MotionPlanner::MotionPlanner(
 
 	GenerateSupportPolygons(); // TODO: Place this at the right spot
 	SetupOptimizationProgram();
+
+	std::vector<LegMotion> leg_motions = CreateLegMotions();
+	CreateLegTrajectories(leg_motions);
 }
 
+void MotionPlanner::CreateLegTrajectories(
+		std::vector<LegMotion> leg_motions
+		)
+{
+	int leg_i = 0;
+	std::vector<double> breaks = {
+		leg_motions[leg_i].t_liftoff, leg_motions[leg_i].t_touchdown
+	};
+
+	std::vector<Eigen::VectorXd> samples = {
+		leg_motions[leg_i].start_pos, leg_motions[leg_i].end_pos
+	};
+
+	drake::trajectories::PiecewisePolynomial leg_i_traj =
+	 	drake::trajectories::PiecewisePolynomial<double>
+				::FirstOrderHold(breaks, samples);
+}
+
+std::vector<LegMotion> MotionPlanner::CreateLegMotions()
+{
+	std::vector<LegMotion> leg_motions;
+	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+	{
+		leg_motions.push_back(CreateLegMotionForLeg(leg_i));
+		std::cout << leg_motions[leg_i] << std::endl;
+	}
+
+	return leg_motions;
+}
+
+LegMotion MotionPlanner::CreateLegMotionForLeg(const int leg_i)
+{
+	double t_liftoff = -1;
+	double t_touchdown = -1;
+	Eigen::VectorXd start_pos(k2D);
+	Eigen::VectorXd end_pos(k2D);
+
+	// TODO: generalize to start at any configuration
+	int last_leg_state = GetLegStateAtStep(0, leg_i);
+	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
+	{
+		if (GetLegStateAtStep(gait_step_i, leg_i) != last_leg_state)
+		{
+			if (last_leg_state == 1)	
+			{
+				t_liftoff = GetTimeAtGaitStep(gait_step_i);
+				last_leg_state = 0;
+				start_pos = GetFootPosAtStep(gait_step_i - 1, leg_i);
+			}
+			else
+			{
+				t_touchdown = GetTimeAtGaitStep(gait_step_i);
+				last_leg_state = 1;
+				end_pos = GetFootPosAtStep(gait_step_i - 1, leg_i);
+			}
+		}
+	}
+
+	LegMotion leg_i_traj = {t_liftoff, t_touchdown, start_pos, end_pos};
+	return leg_i_traj;
+}
+
+double MotionPlanner::GetTimeAtGaitStep(int gait_step_i)
+{
+	double t_at_step = t_per_step_ * gait_step_i;	
+	return t_at_step;
+}
+
+Eigen::VectorXd MotionPlanner::GetFootPosAtStep(
+		int gait_step_i, int leg_i
+		)
+{
+	return stance_sequence_[gait_step_i].col(leg_i);
+}
+
+int MotionPlanner::GetLegStateAtStep(int gait_step_i, int leg_i)
+{
+	return gait_sequence_(leg_i,gait_step_i);
+}
 
 Eigen::VectorXd MotionPlanner::EvalTrajAtT(double t)
 {
@@ -297,6 +382,7 @@ std::vector<Eigen::MatrixXd> MotionPlanner::GenerateStanceSequence(
 	std::vector<Eigen::MatrixXd> stance_sequence;
 	stance_sequence.push_back(current_stance);
 
+	PrintMatrix(current_stance);
 	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
 	{
 		Eigen::MatrixXd next_stance =
@@ -304,6 +390,7 @@ std::vector<Eigen::MatrixXd> MotionPlanner::GenerateStanceSequence(
 					vel_cmd, gait_step_i, stance_sequence[gait_step_i - 1]
 					);
 		stance_sequence.push_back(next_stance);
+		PrintMatrix(next_stance);
 	}
 	return stance_sequence;
 }
