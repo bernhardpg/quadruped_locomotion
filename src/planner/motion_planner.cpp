@@ -22,29 +22,75 @@ MotionPlanner::MotionPlanner(
 	// TODO: For now, this assumes that we always start at the first gait step
 	stance_sequence_ = GenerateStanceSequence(vel_cmd_, current_stance_);
 
-	GenerateSupportPolygons(); // TODO: Place this at the right spot
-	SetupOptimizationProgram();
+	GenerateSupportPolygons();
+	SetupOptimizationProgram(); // TODO: move this to the right spot
 
-	std::vector<LegMotion> leg_motions = CreateLegMotions();
-	CreateLegTrajectories(leg_motions);
+	leg_motions_ = CreateLegMotions();
+	leg_trajectories_ = CreateLegTrajectories(leg_motions_);
 }
 
-void MotionPlanner::CreateLegTrajectories(
+// TODO: move all these into a leg motion planner
+std::vector<LegTrajectory> MotionPlanner::CreateLegTrajectories(
 		std::vector<LegMotion> leg_motions
 		)
 {
-	int leg_i = 0;
-	std::vector<double> breaks = {
-		leg_motions[leg_i].t_liftoff, leg_motions[leg_i].t_touchdown
+	std::vector<LegTrajectory> leg_trajs;
+	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+	{
+		LegTrajectory leg_i_traj; 
+		leg_i_traj.xy = CreateXYLegTrajectory(leg_motions[leg_i]);
+		leg_i_traj.z = CreateZLegTrajectory(leg_motions[leg_i]);
+		leg_i_traj.start_time - leg_motions[leg_i].t_liftoff;
+		leg_i_traj.end_time - leg_motions[leg_i].t_touchdown;
+
+		leg_trajs.push_back(leg_i_traj);
+	}
+
+	return leg_trajs;
+}
+
+drake::trajectories::PiecewisePolynomial<double>
+	MotionPlanner::CreateXYLegTrajectory(LegMotion leg_motion)
+{
+	const std::vector<double> breaks = {
+		leg_motion.t_liftoff, leg_motion.t_touchdown
 	};
 
-	std::vector<Eigen::VectorXd> samples = {
-		leg_motions[leg_i].start_pos, leg_motions[leg_i].end_pos
+	std::vector<Eigen::MatrixXd> samples = {
+		leg_motion.start_pos, leg_motion.end_pos
 	};
 
-	drake::trajectories::PiecewisePolynomial leg_i_traj =
+	drake::trajectories::PiecewisePolynomial<double> xy_traj =
 	 	drake::trajectories::PiecewisePolynomial<double>
 				::FirstOrderHold(breaks, samples);
+
+	return xy_traj;
+}
+
+drake::trajectories::PiecewisePolynomial<double>
+	MotionPlanner::CreateZLegTrajectory(LegMotion leg_motion)
+{
+	const double t_apex = leg_motion.t_liftoff + std::abs(
+			leg_motion.t_touchdown - leg_motion.t_liftoff
+			) / 2;
+	const std::vector<double> breaks = {
+		leg_motion.t_liftoff, t_apex, leg_motion.t_touchdown
+	};
+
+	const double z_apex_height = 0.2; // TODO: Move to member variable
+	Eigen::MatrixXd apex(1,1);
+	apex << z_apex_height;
+
+	const Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(1,1);
+	const std::vector<Eigen::MatrixXd> samples = {
+		zero, apex, zero
+	};
+
+	drake::trajectories::PiecewisePolynomial<double> z_traj =
+	 	drake::trajectories::PiecewisePolynomial<double>
+				::CubicWithContinuousSecondDerivatives(breaks, samples);
+
+	return z_traj;
 }
 
 std::vector<LegMotion> MotionPlanner::CreateLegMotions()

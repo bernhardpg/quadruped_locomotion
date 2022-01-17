@@ -6,6 +6,7 @@
 #include <visualization_msgs/Marker.h>
 
 #include <drake/solvers/mathematical_program.h>
+#include <drake/common/trajectories/piecewise_polynomial.h>
 #include <drake/common/symbolic.h>
 #include <drake/solvers/solve.h>
 #include <Eigen/Core>
@@ -22,6 +23,14 @@ struct LegMotion
 	double t_touchdown;
 	Eigen::Vector2d start_pos;
 	Eigen::Vector2d end_pos;
+};
+
+struct LegTrajectory 
+{
+	double start_time;
+	double end_time;
+	drake::trajectories::PiecewisePolynomial<double> xy;
+	drake::trajectories::PiecewisePolynomial<double> z;
 };
 
 std::ostream& operator<<(std::ostream& os, const LegMotion& lm) {
@@ -86,11 +95,19 @@ class MotionPlanner
 		void InitGaitSequence();
 		void GenerateSupportPolygons();
 
-		void CreateLegTrajectories(
+		// TODO: move these into a feet motion planner
+		std::vector<LegMotion> leg_motions_;
+		std::vector<LegTrajectory> leg_trajectories_;
+
+		std::vector<LegMotion> CreateLegMotions(); 
+		std::vector<LegTrajectory> CreateLegTrajectories(
 				std::vector<LegMotion> leg_motions
 				);
-		void CreateLegMotions(); // TODO: move
 		LegMotion CreateLegMotionForLeg(const int leg_i);
+		drake::trajectories::PiecewisePolynomial<double>
+			CreateXYLegTrajectory(LegMotion leg_motion);
+		drake::trajectories::PiecewisePolynomial<double>
+			CreateZLegTrajectory(LegMotion leg_motion);
 
 		std::vector<Eigen::MatrixXd> GenerateStanceSequence(
 				const Eigen::VectorXd &vel_cmd,
