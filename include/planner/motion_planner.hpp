@@ -1,6 +1,6 @@
 #pragma once
 
-
+#include <cmath>
 #include <ros/ros.h>
 #include <ros/console.h>
 #include <visualization_msgs/Marker.h>
@@ -54,34 +54,47 @@ class MotionPlanner
 		MotionPlanner(int degree, int num_traj_segments);
 
 		void GenerateTrajectory();
-		Eigen::VectorXd EvalTrajAtT(double t);
 
 		// ************* //
 		// VISUALIZATION //
 		// ************* //
 
-		void PublishTrajectoryVisualization();
-		void PublishPolygonVisualizationAtTime(double time);
+		void PublishComTrajVisualization();
+		void PublishPolygonVisualizationAtTime(const double time);
 		void PublishPolygonsVisualization();
 		void PublishLegTrajectoriesVisualization();
+
+		// COM //
+		// TODO: move into its own module
+		Eigen::VectorXd EvalComTrajAtT(
+				const double t, const int derivative = 0
+				);
+		Eigen::VectorXd EvalComPosAtT(const double t);
+		Eigen::VectorXd EvalComVelAtT(const double t);
+		Eigen::VectorXd EvalComAccAtT(const double t);
 
 		// LEGS // 
 		// TODO: Move into own module
 
-		Eigen::VectorXd EvalLegPosAtT(double t, int leg_i);
-		Eigen::VectorXd EvalLegVelAtT(double t, int leg_i);
-		Eigen::VectorXd EvalLegAccAtT(double t, int leg_i);
+		Eigen::VectorXd EvalLegPosAtT(const double t, const int leg_i);
+		Eigen::VectorXd EvalLegVelAtT(const double t, const int leg_i);
+		Eigen::VectorXd EvalLegAccAtT(const double t, const int leg_i);
 
-		Eigen::VectorXd GetLegsInContactAtT(double time);
-		Eigen::VectorXd GetStackedLegPosAtT(double time);
-		Eigen::VectorXd GetStackedLegVelAtT(double time);
-		Eigen::VectorXd GetStackedLegAccAtT(double time);
+		Eigen::VectorXd GetLegsInContactAtT(const double time);
+		Eigen::VectorXd GetStackedLegPosAtT(const double time);
+		Eigen::VectorXd GetStackedLegVelAtT(const double time);
+		Eigen::VectorXd GetStackedLegAccAtT(const double time);
 
-		void PublishLegTrajectories(double time);
-		void PublishLegsInContact(double time);
-		void PublishLegPosCmd(double time);
-		void PublishLegVelCmd(double time);
-		void PublishLegAccCmd(double time);
+		void PublishComTrajectories(const double time);
+		void PublishComPosCmd(const double time);
+		void PublishComVelCmd(const double time);
+		void PublishComAccCmd(const double time);
+
+		void PublishLegTrajectories(const double time);
+		void PublishLegsInContact(const double time);
+		void PublishLegPosCmd(const double time);
+		void PublishLegVelCmd(const double time);
+		void PublishLegAccCmd(const double time);
 
 	private:
 		// *** //
@@ -97,7 +110,15 @@ class MotionPlanner
 		ros::Publisher legs_pos_cmd_pub_; 
 		ros::Publisher legs_vel_cmd_pub_; 
 		ros::Publisher legs_acc_cmd_pub_; 
+
+		ros::Publisher com_pos_traj_pub_; 
+		ros::Publisher com_vel_traj_pub_; 
+		ros::Publisher com_acc_traj_pub_; 
+
 		void InitRos();
+		void SetupVisualizationTopics();
+		void SetupComCmdTopics();
+		void SetupLegCmdTopics();
 
 		// ******************* //
 		// GAIT AND TRAJECTORY //
@@ -119,7 +140,7 @@ class MotionPlanner
 
 		int degree_;
 		int n_traj_segments_;
-		int traj_dimension_ = 2;
+		const int traj_dimension_ = k2D;
 		double dt_ = 0.1;
 		Eigen::Vector2d pos_initial_;
 		Eigen::Vector2d pos_final_;
@@ -158,15 +179,24 @@ class MotionPlanner
 		// ******************** //
 
 		void SetupOptimizationProgram();
+		void InitMonomials();
 		void InitDecisionVariables();
 		void AddAccelerationCost();
 		void AddContinuityConstraints();
 		void AddInitialAndFinalConstraint();
+
 		void GeneratePolynomialsFromSolution();
+		std::vector<symbolic_matrix_t> GetCoeffValues();
+		polynomial_matrix_t GeneratePolynomials(
+				const symbolic_vector_t &monomial_basis,
+				const std::vector<symbolic_matrix_t> &coeff_values 
+				);
 
 		drake::solvers::MathematicalProgram prog_;
 		drake::solvers::MathematicalProgramResult result_;
-		polynomial_matrix_t polynomials_;
+		polynomial_matrix_t polynomials_pos_;
+		polynomial_matrix_t polynomials_vel_;
+		polynomial_matrix_t polynomials_acc_;
 
 		drake::symbolic::Variable t_;
 		symbolic_vector_t m_; // monomial basis of t

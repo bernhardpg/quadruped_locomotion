@@ -168,8 +168,7 @@ namespace control {
 				break;
 			case kHoQpController:
 				{
-					SetNoComMotion(); // TODO: replace these
-					SetNoLegMotion(); // TODO: replace these
+					SetZeroLegCmdMotion(); // TODO: replace these
 					ho_qp_controller_.SetComCmd(
 							r_cmd_, r_dot_cmd_, r_ddot_cmd_
 							);
@@ -289,6 +288,7 @@ namespace control {
 	{
 		SetupJointCmdAdvertisement();
 		SetupStateSubscriptions();
+		SetupComCmdSubscriptions();
 		SetupLegCmdSubscriptions();
 	}
 
@@ -351,6 +351,40 @@ namespace control {
 
 		gen_coord_sub_ = ros_node_.subscribe(gen_coord_so);
 		gen_vel_sub_ = ros_node_.subscribe(gen_vel_so);
+	}
+
+	void WholeBodyController::SetupComCmdSubscriptions()
+	{
+		ros::SubscribeOptions com_pos_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/com_pos_cmd",
+					1,
+					boost::bind(&WholeBodyController::OnComPosCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		ros::SubscribeOptions com_vel_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/com_vel_cmd",
+					1,
+					boost::bind(&WholeBodyController::OnComVelCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		ros::SubscribeOptions com_acc_cmd_so =
+			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+					"/com_acc_cmd",
+					1,
+					boost::bind(&WholeBodyController::OnComAccCmdMsg, this, _1),
+					ros::VoidPtr(),
+					&this->ros_process_queue_
+					);
+
+		com_pos_cmd_sub_ = ros_node_.subscribe(com_pos_cmd_so);
+		com_vel_cmd_sub_ = ros_node_.subscribe(com_vel_cmd_so);
+		com_acc_cmd_sub_ = ros_node_.subscribe(com_acc_cmd_so);
 	}
 
 	void WholeBodyController::SetupLegCmdSubscriptions()
@@ -527,6 +561,27 @@ namespace control {
 		SetGenVels(msg->data);
 	}
 
+	void WholeBodyController::OnComPosCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		SetComPosCmd(msg->data);
+	}
+
+	void WholeBodyController::OnComVelCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		SetComVelCmd(msg->data);
+	}
+
+	void WholeBodyController::OnComAccCmdMsg(
+			const std_msgs::Float64MultiArrayConstPtr &msg
+			)
+	{
+		SetComAccCmd(msg->data);
+	}
+
 	void WholeBodyController::OnLegsPosCmdMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
@@ -588,6 +643,30 @@ namespace control {
 			u_(i) = gen_vels[i];
 
 		q_j_dot_ = GetJointsVel();
+	}
+
+	void WholeBodyController::SetComPosCmd(
+			const std::vector<double> &com_pos_cmd
+			)
+	{
+		for (int i = 0; i < com_pos_cmd.size(); ++i)
+			r_cmd_(i) = com_pos_cmd[i];
+	}
+
+	void WholeBodyController::SetComVelCmd(
+			const std::vector<double> &com_vel_cmd
+			)
+	{
+		for (int i = 0; i < com_vel_cmd.size(); ++i)
+			r_dot_cmd_(i) = com_vel_cmd[i];
+	}
+
+	void WholeBodyController::SetComAccCmd(
+			const std::vector<double> &com_acc_cmd
+			)
+	{
+		for (int i = 0; i < com_acc_cmd.size(); ++i)
+			r_ddot_cmd_(i) = com_acc_cmd[i];
 	}
 
 	void WholeBodyController::SetLegPosCmd(
@@ -695,10 +774,11 @@ namespace control {
 		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
 		q_j_dot_cmd_integrator_.Reset();
 
-		SetNoLegMotion();
+		SetZeroComCmdMotion();
+		SetZeroLegCmdMotion();
 	}
 
-	void WholeBodyController::SetNoComMotion()
+	void WholeBodyController::SetZeroComCmdMotion()
 	{
 		r_cmd_.resize(k3D);
 		r_cmd_.setZero();
@@ -710,7 +790,7 @@ namespace control {
 		r_ddot_cmd_.setZero();
 	}
 
-	void WholeBodyController::SetNoLegMotion()
+	void WholeBodyController::SetZeroLegCmdMotion()
 	{
 		legs_in_contact_.clear();
 		legs_in_contact_ = {0,1,2,3};

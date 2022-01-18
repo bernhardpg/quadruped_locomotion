@@ -145,6 +145,10 @@ namespace control
 			ros::Subscriber gen_coord_sub_;
 			ros::Subscriber gen_vel_sub_;
 
+			ros::Subscriber com_pos_cmd_sub_;
+			ros::Subscriber com_vel_cmd_sub_;
+			ros::Subscriber com_acc_cmd_sub_;
+
 			ros::Subscriber legs_pos_cmd_sub_;
 			ros::Subscriber legs_vel_cmd_sub_;
 			ros::Subscriber legs_acc_cmd_sub_;
@@ -159,7 +163,10 @@ namespace control
 			void SetupRosTopics();
 			void SetupJointCmdAdvertisement();
 			void SetupStateSubscriptions();
+
+			void SetupComCmdSubscriptions();
 			void SetupLegCmdSubscriptions();
+
 			void SetupRosServices();
 			void SpinRosThreads();
 			void PublishQueueThread();
@@ -188,6 +195,16 @@ namespace control
 			void OnGenVelMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
+
+			void OnComPosCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
+			void OnComVelCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
+			void OnComAccCmdMsg(
+					const std_msgs::Float64MultiArrayConstPtr &msg
+					);
 			void OnLegsPosCmdMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
@@ -200,6 +217,7 @@ namespace control
 			void OnLegsContactCmdMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
+
 			void PublishJointVelCmd(double vel_cmd);
 
 			// ***************** //
@@ -210,6 +228,11 @@ namespace control
 			joint_vector_t GetJointsVel();
 			void SetGenCoords(const std::vector<double> &gen_coords);
 			void SetGenVels(const std::vector<double> &gen_vels);
+
+			void SetComPosCmd(const std::vector<double> &com_pos_cmd);
+			void SetComVelCmd(const std::vector<double> &com_vel_cmd);
+			void SetComAccCmd(const std::vector<double> &com_acc_cmd);
+
 			void SetLegPosCmd(const std::vector<double> &leg_pos_cmd);
 			void SetLegVelCmd(const std::vector<double> &leg_vel_cmd);
 			void SetLegAccCmd(const std::vector<double> &leg_acc_cmd);
@@ -235,8 +258,8 @@ namespace control
 						std::vector<Eigen::MatrixXd> samples
 						);
 			void SetVariablesToZero();
-			void SetNoComMotion();
-			void SetNoLegMotion();
+			void SetZeroComCmdMotion();
+			void SetZeroLegCmdMotion();
 			double GetElapsedTimeSince(ros::Time t);
 	};
 }

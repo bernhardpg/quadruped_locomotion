@@ -29,7 +29,41 @@ MotionPlanner::MotionPlanner(
 	leg_trajectories_ = CreateLegTrajectories(leg_motions_);
 }
 
-void MotionPlanner::PublishLegTrajectories(double time)
+void MotionPlanner::PublishComTrajectories(const double time)
+{
+	PublishComPosCmd(time);
+	PublishComVelCmd(time);
+	PublishComAccCmd(time);
+}
+
+void MotionPlanner::PublishComPosCmd(const double time)
+{
+	std_msgs::Float64MultiArray com_pos_cmd;
+	tf::matrixEigenToMsg(
+			EvalComPosAtT(time), com_pos_cmd // TODO: add vel and acceleration
+			);
+	com_pos_traj_pub_.publish(com_pos_cmd);
+}
+
+void MotionPlanner::PublishComVelCmd(const double time)
+{
+	std_msgs::Float64MultiArray com_vel_cmd;
+	tf::matrixEigenToMsg(
+			EvalComVelAtT(time), com_vel_cmd // TODO: add vel and acceleration
+			);
+	com_vel_traj_pub_.publish(com_vel_cmd);
+}
+
+void MotionPlanner::PublishComAccCmd(const double time)
+{
+	std_msgs::Float64MultiArray com_acc_cmd;
+	tf::matrixEigenToMsg(
+			EvalComAccAtT(time), com_acc_cmd // TODO: add vel and acceleration
+			);
+	com_acc_traj_pub_.publish(com_acc_cmd);
+}
+
+void MotionPlanner::PublishLegTrajectories(const double time)
 {
 	PublishLegPosCmd(time);
 	PublishLegVelCmd(time);
@@ -37,7 +71,7 @@ void MotionPlanner::PublishLegTrajectories(double time)
 	PublishLegsInContact(time);
 }
 
-void MotionPlanner::PublishLegPosCmd(double time)
+void MotionPlanner::PublishLegPosCmd(const double time)
 {
 	std_msgs::Float64MultiArray legs_pos_cmd;
 	tf::matrixEigenToMsg(
@@ -46,7 +80,7 @@ void MotionPlanner::PublishLegPosCmd(double time)
 	legs_pos_cmd_pub_.publish(legs_pos_cmd);
 }
 
-void MotionPlanner::PublishLegVelCmd(double time)
+void MotionPlanner::PublishLegVelCmd(const double time)
 {
 	std_msgs::Float64MultiArray legs_vel_cmd;
 	tf::matrixEigenToMsg(
@@ -55,7 +89,7 @@ void MotionPlanner::PublishLegVelCmd(double time)
 	legs_vel_cmd_pub_.publish(legs_vel_cmd);
 }
 
-void MotionPlanner::PublishLegAccCmd(double time)
+void MotionPlanner::PublishLegAccCmd(const double time)
 {
 	std_msgs::Float64MultiArray legs_acc_cmd;
 	tf::matrixEigenToMsg(
@@ -64,20 +98,20 @@ void MotionPlanner::PublishLegAccCmd(double time)
 	legs_acc_cmd_pub_.publish(legs_acc_cmd);
 }
 
-void MotionPlanner::PublishLegsInContact(double time)
+void MotionPlanner::PublishLegsInContact(const double time)
 {
 	std_msgs::Float64MultiArray legs_in_contact_msg;
 	tf::matrixEigenToMsg(GetLegsInContactAtT(time), legs_in_contact_msg);
 	legs_in_contact_pub_.publish(legs_in_contact_msg);
 }
 
-Eigen::VectorXd MotionPlanner::GetLegsInContactAtT(double time)
+Eigen::VectorXd MotionPlanner::GetLegsInContactAtT(const double time)
 {
 	int i = GetGaitStepFromTime(time);
 	return gait_sequence_.col(i);
 }
 
-Eigen::VectorXd MotionPlanner::GetStackedLegPosAtT(double time)
+Eigen::VectorXd MotionPlanner::GetStackedLegPosAtT(const double time)
 {
 	Eigen::VectorXd stacked_leg_pos(k3D * kNumLegs);
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
@@ -88,7 +122,7 @@ Eigen::VectorXd MotionPlanner::GetStackedLegPosAtT(double time)
 	return stacked_leg_pos;
 }
 
-Eigen::VectorXd MotionPlanner::GetStackedLegVelAtT(double time)
+Eigen::VectorXd MotionPlanner::GetStackedLegVelAtT(const double time)
 {
 	Eigen::VectorXd stacked_leg_vel(k3D * kNumLegs);
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
@@ -99,7 +133,7 @@ Eigen::VectorXd MotionPlanner::GetStackedLegVelAtT(double time)
 	return stacked_leg_vel;
 }
 
-Eigen::VectorXd MotionPlanner::GetStackedLegAccAtT(double time)
+Eigen::VectorXd MotionPlanner::GetStackedLegAccAtT(const double time)
 {
 	Eigen::VectorXd stacked_leg_acc(k3D * kNumLegs);
 	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
@@ -110,9 +144,11 @@ Eigen::VectorXd MotionPlanner::GetStackedLegAccAtT(double time)
 	return stacked_leg_acc;
 }
 
-Eigen::VectorXd MotionPlanner::EvalLegPosAtT(double time, int leg_i)
+Eigen::VectorXd MotionPlanner::EvalLegPosAtT(
+		const double time, const int leg_i
+		)
 {
-	double time_rel = std::fmod(time, t_per_gait_sequence_);
+	const double time_rel = std::fmod(time, t_per_gait_sequence_);
 	Eigen::VectorXd leg_pos(3);
 	leg_pos.setZero();
 
@@ -130,9 +166,11 @@ Eigen::VectorXd MotionPlanner::EvalLegPosAtT(double time, int leg_i)
 	return leg_pos;
 }
 
-Eigen::VectorXd MotionPlanner::EvalLegVelAtT(double time, int leg_i)
+Eigen::VectorXd MotionPlanner::EvalLegVelAtT(
+		const double time, const int leg_i
+		)
 {
-	double time_rel = std::fmod(time, t_per_gait_sequence_);
+	const double time_rel = std::fmod(time, t_per_gait_sequence_);
 	Eigen::VectorXd leg_vel(3);
 	leg_vel.setZero();
 
@@ -150,9 +188,11 @@ Eigen::VectorXd MotionPlanner::EvalLegVelAtT(double time, int leg_i)
 	return leg_vel;
 }
 
-Eigen::VectorXd MotionPlanner::EvalLegAccAtT(double time, int leg_i)
+Eigen::VectorXd MotionPlanner::EvalLegAccAtT(
+		const double time, const int leg_i
+		)
 {
-	double time_rel = std::fmod(time, t_per_gait_sequence_);
+	const double time_rel = std::fmod(time, t_per_gait_sequence_);
 	Eigen::VectorXd leg_acc(3);
 	leg_acc.setZero();
 
@@ -303,19 +343,51 @@ int MotionPlanner::GetLegStateAtStep(int gait_step_i, int leg_i)
 	return gait_sequence_(leg_i,gait_step_i);
 }
 
-Eigen::VectorXd MotionPlanner::EvalTrajAtT(double t)
+Eigen::VectorXd MotionPlanner::EvalComPosAtT(const double t)
 {
-	int traj_segment_index = 0;
-	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
+	return EvalComTrajAtT(t, 0);
+}
 
-	double t_in_segment = t - (double) traj_segment_index;
+Eigen::VectorXd MotionPlanner::EvalComVelAtT(const double t)
+{
+	return EvalComTrajAtT(t, 1);
+}
+
+Eigen::VectorXd MotionPlanner::EvalComAccAtT(const double t)
+{
+	return EvalComTrajAtT(t, 2);
+}
+
+Eigen::VectorXd MotionPlanner::EvalComTrajAtT(
+		const double t, const int derivative
+		)
+{
+	double t_rel = std::fmod(t, t_per_gait_sequence_); // TODO: these should be replaced with a common time
+
+	int traj_segment_index = 0;
+	while ((double) traj_segment_index + 1 < t_rel) ++traj_segment_index;
+
+	double t_in_segment = t_rel - (double) traj_segment_index;
 
 	Eigen::VectorXd traj_value(traj_dimension_);
 	drake::symbolic::Environment t_at_t {{t_, t_in_segment}};
 	for (int dim = 0; dim < traj_dimension_; ++dim)
 	{
-		traj_value(dim) = 
-			polynomials_(dim, traj_segment_index).Evaluate(t_at_t);
+		switch(derivative)
+		{
+			case 0:
+				traj_value(dim) = 
+					polynomials_pos_(dim, traj_segment_index).Evaluate(t_at_t);
+				break;
+			case 1:
+				traj_value(dim) = 
+					polynomials_vel_(dim, traj_segment_index).Evaluate(t_at_t);
+				break;
+			case 2:
+				traj_value(dim) = 
+					polynomials_acc_(dim, traj_segment_index).Evaluate(t_at_t);
+				break;
+		}
 	}
 
 	return traj_value;
@@ -337,7 +409,8 @@ void MotionPlanner::GenerateTrajectory()
 // ************* //
 
 // TODO: These visualization functions are uneccesarily messy
-void MotionPlanner::PublishPolygonVisualizationAtTime(double time)
+// TODO: move these to their own module!
+void MotionPlanner::PublishPolygonVisualizationAtTime(const double time)
 {
 	int polygon_i = GetGaitStepFromTime(time);
 
@@ -423,7 +496,7 @@ void MotionPlanner::PublishPolygonsVisualization()
 	}
 }
 
-void MotionPlanner::PublishTrajectoryVisualization()
+void MotionPlanner::PublishComTrajVisualization()
 {
 	visualization_msgs::Marker
 		traj_points, start_end_points, line_strip;
@@ -480,7 +553,7 @@ void MotionPlanner::PublishTrajectoryVisualization()
 
 	for (int k = 1; k < n_traj_segments_; ++k)
 	{
-		Eigen::VectorXd p_xy = EvalTrajAtT(k);
+		Eigen::VectorXd p_xy = EvalComPosAtT(k);
 		p.x = p_xy(0);
 		p.y = p_xy(1);
 		p.z = 0;
@@ -490,7 +563,7 @@ void MotionPlanner::PublishTrajectoryVisualization()
 
 	for (double t = 0; t < n_traj_segments_ - dt_; t += dt_)
 	{
-		Eigen::VectorXd p_xy = EvalTrajAtT(t);
+		Eigen::VectorXd p_xy = EvalComPosAtT(t);
 
 		p.x = p_xy(0);
 		p.y = p_xy(1);
@@ -547,6 +620,28 @@ void MotionPlanner::PublishLegTrajectoriesVisualization()
 
 void MotionPlanner::InitRos()
 {
+	SetupVisualizationTopics();
+	SetupComCmdTopics();
+	SetupLegCmdTopics();
+}
+
+void MotionPlanner::SetupComCmdTopics()
+{
+  com_pos_traj_pub_ =
+		ros_node_.advertise<std_msgs::Float64MultiArray>
+		("com_pos_cmd", 10);
+
+  com_vel_traj_pub_ =
+		ros_node_.advertise<std_msgs::Float64MultiArray>
+		("com_vel_cmd", 10);
+
+  com_acc_traj_pub_ =
+		ros_node_.advertise<std_msgs::Float64MultiArray>
+		("com_acc_cmd", 10);
+}
+
+void MotionPlanner::SetupVisualizationTopics()
+{
   visualize_com_traj_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("visualization_trajectory", 10);
@@ -558,7 +653,10 @@ void MotionPlanner::InitRos()
   visualize_polygons_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("visualization_polygons", 10);
+}
 
+void MotionPlanner::SetupLegCmdTopics()
+{
   legs_in_contact_pub_ =
 		ros_node_.advertise<std_msgs::Float64MultiArray>
 		("legs_contact_cmd", 10);
@@ -682,6 +780,7 @@ Eigen::MatrixXd MotionPlanner::GenerateStanceForNextTimestep(
 void MotionPlanner::SetupOptimizationProgram()
 {
 	InitDecisionVariables();
+	InitMonomials();
 	AddAccelerationCost();
 	AddContinuityConstraints();
 	AddInitialAndFinalConstraint();
@@ -690,11 +789,8 @@ void MotionPlanner::SetupOptimizationProgram()
 
 }
 
-void MotionPlanner::InitDecisionVariables()
+void MotionPlanner::InitMonomials()
 {
-	// traj is defined as p = p(t_)
-	t_ = prog_.NewIndeterminates(1, 1, "t")(0,0);
-
 	// Build monomial basis
 	m_.resize(degree_ + 1);
 	for (int d = 0; d < degree_ + 1; ++d)
@@ -703,6 +799,12 @@ void MotionPlanner::InitDecisionVariables()
 	}
 	m_dot_ = drake::symbolic::Jacobian(m_, {t_});
 	m_ddot_ = drake::symbolic::Jacobian(m_dot_, {t_});
+}
+
+void MotionPlanner::InitDecisionVariables()
+{
+	// traj is defined as p = p(t_)
+	t_ = prog_.NewIndeterminates(1, 1, "t")(0,0);
 
 	// Construct coefficients
 	for (int k = 0; k < n_traj_segments_; ++k)
@@ -774,16 +876,45 @@ void MotionPlanner::AddInitialAndFinalConstraint()
 
 void MotionPlanner::GeneratePolynomialsFromSolution()
 {
-	polynomials_.resize(traj_dimension_, n_traj_segments_);
+	const std::vector<symbolic_matrix_t> coeff_values = GetCoeffValues();
+
+	polynomials_pos_ = GeneratePolynomials(m_, coeff_values);
+	polynomials_vel_ = GeneratePolynomials(m_dot_, coeff_values);
+	polynomials_acc_ = GeneratePolynomials(m_ddot_, coeff_values);
+}
+
+std::vector<symbolic_matrix_t> MotionPlanner::GetCoeffValues()
+{
+	std::vector<symbolic_matrix_t> coeff_values;
 	for (int k = 0; k < n_traj_segments_; ++k)
 	{
-		symbolic_vector_t polynomial = result_
-			.GetSolution(coeffs_[k]) * m_;
+		symbolic_matrix_t coeff_values_for_curr_segment =
+			result_.GetSolution(coeffs_[k]);
+		coeff_values.push_back(coeff_values_for_curr_segment);
+	}
+	return coeff_values;
+}
+
+polynomial_matrix_t MotionPlanner::GeneratePolynomials(
+		const symbolic_vector_t &monomial_basis,
+		const std::vector<symbolic_matrix_t> &coeff_values 
+		)
+{
+	polynomial_matrix_t polynomials;
+	polynomials.resize(traj_dimension_, n_traj_segments_);
+
+	for (int k = 0; k < n_traj_segments_; ++k)
+	{
+		symbolic_vector_t polynomial = coeff_values[k] * monomial_basis;
 
 		for (int dim = 0; dim < traj_dimension_; ++dim)
-			polynomials_(dim,k) = drake::symbolic::Polynomial(polynomial[dim]);
+			polynomials(dim,k) =
+				drake::symbolic::Polynomial(polynomial[dim]);
 	}
+
+	return polynomials;
 }
+
 
 // **************** //
 // HELPER FUNCTIONS //
@@ -872,4 +1003,25 @@ Eigen::Vector2d MotionPlanner::GetPolygonCentroid(
 	return centroid;
 }
 
+int main( int argc, char** argv )
+{
 
+	int traj_degree = 5;
+	int n_traj_segments = 10;
+
+  ros::init(argc, argv, "motion_planner");
+	MotionPlanner planner(traj_degree, n_traj_segments);
+	planner.GenerateTrajectory();
+
+  ros::Rate r(30);
+  while (ros::ok())
+  {
+		const double time = ros::Time::now().toSec();
+		planner.PublishLegTrajectories(time);
+		planner.PublishComTrajectories(time);
+		planner.PublishLegTrajectoriesVisualization();
+		planner.PublishComTrajVisualization();
+		planner.PublishPolygonVisualizationAtTime(time);
+    r.sleep();
+  }
+}
