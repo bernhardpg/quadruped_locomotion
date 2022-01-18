@@ -168,7 +168,11 @@ namespace control {
 				break;
 			case kHoQpController:
 				{
-					// TODO: Add SetComCmd here
+					SetNoComMotion(); // TODO: replace these
+					SetNoLegMotion(); // TODO: replace these
+					ho_qp_controller_.SetComCmd(
+							r_cmd_, r_dot_cmd_, r_ddot_cmd_
+							);
 					ho_qp_controller_.SetLegCmd(
 							r_c_cmd_, r_c_dot_cmd_, r_c_ddot_cmd_,
 							legs_in_contact_
@@ -691,7 +695,25 @@ namespace control {
 		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
 		q_j_dot_cmd_integrator_.Reset();
 
+		SetNoLegMotion();
+	}
+
+	void WholeBodyController::SetNoComMotion()
+	{
+		r_cmd_.resize(k3D);
+		r_cmd_.setZero();
+
+		r_dot_cmd_.resize(k3D);
+		r_dot_cmd_.setZero();
+
+		r_ddot_cmd_.resize(k3D);
+		r_ddot_cmd_.setZero();
+	}
+
+	void WholeBodyController::SetNoLegMotion()
+	{
 		legs_in_contact_.clear();
+		legs_in_contact_ = {0,1,2,3};
 
 		r_c_cmd_.resize(k3D * kNumLegs);
 		r_c_cmd_.setZero();

@@ -25,8 +25,16 @@ namespace control
 		}
 	}
 
-	// TODO: Create a SetComCmd function too!
-
+	void HoQpController::SetComCmd(
+			Eigen::VectorXd r_cmd,
+			Eigen::VectorXd r_dot_cmd,
+			Eigen::VectorXd r_ddot_cmd
+			)
+	{
+		r_cmd_ = r_cmd; 
+		r_dot_cmd_ = r_dot_cmd;
+		r_ddot_cmd_ = r_ddot_cmd;
+	}
 
 	void HoQpController::SetLegCmd(
 			Eigen::VectorXd r_c_cmd,
@@ -152,14 +160,12 @@ namespace control
 		std::cout << "no_contact_motion_task\n";
 		PrintTask(no_contact_motion_task);
 
-		auto v_IB_I = u.block(0,0,3,1);
 		TaskDefinition com_pos_traj_task =
-			ConstructComPosTrajTask(v_IB_I);
+			ConstructComPosTrajTask(q,u);
 		std::cout << "com_pos_traj_task\n";
 		PrintTask(com_pos_traj_task);
-		auto w_IB = u.block(k3D,0,3,1);
 		TaskDefinition com_rot_traj_task =
-			ConstructComRotTrajTask(w_IB);
+			ConstructComRotTrajTask(q,u);
 		std::cout << "com_rot_traj_task\n";
 		PrintTask(com_rot_traj_task);
 		TaskDefinition com_traj_task = 
@@ -181,11 +187,11 @@ namespace control
 	}
 
 	TaskDefinition HoQpController::ConstructComPosTrajTask(
-			Eigen::VectorXd v_IB_I 
+			const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 			)
 	{
-		Eigen::VectorXd vd_IB_I(3);
-		vd_IB_I << -0.2, 0, 0; // TODO: Take from traj generator
+		const Eigen::VectorXd r_IB_I = q.block(kQuatSize,0,k3D,1);
+		const Eigen::VectorXd v_IB_I = u.block(k3D,0,k3D,1);
 
 		double k_pos = 1.0;
 		double k_vel = 1.0;
@@ -199,21 +205,26 @@ namespace control
 		A << J_b_pos_, zero;
 
 		Eigen::VectorXd b(J_b_pos_.rows());
-		b << k_vel * (vd_IB_I - v_IB_I); // TODO: missing a bunch of terms
+		b << r_ddot_cmd_
+			+ k_vel * (r_dot_cmd_ - v_IB_I);
+			//+ k_pos * (r_cmd_ - r_IB_I);
 
 		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
 		return com_pos_traj_task;
 	}
 
 	TaskDefinition HoQpController::ConstructComRotTrajTask(
-			Eigen::VectorXd w_IB 
+			const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 			)
 	{
-		Eigen::VectorXd wd_IB(3);
-		wd_IB << 0, 0, 0;
+		Eigen::VectorXd q_IB = q.block(0,0,kQuatSize,1);
+		Eigen::VectorXd w_IB = u.block(0,0,k3D,1);
 
-		double k_pos = 1.0;
-		double k_vel = 0.1;
+		Eigen::VectorXd wd_IB(3);
+		wd_IB << 0, 0, 0; // Always try to keep no angular motion
+
+		const double k_pos = 1.0; // TODO: tune these
+		const double k_vel = 0.1;
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
@@ -224,10 +235,10 @@ namespace control
 		A << J_b_rot_, zero;
 
 		Eigen::VectorXd b(J_b_pos_.rows());
-		b << k_vel * (wd_IB - w_IB); // TODO: missing a bunch of terms here
+		b << k_vel * (wd_IB - w_IB);  // TODO: implement quaternion error here
 
-		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
-		return com_pos_traj_task;
+		TaskDefinition com_rot_traj_task = {.A=A, .b=b};
+		return com_rot_traj_task;
 	}
 
 	TaskDefinition HoQpController::ConstructNoContactMotionTask()

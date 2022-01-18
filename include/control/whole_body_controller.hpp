@@ -40,8 +40,8 @@ namespace control
 			// STANDUP SEQUENCE //
 			// **************** //
 
-			double seconds_to_initial_config_ = 2.5; 
-			double seconds_to_standup_config_ = 2.0;
+			const double seconds_to_initial_config_ = 3.0; 
+			const double seconds_to_standup_config_ = 2.0;
 			double traj_end_time_s_ = 2.0;
 			double standing_height_ = 0.6;
 
@@ -55,6 +55,10 @@ namespace control
 
 			gen_coord_vector_t q_;
 			gen_vel_vector_t u_;
+
+			Eigen::VectorXd r_cmd_;
+			Eigen::VectorXd r_dot_cmd_;
+			Eigen::VectorXd r_ddot_cmd_;
 
 			Eigen::VectorXd r_c_cmd_;
 			Eigen::VectorXd r_c_dot_cmd_;
@@ -231,6 +235,8 @@ namespace control
 						std::vector<Eigen::MatrixXd> samples
 						);
 			void SetVariablesToZero();
+			void SetNoComMotion();
+			void SetNoLegMotion();
 			double GetElapsedTimeSince(ros::Time t);
 	};
 }

@@ -7,6 +7,7 @@ const int kNumGenCoords = kNumPoseCoords + kNumJoints;
 const int kNumGenVels = kNumTwistCoords + kNumJoints;
 const int kNumLegs = 4;
 const int kNumPosDims = 3; // TODO: change name to k3D
+const int kQuatSize = 4;
 const int k3D = 3;
 const int k2D = 2;
 const int kNumFeetCoords = kNumLegs * kNumPosDims;

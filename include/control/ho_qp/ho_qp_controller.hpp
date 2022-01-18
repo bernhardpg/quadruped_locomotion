@@ -28,6 +28,11 @@ namespace control
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);
+			void SetComCmd(
+					Eigen::VectorXd r_cmd,
+					Eigen::VectorXd r_dot_cmd,
+					Eigen::VectorXd r_ddot_cmd
+					);
 			void SetLegCmd(
 					Eigen::VectorXd r_c_cmd,
 					Eigen::VectorXd r_c_dot_cmd,
@@ -46,7 +51,7 @@ namespace control
 			// ********* //
 
 			bool run_once_ = false;
-			// TODO: Set actual torque limits and friction coeff?
+			// TODO: Set actual torque limits and friction coeff
 			const double max_torque_ = 100;
 			const double min_torque_ = -max_torque_; 
 			const double friction_coeff_ = 0.5; 
@@ -78,6 +83,9 @@ namespace control
 			// ********** //
 			// CONTROLLER // 
 			// ********** //
+			Eigen::VectorXd r_cmd_;
+			Eigen::VectorXd r_dot_cmd_;
+			Eigen::VectorXd r_ddot_cmd_;
 
 			Eigen::VectorXd r_c_cmd_;
 			Eigen::VectorXd r_c_dot_cmd_;
@@ -108,10 +116,10 @@ namespace control
 			TaskDefinition ConstructFrictionConeTask();
 			TaskDefinition ConstructNoContactMotionTask();
 			TaskDefinition ConstructComPosTrajTask(
-					Eigen::VectorXd com_vel 
+					const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 					);
 			TaskDefinition ConstructComRotTrajTask(
-					Eigen::VectorXd ang_vel
+					const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 					);
 			TaskDefinition ConstructForceMinimizationTask();
 			TaskDefinition ConstructJointAccMinimizationTask();
