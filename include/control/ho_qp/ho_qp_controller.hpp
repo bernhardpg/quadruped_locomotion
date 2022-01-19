@@ -50,11 +50,10 @@ namespace control
 			// Constants //
 			// ********* //
 
-			bool run_once_ = false;
 			// TODO: Set actual torque limits and friction coeff
 			const double max_torque_ = 100;
 			const double min_torque_ = -max_torque_; 
-			const double friction_coeff_ = 0.5; 
+			const double friction_coeff_ = 0.3; 
 			const Eigen::VectorXd max_torque_vec_
 				= Eigen::VectorXd::Ones(kNumJoints) * max_torque_;
 			const Eigen::VectorXd min_torque_vec_

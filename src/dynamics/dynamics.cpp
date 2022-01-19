@@ -168,8 +168,6 @@ Eigen::MatrixXd Dynamics::GetContactJacobianInW(int foot_i)
 			foot_frame, Eigen::VectorXd::Zero(3),
 			W_frame, W_frame, &J_c
 			);
-	std::cout << "Partial J_c\n";
-	PrintMatrix(J_c);
 
 	return J_c;
 }
@@ -179,19 +177,15 @@ Eigen::MatrixXd Dynamics::GetStackedContactJacobianInW(
 		)
 {
 	const int num_contacts = legs_in_contact.size();
-	std::cout << "number of legs in contact: " << num_contacts << std::endl;
 	Eigen::MatrixXd J_c(num_contacts * k3D, kNumGenVels);
 	J_c.setZero();
 
 	for (int i = 0; i < num_contacts; ++i) 
 	{
-		std::cout << "leg in contact: " << legs_in_contact[i] << std::endl;
 		Eigen::MatrixXd J_c_leg_i = GetContactJacobianInW(legs_in_contact[i]);
 		J_c.block<k3D,kNumGenVels>(i * k3D,0)
 			= J_c_leg_i;
 	}
-	std::cout << "J_c\n";
-	PrintMatrix(J_c);
 	return J_c;
 }
 

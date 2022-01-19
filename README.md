@@ -19,6 +19,9 @@
 - [ ] (Make constraint on final position a soft one)
 - [ ] (Implement path regularizer?)
 
+## Cleanup:
+TODO: remove anymal_config.yaml
+TODO: give all topics 'animal' prefix
 
 [##](##) Dependencies 
 The lines

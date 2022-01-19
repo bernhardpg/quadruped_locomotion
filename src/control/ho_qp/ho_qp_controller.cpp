@@ -9,20 +9,18 @@ namespace control
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
-		if (run_once_ == false)
-		{
-			std::cout << "Starting update\n";
-			UpdateModelDynamics(q,u);
-			std::cout << "Creating tasks\n";
-			std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
-			std::cout << "Created tasks\n";
-			std::vector<std::shared_ptr<HoQpProblem>>
-				opt_problems = ConstructOptProblems(tasks);
+		UpdateModelDynamics(q,u);
+		std::vector<TaskDefinition> tasks = ConstructTasks(q,u);
+		std::vector<std::shared_ptr<HoQpProblem>>
+			opt_problems = ConstructOptProblems(tasks);
 
-			solution_ = opt_problems.back()->GetSolution();
-			q_j_ddot_cmd_ = solution_.block<kNumJoints,1>(kNumTwistCoords,0);
-			CalcJointTorquesCmd();
-		}
+		solution_ = opt_problems.back()->GetSolution();
+		std::cout << "contact forces:\n";
+		PrintMatrix(solution_.block<12,1>(kNumGenVels,0).transpose());
+		std::cout << "q_j_ddot:\n";
+		q_j_ddot_cmd_ = solution_.block<kNumJoints,1>(kNumTwistCoords,0);
+		PrintMatrix(q_j_ddot_cmd_.transpose());
+		CalcJointTorquesCmd();
 	}
 
 	void HoQpController::SetBaseCmd(
@@ -78,33 +76,24 @@ namespace control
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
-		std::cout << "q:\n";
-		PrintMatrix(q);
+		std::cout << "height: " << q(6) << std::endl;
+
 		robot_dynamics_.SetState(q,u);
 
 		M_ = robot_dynamics_.GetMassMatrix();
 		M_j_ = GetJointRows(M_);
-		std::cout << "1\n";
 
 		c_ = robot_dynamics_.GetBiasVector();
 		c_j_ = GetJointRows(c_);
-		std::cout << "2\n";
 
 		J_c_ = robot_dynamics_.GetStackedContactJacobianInW(legs_in_contact_);
-		std::cout << "3\n";
 		J_c_dot_u_ = robot_dynamics_.GetStackedContactAccInW(legs_in_contact_);
-		std::cout << "4\n";
 		Eigen::MatrixXd J_c_t = J_c_.transpose();
 		J_c_j_t_ = GetJointRows(J_c_t);
-		std::cout << "5\n";
 
 		auto J_b = robot_dynamics_.GetBaseJacobianInW();
-		std::cout << "J_b" << std::endl;
-		PrintMatrix(J_b);
-		std::cout << "6\n";
 		J_b_rot_ = J_b.block(0,0,3,kNumGenVels);
 		J_b_pos_ = J_b.block(3,0,3,kNumGenVels);
-		std::cout << "7\n";
 	}
 
 	// ********** //
@@ -143,44 +132,32 @@ namespace control
 			)
 	{
 		TaskDefinition fb_eom_task = ConstructFloatingBaseEomTask();
-		std::cout << "fb_eom_task\n";
-		PrintTask(fb_eom_task);
-
 		TaskDefinition joint_torque_task = ConstructJointTorqueTask();
-		std::cout << "joint_torque_task\n";
-		PrintTask(joint_torque_task);
 		TaskDefinition friction_cone_task = ConstructFrictionConeTask();
-		std::cout << "friction_cone_task\n";
-		PrintTask(friction_cone_task);
 		TaskDefinition joint_torque_and_friction_task =
 			ConcatenateTasks(joint_torque_task, friction_cone_task);
 
 		TaskDefinition no_contact_motion_task =
 			ConstructNoContactMotionTask();
-		std::cout << "no_contact_motion_task\n";
-		PrintTask(no_contact_motion_task);
 
 		TaskDefinition base_pos_traj_task =
 			ConstructBasePosTrajTask(q,u);
-		std::cout << "base_pos_traj_task\n";
-		PrintTask(base_pos_traj_task);
 		TaskDefinition base_rot_traj_task =
 			ConstructBaseRotTrajTask(q,u);
-		std::cout << "base_rot_traj_task\n";
-		PrintTask(base_rot_traj_task);
 		TaskDefinition base_traj_task = 
 			ConcatenateTasks(base_pos_traj_task, base_rot_traj_task);
 
 		TaskDefinition force_min_task = ConstructForceMinimizationTask();
-		std::cout << "force_min_task";
-		PrintTask(force_min_task);
+		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
+
 
 		std::vector<TaskDefinition> tasks{
-			fb_eom_task,
+			//fb_eom_task,
 			joint_torque_and_friction_task,
 			no_contact_motion_task,
 			base_traj_task,
 			force_min_task,
+			acc_min_task
 		};
 
 		return tasks;
@@ -193,8 +170,8 @@ namespace control
 		const Eigen::VectorXd r_IB_I = q.block(kQuatSize,0,k3D,1);
 		const Eigen::VectorXd v_IB_I = u.block(k3D,0,k3D,1);
 
-		double k_pos = 1.0;
-		double k_vel = 1.0;
+		double k_pos = 0.0;
+		double k_vel = 1;
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
@@ -207,7 +184,10 @@ namespace control
 		Eigen::VectorXd b(J_b_pos_.rows());
 		b << r_ddot_cmd_
 			+ k_vel * (r_dot_cmd_ - v_IB_I);
-			//+ k_pos * (r_cmd_ - r_IB_I);
+			+ k_pos * (r_cmd_ - r_IB_I);
+
+		std::cout << "base error:\n";
+		PrintMatrix(b.transpose());
 
 		TaskDefinition base_pos_traj_task = {.A=A, .b=b};
 		return base_pos_traj_task;
@@ -223,8 +203,8 @@ namespace control
 		Eigen::VectorXd wd_IB(3);
 		wd_IB << 0, 0, 0; // Always try to keep no angular motion
 
-		const double k_pos = 1.0; // TODO: tune these
-		const double k_vel = 0.1;
+		const double k_pos = 0.5;
+		const double k_vel = 1.0;
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
@@ -248,16 +228,10 @@ namespace control
 				);
 
 		Eigen::MatrixXd A(k3D * num_contacts_, num_decision_vars_);
-		PrintMatrixSize("J_c_", J_c_);
-		PrintMatrixSize("zero", zero);
 		A << J_c_, zero;
-		std::cout << "A\n";
-		PrintMatrix(A);
 
 		Eigen::VectorXd b(k3D * num_contacts_);
 		b << -J_c_dot_u_;
-		std::cout << "b\n";
-		PrintMatrix(b);
 
 		TaskDefinition no_contact_motion_task = {.A=A, .b=b};
 		return no_contact_motion_task;

@@ -8,17 +8,14 @@ namespace control {
 		
 		SetVariablesToZero();
 
-		// TODO: Create function for handling integrators
-		q_j_dot_cmd_integrator_.SetSize(kNumJoints);
-		q_j_ddot_cmd_integrator_.SetSize(kNumJoints);
+		SetControlMode(kJointTracking);
 
 		SetupRosTopics();
-		SetupRosServices();
 		WaitForPublishedTime();
 		SpinRosThreads();
 		WaitForPublishedState();
 
-		SetRobotMode(kIdle); 
+		InitIntegrators();
 	}
 
 	WholeBodyController::~WholeBodyController()
@@ -34,117 +31,57 @@ namespace control {
 		ros_publish_queue_thread_.join();
 	}
 
-	// **************** //
-	// STANDUP SEQUENCE //
-	// **************** //
+	// ************* //
+	// INIT SEQUENCE //
+	// ************* //
 
-	void WholeBodyController::SetJointInitialConfigTraj()
+	void WholeBodyController::CreateInitialJointConfigTraj()
 	{
 		const std::vector<double> breaks = {
-			0.0, seconds_to_initial_config_ 
+			0.0, init_sequence_duration_ 
 		};
 
 		std::vector<Eigen::MatrixXd> samples;
 		samples.push_back(q_j_);
-		samples.push_back(initial_joint_config);
+		samples.push_back(kInitialJointConfig);
 
-		auto initial_config_pos_traj
-			= CreateFirstOrderHoldTraj(breaks, samples);
+		auto initial_config_pos_traj =
+			drake::trajectories::PiecewisePolynomial<double>
+					::FirstOrderHold(breaks, samples);
 		auto initial_config_vel_traj
 			= initial_config_pos_traj.derivative(1);
 
-		q_j_cmd_traj_ = initial_config_pos_traj;
-		q_j_dot_cmd_traj_ = initial_config_vel_traj;
-		traj_end_time_s_ = seconds_to_initial_config_;
-	}
-
-	void WholeBodyController::SetBaseStandupTraj()
-	{
-		J_task_.resize(1,kNumGenVels);
-		J_task_.setZero();
-		const int z_index_in_vels = 5;
-		J_task_(0, z_index_in_vels) = 1;
-
-		const std::vector<double> breaks =
-		{
-			0.0, seconds_to_standup_config_
-		};
-
-		Eigen::MatrixXd curr_pose(1,1);
-		const int z_index_in_coords = 6;
-		double curr_height = q_(z_index_in_coords);
-		curr_pose << curr_height;
-
-		Eigen::MatrixXd target_pose(1,1);
-		target_pose << standing_height_;
-
-		std::vector<Eigen::MatrixXd> samples =
-		{
-			curr_pose, target_pose	
-		};
-
-		auto base_pos_standup_traj
-			= CreateFirstOrderHoldTraj(breaks, samples);
-		auto base_vel_standup_traj
-			= base_pos_standup_traj.derivative(1);
-
-		task_vel_traj_ = base_vel_standup_traj;
-		traj_end_time_s_ = seconds_to_standup_config_;
-	}
-
-	// TODO: outdated
-	void WholeBodyController::SetDanceTraj()
-	{
-		J_task_.resize(3,kNumGenVels);
-		J_task_.setZero();
-		int z_index = 2;
-		int roll_index = 3;
-		int pitch_index = 4;
-		J_task_(0, z_index) = 1;
-		J_task_(1, roll_index) = 1;
-		J_task_(2, pitch_index) = 1;
-
-		const std::vector<double> breaks =
-		{
-			0.0, 1.0, 2.0, 3.0, 4.0
-		};
-
-		Eigen::MatrixXd curr_pose(3,1);
-		double curr_height = q_(z_index);
-		curr_pose << curr_height, 0, 0;
-
-		double dancing_height = 0.1;
-
-		Eigen::MatrixXd left_roll(3,1);
-		left_roll <<
-			standing_height_ - dancing_height, -3.14 / 8, -3.14 / 8;
-
-		Eigen::MatrixXd right_roll(3,1);
-		right_roll <<
-			standing_height_ - dancing_height, 3.14 / 8, 3.14 / 8;
-
-		std::vector<Eigen::MatrixXd> samples =
-		{
-			curr_pose, left_roll, curr_pose, right_roll,
-			curr_pose
-		};
-
-		auto base_dance_traj 
-			= CreateFirstOrderHoldTraj(breaks, samples);
-		auto base_vel_dance_traj 
-			= base_dance_traj.derivative(1);
-
-		task_vel_traj_ = base_vel_dance_traj;
-		traj_end_time_s_ = 4.0;
+		q_j_init_traj_ = initial_config_pos_traj;
+		q_j_dot_init_traj_ = initial_config_vel_traj;
 	}
 
 	// ********** //
 	// CONTROLLER //
 	// ********** //
 
+	void WholeBodyController::SetControlMode(ControlMode target_mode)
+	{
+		assert(target_mode != control_mode_);
+		
+		switch(target_mode)
+		{
+			case kJointTracking:
+				init_start_time_ = ros::Time::now();
+				CreateInitialJointConfigTraj();
+				ROS_INFO("Switching to direct joint tracking");
+				break;
+			case kHoQpController:
+				ROS_INFO("Switching to Hierarchical Optimization Controller");
+				SetIntegratorsToCurrentState();
+				break;
+		}
+
+		control_mode_ = target_mode;
+		controller_ready_ = true;
+	}
+
 	void WholeBodyController::UpdateJointCommand()
 	{
-		seconds_in_mode_ = GetElapsedTimeSince(mode_start_time_);
 		if (print_frequency_)
 		{
 			double dt	= GetElapsedTimeSince(last_update_);
@@ -152,15 +89,10 @@ namespace control {
 			last_update_ = ros::Time::now();
 		}
 
-		if (!controller_ready_) return;
-
 		switch(control_mode_)	
 		{
 			case kJointTracking:
 				DirectJointControl();
-				break;
-			case kSupportConsistentTracking:
-				SupportConsistentControl();
 				break;
 			case kHoQpController:
 				{
@@ -170,110 +102,59 @@ namespace control {
 							);
 					ho_qp_controller_.SetLegCmd(
 							r_c_cmd_, r_c_dot_cmd_, r_c_ddot_cmd_,
-							legs_in_contact_
+							legs_in_contact_cmd_
 							);
 					ho_qp_controller_.CalcJointCmd(q_,u_);
 					q_j_ddot_cmd_ = ho_qp_controller_.GetJointAccelerationCmd();
-					IntegrateJointAccelerations();
+					SetJointCmdFromIntegrators();
 					tau_j_cmd_ = ho_qp_controller_.GetJointTorqueCmd();
 				}
 				break;
-			default:
-				break;
 		}
-	}
-
-	void WholeBodyController::IntegrateJointAccelerations()
-	{
-		q_j_ddot_cmd_integrator_.Integrate(q_j_ddot_cmd_);
-		q_j_dot_cmd_ = q_j_ddot_cmd_integrator_.GetIntegral();
-		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
-		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
 	}
 
 	void WholeBodyController::DirectJointControl()
 	{
-		q_j_cmd_ = EvalPosTrajAtTime(
-				q_j_cmd_traj_, seconds_in_mode_
-				);
-		q_j_dot_cmd_ = EvalVelTrajAtTime(
-				q_j_dot_cmd_traj_, seconds_in_mode_
-				);
+		double time = GetElapsedTimeSince(init_start_time_);
+		if (time > init_sequence_duration_)
+		{
+			q_j_cmd_ = q_j_init_traj_.value(init_sequence_duration_);
+			q_j_dot_cmd_ = Eigen::VectorXd::Zero(kNumJoints);
+		}
+		else
+		{
+			q_j_cmd_ = q_j_init_traj_.value(time);
+			q_j_dot_cmd_ = q_j_dot_init_traj_.value(time);
+		}
 	}
 
-	// TODO: Move this to its own class
-	void WholeBodyController::SupportConsistentControl()
+	// *********** //
+	// INTEGRATORS //
+	// *********** //
+
+	void WholeBodyController::InitIntegrators()
 	{
-		robot_dynamics_.SetState(q_,u_);
-		const std::vector<int> all_legs = {0,1,2,3};
-		Eigen::MatrixXd J_constraint = robot_dynamics_
-			.GetStackedContactJacobianInW(all_legs);
-		Eigen::MatrixXd N_constraint =
-			CalcSquareNullSpaceProjMatrix(J_constraint);
+		q_j_dot_cmd_integrator_.SetSize(kNumJoints);
+		q_j_dot_cmd_integrator_.Reset();
 
-		Eigen::MatrixXd w_task = EvalVelTrajAtTime(
-				task_vel_traj_, seconds_in_mode_
-				);
+		q_j_ddot_cmd_integrator_.SetSize(kNumJoints);
+		q_j_ddot_cmd_integrator_.Reset();
+	}
 
-		Eigen::MatrixXd u_0_cmd
-			= CalcPseudoInverse(J_task_ * N_constraint) * w_task;
-		Eigen::MatrixXd u_cmd = N_constraint * u_0_cmd;
+	void WholeBodyController::SetIntegratorsToCurrentState()
+	{
+		InitIntegrators();
+		q_j_dot_cmd_integrator_.SetIntegral(q_j_);
+		q_j_ddot_cmd_integrator_.SetIntegral(q_j_dot_);
+	}
 
-		q_j_dot_cmd_ = u_cmd.block<kNumJoints,1>(kNumTwistCoords,0);
+	void WholeBodyController::SetJointCmdFromIntegrators()
+	{
+		q_j_ddot_cmd_integrator_.Integrate(q_j_ddot_cmd_);
+		q_j_dot_cmd_ = q_j_ddot_cmd_integrator_.GetIntegral();
 
 		q_j_dot_cmd_integrator_.Integrate(q_j_dot_cmd_);
 		q_j_cmd_ = q_j_dot_cmd_integrator_.GetIntegral();
-	}
-
-	// ************* //
-	// STATE MACHINE // 
-	// ************* //
-
-	void WholeBodyController::SetRobotMode(RobotMode target_mode)
-	{
-		controller_ready_ = false;
-		switch(target_mode)
-		{
-			case kIdle:
-				{
-					ROS_INFO("Setting mode to IDLE");
-					SetJointInitialConfigTraj();
-					control_mode_ = kJointTracking; 
-				}
-				break;
-			case kStandup:
-				{
-					ROS_INFO("Setting mode to STANDUP");
-					q_j_dot_cmd_integrator_.Reset();
-					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-					SetBaseStandupTraj();
-					control_mode_ = kSupportConsistentTracking;
-				}
-				break;
-			case kDance:
-				{
-					ROS_INFO("Setting mode to DANCE");
-					q_j_dot_cmd_integrator_.Reset();
-					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-					SetDanceTraj();
-					control_mode_ = kSupportConsistentTracking;
-				}
-				break;
-			case kWalk:
-				{
-					ROS_INFO("Setting mode to WALK");
-					q_j_dot_cmd_integrator_.Reset();
-					// Start joint position at current position
-					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-					q_j_ddot_cmd_integrator_.Reset();
-					control_mode_ = kHoQpController;
-				}
-				break;
-			default:
-				break;
-		}
-		SetModeStartTime();
-		controller_ready_ = true;
 	}
 
 	// *** //
@@ -427,28 +308,6 @@ namespace control {
 		legs_contact_cmd_sub_ = ros_node_.subscribe(legs_contact_cmd_so);
 	}
 
-	void WholeBodyController::SetupRosServices()
-	{
-		ros::AdvertiseServiceOptions cmd_dance_aso =
-			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
-            "/" + model_name_ + "/dance",
-            boost::bind(&WholeBodyController::CmdDanceService, this, _1, _2),
-            ros::VoidPtr(),
-            &this->ros_process_queue_
-        );
-
-		cmd_dance_service_ = ros_node_.advertiseService(cmd_dance_aso);
-	}
-
-	bool WholeBodyController::CmdDanceService(
-					const std_srvs::Empty::Request &_req,
-					std_srvs::Empty::Response &_res
-			)
-	{
-		SetRobotMode(kDance);
-		return true;
-	}
-
 	void WholeBodyController::SpinRosThreads()
 	{
 		ros_process_queue_thread_ = std::thread(
@@ -474,6 +333,9 @@ namespace control {
 	{
 		while (ros_node_.ok())
 		{
+			if (!controller_ready_)
+				continue;
+
 			UpdateJointCommand();
 			PublishJointPosCmd();
 			PublishJointVelCmd();
@@ -568,7 +430,6 @@ namespace control {
 		SetLegContactCmd(msg->data);
 	}
 
-
 	// ***************** //
 	// SETTERS & GETTERS //
 	// ***************** //
@@ -607,6 +468,9 @@ namespace control {
 			const std::vector<double> &base_pos_cmd
 			)
 	{
+		if (control_mode_ != kHoQpController)
+			SetControlMode(kHoQpController);
+		
 		for (int i = 0; i < base_pos_cmd.size(); ++i)
 			r_cmd_(i) = base_pos_cmd[i];
 	}
@@ -656,12 +520,12 @@ namespace control {
 			)
 	{
 		// TODO: this conversion should happen elsewhere
-		legs_in_contact_.clear();
+		legs_in_contact_cmd_.clear();
 		for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
 		{
 			if (leg_contact_cmd[leg_i] == 1)
 			{
-				legs_in_contact_.push_back(leg_i);
+				legs_in_contact_cmd_.push_back(leg_i);
 			}
 		}
 	}
@@ -670,28 +534,6 @@ namespace control {
 	// HELPER FUNCTIONS //
 	// **************** //
 	
-	Eigen::MatrixXd WholeBodyController::EvalPosTrajAtTime(
-			drake::trajectories::PiecewisePolynomial<double> traj,
-			double curr_time)
-	{
-		if (curr_time > traj_end_time_s_)
-		{
-			return traj.value(traj_end_time_s_);
-		}
-		return traj.value(curr_time);
-	}
-
-	Eigen::MatrixXd WholeBodyController::EvalVelTrajAtTime(
-			drake::trajectories::PiecewisePolynomial<double> traj,
-			double curr_time)
-	{
-		if (curr_time > traj_end_time_s_)
-		{
-			return Eigen::MatrixXd::Zero(traj.rows(), traj.cols());
-		}
-		return traj.value(curr_time);
-	}
-
 	void WholeBodyController::WaitForPublishedTime()
 	{
 		while (ros::Time::now().toSec() == 0.0); 
@@ -704,33 +546,27 @@ namespace control {
 		ROS_INFO("Received published state");
 	}
 
-	drake::trajectories::PiecewisePolynomial<double>
-		WholeBodyController::CreateFirstOrderHoldTraj(
-			std::vector<double> breaks,
-			std::vector<Eigen::MatrixXd> samples
-			)
-	{
-		drake::trajectories::PiecewisePolynomial traj
-			= drake::trajectories::PiecewisePolynomial<double>
-					::FirstOrderHold(breaks, samples);
-		return traj;
-	}
-
 	void WholeBodyController::SetVariablesToZero()
 	{
 		q_.setZero(); // NOTE: sets quaternion to zero too!
 		u_.setZero();
 
-		q_j_.resize(kNumJoints, 1);
+		q_j_.resize(kNumJoints);
 		q_j_.setZero();
-		q_j_dot_.resize(kNumJoints, 1);
+		q_j_dot_.resize(kNumJoints);
 		q_j_dot_.setZero();
 
+		q_j_cmd_.resize(kNumJoints);
 		q_j_cmd_.setZero();
+
+		q_j_dot_cmd_.resize(kNumJoints);
 		q_j_dot_cmd_.setZero();
 
-		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
-		q_j_dot_cmd_integrator_.Reset();
+		q_j_ddot_cmd_.resize(kNumJoints);
+		q_j_ddot_cmd_.setZero();
+
+		tau_j_cmd_.resize(kNumJoints);
+		tau_j_cmd_.setZero();
 
 		SetZeroBaseCmdMotion();
 		SetZeroLegCmdMotion();
@@ -750,8 +586,8 @@ namespace control {
 
 	void WholeBodyController::SetZeroLegCmdMotion()
 	{
-		legs_in_contact_.clear();
-		legs_in_contact_ = {0,1,2,3};
+		legs_in_contact_cmd_.clear();
+		legs_in_contact_cmd_ = {0,1,2,3};
 
 		r_c_cmd_.resize(k3D * kNumLegs);
 		r_c_cmd_.setZero();
@@ -762,12 +598,6 @@ namespace control {
 		r_c_ddot_cmd_.resize(k3D * kNumLegs);
 		r_c_ddot_cmd_.setZero();
 	}
-	
-	void WholeBodyController::SetModeStartTime()
-	{
-		mode_start_time_ = ros::Time::now();
-		last_update_ = ros::Time::now();
-	}
 
 	double WholeBodyController::GetElapsedTimeSince(ros::Time t)
 	{
@@ -775,6 +605,10 @@ namespace control {
 		return elapsed_time; 
 	}
 }
+
+// ******** //
+// ROS NODE //
+// ******** //
 
 int main(int argc, char **argv)
 {

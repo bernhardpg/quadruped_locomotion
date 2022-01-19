@@ -17,9 +17,6 @@ void BasePlanner::PlanBaseStandupMotion(
 		const Eigen::MatrixXd &curr_pose
 		)
 {
-	const int z_index_in_vels = 5;
-	const int z_index_in_coords = 6;
-
 	seconds_to_standup_ = seconds_to_standup_config;
 
 	const std::vector<double> breaks =

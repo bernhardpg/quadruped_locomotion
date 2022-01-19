@@ -29,29 +29,31 @@ namespace control
 			~WholeBodyController();
 
 		private:
-			bool print_frequency_ = false;
+			bool print_frequency_ = true;
 
 			ros::NodeHandle ros_node_;
 			const std::string model_name_ = "anymal";
 
-			Dynamics robot_dynamics_;
+			// ************* //
+			// INIT SEQUENCE //
+			// ************* //
 
-			// **************** //
-			// STANDUP SEQUENCE //
-			// **************** //
-
-			const double seconds_to_initial_config_ = 3.0; 
-			const double seconds_to_standup_config_ = 2.0;
-			double traj_end_time_s_ = 2.0;
-			double standing_height_ = 0.6;
-
-			void SetJointInitialConfigTraj();
-			void SetBaseStandupTraj();
-			void SetDanceTraj();
+			ros::Time init_start_time_;
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_init_traj_;
+			drake::trajectories::PiecewisePolynomial<double>
+				q_j_dot_init_traj_;
+			const double init_sequence_duration_ = 3.0;
+			void CreateInitialJointConfigTraj();
 
 			// ********** //
 			// CONTROLLER //
 			// ********** //
+
+			enum ControlMode {
+				kJointTracking,
+				kHoQpController
+			} control_mode_;
 
 			gen_coord_vector_t q_;
 			gen_vel_vector_t u_;
@@ -63,84 +65,46 @@ namespace control
 			Eigen::VectorXd r_c_cmd_;
 			Eigen::VectorXd r_c_dot_cmd_;
 			Eigen::VectorXd r_c_ddot_cmd_;
-			std::vector<int> legs_in_contact_;
+			std::vector<int> legs_in_contact_cmd_;
 
-			Eigen::MatrixXd q_j_;
-			Eigen::MatrixXd q_j_dot_;
+			Eigen::VectorXd q_j_;
+			Eigen::VectorXd q_j_dot_;
 
-			Eigen::Matrix<double,12,1> q_j_cmd_;
-			Eigen::Matrix<double,12,1> q_j_dot_cmd_;
-			Eigen::Matrix<double,12,1> q_j_ddot_cmd_;
-			Eigen::Matrix<double,12,1> tau_j_cmd_;
+			Eigen::VectorXd q_j_cmd_;
+			Eigen::VectorXd q_j_dot_cmd_;
+			Eigen::VectorXd q_j_ddot_cmd_;
+			Eigen::VectorXd tau_j_cmd_;
+
+			bool controller_ready_ = false;
+			HoQpController ho_qp_controller_;
+
+			void SetControlMode(ControlMode target_mode);
+			void UpdateJointCommand();
+			void DirectJointControl();
+
+			// *********** //
+			// INTEGRATORS //
+			// *********** //
 
 			Integrator q_j_dot_cmd_integrator_;
 			Integrator q_j_ddot_cmd_integrator_;
 
-			enum ControlMode {
-				kJointTracking,
-				kFeetTracking,
-				kSupportConsistentTracking,
-				kHoQpController
-			} control_mode_;
-
-			drake::trajectories::PiecewisePolynomial<double>
-				q_j_cmd_traj_;
-			drake::trajectories::PiecewisePolynomial<double>
-				q_j_dot_cmd_traj_;
-
-			drake::trajectories::PiecewisePolynomial<double>
-				feet_cmd_pos_traj_;
-			drake::trajectories::PiecewisePolynomial<double>
-				feet_cmd_vel_traj_;
-
-			Eigen::MatrixXd J_task_;
-			drake::trajectories::PiecewisePolynomial<double>
-				task_vel_traj_;
-
-			ros::Rate loop_rate_;
-
-			double k_pos_p_ = 1.0;
-			bool controller_ready_ = false;
-
-			HoQpController ho_qp_controller_;
-
-			void UpdateJointCommand();
-			void DirectJointControl();
-			void SupportConsistentControl();
-
-			void IntegrateJointAccelerations();
-
-			// ************* //
-			// STATE MACHINE // 
-			// ************* //
-
-			// TODO: remove
-			enum RobotMode {
-				kIdle, kStandup, kWalk, kDance
-			} robot_mode_;
-			
-			ros::Time mode_start_time_;
-			double seconds_in_mode_ = 0;
-			ros::Time last_update_;
-
-			void SetRobotMode(RobotMode target_mode);
-			void SetModeStartTime();
+			void InitIntegrators();
+			void SetIntegratorsToCurrentState();
+			void SetJointCmdFromIntegrators();
 
 			// *** //
 			// ROS //
 			// *** //
 
+			ros::Rate loop_rate_;
+			ros::Time last_update_;
 			bool received_first_state_msg_ = false;
 
-			// Services
-			ros::ServiceServer cmd_dance_service_;	
-
-			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
 			ros::Publisher q_j_dot_cmd_pub_;
 			ros::Publisher tau_j_cmd_pub_;
 
-			// Subscriptions
 			ros::Subscriber gen_coord_sub_;
 			ros::Subscriber gen_vel_sub_;
 
@@ -153,7 +117,6 @@ namespace control
 			ros::Subscriber legs_acc_cmd_sub_;
 			ros::Subscriber legs_contact_cmd_sub_;
 
-			// Queues and their threads
 			ros::CallbackQueue ros_process_queue_;
 			ros::CallbackQueue ros_publish_queue_;
 			std::thread ros_process_queue_thread_;
@@ -166,7 +129,6 @@ namespace control
 			void SetupBaseCmdSubscriptions();
 			void SetupLegCmdSubscriptions();
 
-			void SetupRosServices();
 			void SpinRosThreads();
 			void PublishQueueThread();
 			void ProcessQueueThread();
@@ -174,15 +136,6 @@ namespace control
 			void PublishJointPosCmd();
 			void PublishJointVelCmd();
 			void PublishJointTorqueCmd();
-
-			bool CmdDanceService(
-							const std_srvs::Empty::Request &_req,
-							std_srvs::Empty::Response &_res
-					);
-			bool CmdWalkService(
-							const std_srvs::Empty::Request &_req,
-							std_srvs::Empty::Response &_res
-					);
 
 			void OnGenCoordMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
@@ -237,21 +190,9 @@ namespace control
 			// HELPER FUNCTIONS //
 			// **************** //
 
-			Eigen::MatrixXd EvalPosTrajAtTime(
-					drake::trajectories::PiecewisePolynomial<double> traj,
-					double curr_time);
-			Eigen::MatrixXd EvalVelTrajAtTime(
-					drake::trajectories::PiecewisePolynomial<double> traj,
-					double curr_time);
-
 			void WaitForPublishedTime();
 			void WaitForPublishedState();
 
-			drake::trajectories::PiecewisePolynomial<double>
-				CreateFirstOrderHoldTraj(
-						std::vector<double> breaks,
-						std::vector<Eigen::MatrixXd> samples
-						);
 			void SetVariablesToZero();
 			void SetZeroBaseCmdMotion();
 			void SetZeroLegCmdMotion();
