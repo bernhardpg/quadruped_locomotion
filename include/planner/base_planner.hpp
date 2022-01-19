@@ -15,21 +15,43 @@ class BasePlanner
 	public:
 		BasePlanner(){};
 
-		void PlanBaseMotion(
+		void PlanBaseWalkMotion(
 				const int polynomial_degree, const int n_traj_segments
+				);
+		void PlanBaseStandupMotion(
+				const double seconds_to_standup_config,
+				const double target_height, 
+				const Eigen::MatrixXd &curr_pose
 				);
 		void SetSupportPolygons(
 				const std::vector<std::vector<Eigen::Vector2d>> &support_polygons
 				);
 		void SetCurrPos(const Eigen::Vector2d &curr_pos);
 
-		Eigen::VectorXd EvalBasePosAtT(const double t);
-		Eigen::VectorXd EvalBaseVelAtT(const double t);
-		Eigen::VectorXd EvalBaseAccAtT(const double t);
+		Eigen::VectorXd EvalWalkTrajPosAtT(const double t); // TODO: rename these
+		Eigen::VectorXd EvalWalkTrajVelAtT(const double t);
+		Eigen::VectorXd EvalWalkTrajAccAtT(const double t);
 
+		Eigen::VectorXd EvalStandupPosTrajAtT(const double time);
+		Eigen::VectorXd EvalStandupVelTrajAtT(const double time);
+		Eigen::VectorXd EvalStandupAccTrajAtT(const double time);
+	
 		const int GetNumTrajSegments();
 
 	private:
+
+		// ******* //
+		// STANDUP //
+		// ******* //
+
+		double seconds_to_standup_;
+
+		drake::trajectories::PiecewisePolynomial<double>
+			standup_traj_pos_;
+		drake::trajectories::PiecewisePolynomial<double>
+			standup_traj_vel_;
+		drake::trajectories::PiecewisePolynomial<double>
+			standup_traj_acc_;
 
 		// ********** //
 		// TRAJECTORY //
@@ -46,7 +68,7 @@ class BasePlanner
 		polynomial_matrix_t polynomials_vel_;
 		polynomial_matrix_t polynomials_acc_;
 
-		void GenerateTrajectory();
+		void GenerateWalkTrajectory();
 		void GeneratePolynomialsFromSolution();
 		std::vector<symbolic_matrix_t> GetCoeffValues();
 		polynomial_matrix_t GeneratePolynomials(
@@ -54,7 +76,7 @@ class BasePlanner
 				const std::vector<symbolic_matrix_t> &coeff_values 
 				);
 
-		Eigen::VectorXd EvalBaseTrajAtT(
+		Eigen::VectorXd EvalWalkTrajAtT(
 				const double t, const int derivative = 0
 				);
 

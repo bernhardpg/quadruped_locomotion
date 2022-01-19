@@ -2,135 +2,155 @@
 
 MotionPlanner::MotionPlanner()
 {
-	// TODO: I will need to also initialize the start time
 	InitRos();
+	InitCmdVariables();
+	SetRobotMode(kIdle);
 
 	vel_cmd_ = Eigen::Vector2d(0.25, 0); // TODO: take from ros topic
 	gait_sequence_ = CreateCrawlSequence();
 }
 
-bool MotionPlanner::IsReady()
+bool MotionPlanner::IsReady() // TODO: remove this?
 {
 	return received_first_state_msg_;
 }
 
+void MotionPlanner::Update(const double time)
+{
+	double seconds_since_start = GetElapsedTimeSince(start_time_);
+
+	switch(robot_mode_)
+	{
+		case kIdle:
+			// Do not publish anything
+			break;	
+		case kStandup:
+			UpdateStandupCmd(seconds_since_start);
+			PublishMotionCmd();
+			break;	
+		case kWalk:
+			GenerateWalkCmdTraj();
+			UpdateWalkCmd(seconds_since_start);
+			PublishMotionCmd();
+			PublishVisualization(seconds_since_start);
+			break;
+	}
+}
+
 // TODO: For now, this assumes that we always start at the first gait step
-void MotionPlanner::GenerateTrajectory()
+void MotionPlanner::GenerateWalkCmdTraj()
 {
 	curr_2d_pos_ = q_.block<k2D,1>(kQuatSize,0);
 
 	assert(received_first_state_msg_ == true);
 	robot_dynamics_.SetState(q_,u_);
 
-	GenerateLegsPlan();
-	GenerateBasePlan();
-	start_time_ = ros::Time::now();
+	GenerateWalkLegsPlan();
+	GenerateWalkBasePlan();
 }
 
-void MotionPlanner::GenerateLegsPlan()
+void MotionPlanner::UpdateStandupCmd(const double time)
 {
-	Eigen::MatrixXd current_stance =
-		robot_dynamics_.GetStacked2DFootPosInW();
-
-	leg_planner_.SetGaitSequence(gait_sequence_);
-	leg_planner_.PlanLegsMotion(vel_cmd_, current_stance);
+	base_pos_cmd_ = base_planner_.EvalStandupPosTrajAtT(time);
+	base_vel_cmd_ = base_planner_.EvalStandupVelTrajAtT(time);
+	base_acc_cmd_ = base_planner_.EvalStandupAccTrajAtT(time);
+	legs_in_contact_cmd_ = leg_planner_.GetAllLegsContact();
 }
 
-void MotionPlanner::GenerateBasePlan()
+void MotionPlanner::UpdateWalkCmd(const double time)
 {
-	const int polynomial_degree = 5;
-	const int n_traj_segments = 10; // TODO: move
-
-	base_planner_.SetCurrPos(curr_2d_pos_);
-	base_planner_.SetSupportPolygons(leg_planner_.GetSupportPolygons());
-	base_planner_.PlanBaseMotion(polynomial_degree, n_traj_segments);
+	UpdateWalkBaseCmd(time);
+	UpdateWalkLegCmd(time);
 }
 
-void MotionPlanner::PublishMotionCmd(const double time)
+void MotionPlanner::UpdateWalkBaseCmd(const double time)
 {
-	double seconds_since_start = GetElapsedTimeSince(start_time_);
-	PublishBaseTrajectories(seconds_since_start);
-	PublishLegTrajectories(seconds_since_start);
+	base_pos_cmd_ = base_planner_.EvalWalkTrajPosAtT(time);
+	base_vel_cmd_ = base_planner_.EvalWalkTrajVelAtT(time);
+	base_acc_cmd_ = base_planner_.EvalWalkTrajAccAtT(time);
 }
 
-void MotionPlanner::PublishBaseTrajectories(const double time)
+void MotionPlanner::UpdateWalkLegCmd(const double time)
 {
-	PublishBasePosCmd(time);
-	PublishBaseVelCmd(time);
-	PublishBaseAccCmd(time);
+	legs_pos_cmd_ = leg_planner_.GetStackedLegPosAtT(time);
+	legs_vel_cmd_ = leg_planner_.GetStackedLegVelAtT(time);
+	legs_acc_cmd_ = leg_planner_.GetStackedLegAccAtT(time);
+	legs_in_contact_cmd_ = leg_planner_.GetLegsInContactAtT(time);
 }
 
-void MotionPlanner::PublishBasePosCmd(const double time)
+// ****************** //
+// COMMAND PUBLISHING //
+// ****************** //
+
+void MotionPlanner::PublishMotionCmd()
 {
-	std_msgs::Float64MultiArray base_pos_cmd;
-	tf::matrixEigenToMsg(
-			base_planner_.EvalBasePosAtT(time), base_pos_cmd
-			);
-	base_pos_traj_pub_.publish(base_pos_cmd);
+	PublishBaseTrajectories();
+	PublishLegTrajectories();
 }
 
-void MotionPlanner::PublishBaseVelCmd(const double time)
+void MotionPlanner::PublishBaseTrajectories()
 {
-	std_msgs::Float64MultiArray base_vel_cmd;
-	tf::matrixEigenToMsg(
-			base_planner_.EvalBaseVelAtT(time), base_vel_cmd
-			);
-	base_vel_traj_pub_.publish(base_vel_cmd);
+	PublishBasePosCmd();
+	PublishBaseVelCmd();
+	PublishBaseAccCmd();
 }
 
-void MotionPlanner::PublishBaseAccCmd(const double time)
+void MotionPlanner::PublishBasePosCmd()
 {
-	std_msgs::Float64MultiArray base_acc_cmd;
-	tf::matrixEigenToMsg(
-			base_planner_.EvalBaseAccAtT(time), base_acc_cmd
-			);
-	base_acc_traj_pub_.publish(base_acc_cmd);
+	std_msgs::Float64MultiArray base_pos_cmd_msg;
+	tf::matrixEigenToMsg(base_pos_cmd_, base_pos_cmd_msg);
+	base_pos_traj_pub_.publish(base_pos_cmd_msg);
 }
 
-void MotionPlanner::PublishLegTrajectories(const double time)
+void MotionPlanner::PublishBaseVelCmd()
 {
-	double time_rel = std::fmod(time, gait_sequence_.duration); // TODO: these should be replaced with a common time
-
-	PublishLegPosCmd(time_rel);
-	PublishLegVelCmd(time_rel);
-	PublishLegAccCmd(time_rel);
-	PublishLegsInContact(time_rel);
+	std_msgs::Float64MultiArray base_vel_cmd_msg;
+	tf::matrixEigenToMsg(base_vel_cmd_, base_vel_cmd_msg);
+	base_vel_traj_pub_.publish(base_vel_cmd_msg);
 }
 
-void MotionPlanner::PublishLegPosCmd(const double time)
+void MotionPlanner::PublishBaseAccCmd()
 {
-	std_msgs::Float64MultiArray legs_pos_cmd;
-	tf::matrixEigenToMsg(
-			leg_planner_.GetStackedLegPosAtT(time), legs_pos_cmd
-			);
-	legs_pos_cmd_pub_.publish(legs_pos_cmd);
+	std_msgs::Float64MultiArray base_acc_cmd_msg;
+	tf::matrixEigenToMsg(base_acc_cmd_, base_acc_cmd_msg);
+	base_acc_traj_pub_.publish(base_acc_cmd_msg);
 }
 
-void MotionPlanner::PublishLegVelCmd(const double time)
+void MotionPlanner::PublishLegTrajectories()
 {
-	std_msgs::Float64MultiArray legs_vel_cmd;
-	tf::matrixEigenToMsg(
-			leg_planner_.GetStackedLegVelAtT(time), legs_vel_cmd
-			);
-	legs_vel_cmd_pub_.publish(legs_vel_cmd);
+	PublishLegPosCmd();
+	PublishLegVelCmd();
+	PublishLegAccCmd();
+	PublishLegsInContact();
 }
 
-void MotionPlanner::PublishLegAccCmd(const double time)
+void MotionPlanner::PublishLegPosCmd()
 {
-	std_msgs::Float64MultiArray legs_acc_cmd;
-	tf::matrixEigenToMsg(
-			leg_planner_.GetStackedLegAccAtT(time), legs_acc_cmd
-			);
-	legs_acc_cmd_pub_.publish(legs_acc_cmd);
+	std_msgs::Float64MultiArray legs_pos_cmd_msg;
+	tf::matrixEigenToMsg(legs_pos_cmd_, legs_pos_cmd_msg);
+	legs_pos_cmd_pub_.publish(legs_pos_cmd_msg);
 }
 
-void MotionPlanner::PublishLegsInContact(const double time)
+void MotionPlanner::PublishLegVelCmd()
+{
+	std_msgs::Float64MultiArray legs_vel_cmd_msg;
+	tf::matrixEigenToMsg(legs_vel_cmd_, legs_vel_cmd_msg);
+	legs_vel_cmd_pub_.publish(legs_vel_cmd_msg);
+}
+
+void MotionPlanner::PublishLegAccCmd()
+{
+	std_msgs::Float64MultiArray legs_acc_cmd_msg;
+	tf::matrixEigenToMsg(legs_acc_cmd_, legs_acc_cmd_msg);
+	legs_acc_cmd_pub_.publish(legs_acc_cmd_msg);
+}
+
+void MotionPlanner::PublishLegsInContact()
 {
 	std_msgs::Float64MultiArray legs_in_contact_msg;
-	tf::matrixEigenToMsg(leg_planner_.GetLegsInContactAtT(time), legs_in_contact_msg);
+	tf::matrixEigenToMsg(legs_in_contact_cmd_, legs_in_contact_msg);
 	legs_in_contact_pub_.publish(legs_in_contact_msg);
 }
-
 
 // ************* //
 // VISUALIZATION //
@@ -244,7 +264,7 @@ void MotionPlanner::PublishBaseTrajVisualization()
 
 	for (int k = 1; k < n_traj_segments; ++k)
 	{
-		Eigen::VectorXd p_xy = base_planner_.EvalBasePosAtT(k);
+		Eigen::VectorXd p_xy = base_planner_.EvalWalkTrajPosAtT(k);
 		p.x = p_xy(0);
 		p.y = p_xy(1);
 		p.z = 0;
@@ -258,7 +278,7 @@ void MotionPlanner::PublishBaseTrajVisualization()
 			t += visualization_resolution_
 			)
 	{
-		Eigen::VectorXd p_xy = base_planner_.EvalBasePosAtT(t);
+		Eigen::VectorXd p_xy = base_planner_.EvalWalkTrajPosAtT(t);
 
 		p.x = p_xy(0);
 		p.y = p_xy(1);
@@ -319,6 +339,44 @@ void MotionPlanner::InitRos()
 	SetupBaseCmdTopics();
 	SetupLegCmdTopics();
 	SetupStateSubscription();
+	SetupServices();
+}
+
+void MotionPlanner::SetupServices()
+{
+	ros::AdvertiseServiceOptions cmd_standup_aso =
+		ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
+					"/" + model_name_ + "/standup",
+					boost::bind(&MotionPlanner::CmdStandupService, this, _1, _2),
+					ros::VoidPtr(), NULL
+			);
+	cmd_standup_service_ = ros_node_.advertiseService(cmd_standup_aso);
+
+	ros::AdvertiseServiceOptions cmd_walk_aso =
+		ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
+					"/" + model_name_ + "/walk",
+					boost::bind(&MotionPlanner::CmdWalkService, this, _1, _2),
+					ros::VoidPtr(), NULL
+			);
+	cmd_walk_service_ = ros_node_.advertiseService(cmd_walk_aso);
+}
+
+bool MotionPlanner::CmdStandupService(
+				const std_srvs::Empty::Request &_req,
+				std_srvs::Empty::Response &_res
+		)
+{
+	SetRobotMode(kStandup);
+	return true;
+}
+
+bool MotionPlanner::CmdWalkService(
+				const std_srvs::Empty::Request &_req,
+				std_srvs::Empty::Response &_res
+		)
+{
+	SetRobotMode(kWalk);
+	return true;
 }
 
 void MotionPlanner::SetupBaseCmdTopics()
@@ -415,9 +473,63 @@ void MotionPlanner::SetGenVels(const std::vector<double> &gen_vels)
 		u_(i) = gen_vels[i];
 }
 
+// ************* //
+// STATE MACHINE //
+// ************* //
+
+void MotionPlanner::SetRobotMode(RobotMode target_mode)
+{
+	switch(target_mode)
+	{
+		case kIdle:
+			ROS_INFO("Setting mode to IDLE");
+			break;
+		case kStandup:
+			{
+				ROS_INFO("Setting mode to STANDUP");
+				InitCmdVariables();
+				const Eigen::VectorXd curr_pos =
+					q_.block<k3D, 1>(kQuatSize, 0);
+				const double target_height = 0.5;
+				const double time_to_standup = 2.0;
+				base_planner_.PlanBaseStandupMotion(
+						time_to_standup, target_height, curr_pos
+						);
+				break;
+			}
+		case kWalk:
+			ROS_INFO("Setting mode to WALK");
+			break;
+		default:
+			break;
+	}
+
+	robot_mode_ = target_mode;
+	start_time_ = ros::Time::now();
+}
+
 // ******************* //
 // GAIT AND TRAJECTORY //
 // ******************* //
+
+void MotionPlanner::InitCmdVariables()
+{
+	base_pos_cmd_.resize(k3D);
+	base_pos_cmd_.setZero();
+	base_vel_cmd_.resize(k3D);
+	base_vel_cmd_.setZero();
+	base_acc_cmd_.resize(k3D);
+	base_acc_cmd_.setZero();
+
+	legs_pos_cmd_.resize(k3D * kNumLegs);
+	legs_pos_cmd_.setZero();
+	legs_vel_cmd_.resize(k3D * kNumLegs);
+	legs_vel_cmd_.setZero();
+	legs_acc_cmd_.resize(k3D * kNumLegs);
+	legs_in_contact_cmd_.resize(kNumLegs);
+	legs_in_contact_cmd_.setZero();
+}
+ 
 
 GaitSequence MotionPlanner::CreateCrawlSequence()
 {
@@ -439,6 +551,25 @@ GaitSequence MotionPlanner::CreateCrawlSequence()
 	return crawl_gait;
 }
 
+void MotionPlanner::GenerateWalkLegsPlan()
+{
+	Eigen::MatrixXd current_stance =
+		robot_dynamics_.GetStacked2DFootPosInW();
+
+	leg_planner_.SetGaitSequence(gait_sequence_);
+	leg_planner_.PlanLegsMotion(vel_cmd_, current_stance);
+}
+
+void MotionPlanner::GenerateWalkBasePlan()
+{
+	const int polynomial_degree = 5;
+	const int n_traj_segments = 10; // TODO: move
+
+	base_planner_.SetCurrPos(curr_2d_pos_);
+	base_planner_.SetSupportPolygons(leg_planner_.GetSupportPolygons());
+	base_planner_.PlanBaseWalkMotion(polynomial_degree, n_traj_segments);
+}
+
 // **************** //
 // HELPER FUNCTIONS //
 // **************** //
@@ -448,6 +579,10 @@ double MotionPlanner::GetElapsedTimeSince(ros::Time t)
 	double elapsed_time = (ros::Time::now() - t).toSec();
 	return elapsed_time; 
 }
+
+// ******** //
+// ROS NODE //
+// ******** //
 
 int main( int argc, char** argv )
 {
@@ -461,13 +596,10 @@ int main( int argc, char** argv )
 		ros::spinOnce(); // fetch messages
 
 		if (!motion_planner.IsReady()) continue;
-		ROS_INFO("Generating new motion plan");
 		
 		const double time = ros::Time::now().toSec();
-		motion_planner.GenerateTrajectory();
-		motion_planner.PublishMotionCmd(time);
-		motion_planner.PublishVisualization(time);
 
+		motion_planner.Update(time);
 		ros::spinOnce(); // publish messages
     loop_rate.sleep();
   }

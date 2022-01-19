@@ -9,6 +9,7 @@
 #include <iomanip>
 
 #include <std_msgs/Float64MultiArray.h>
+#include <std_srvs/Empty.h>
 #include <eigen_conversions/eigen_msg.h>
 
 #include "dynamics/dynamics.hpp"
@@ -22,11 +23,14 @@ class MotionPlanner
 {
 	public:
 		MotionPlanner();
+
 		bool IsReady();
 
-		void GenerateTrajectory();
+		void Update(const double time);
+		void GenerateWalkCmdTraj();
+		void PublishMotionCmd();
+
 		void PublishVisualization(const double time);
-		void PublishMotionCmd(const double time);
 
 	private:
 
@@ -55,18 +59,42 @@ class MotionPlanner
 		ros::Subscriber gen_coord_sub_;
 		ros::Subscriber gen_vel_sub_;
 
+		ros::ServiceServer cmd_standup_service_;	
+		ros::ServiceServer cmd_walk_service_;	
+
 		bool received_first_state_msg_ = false;
 
 		void InitRos();
+		void SetupServices();
 		void SetupVisualizationTopics();
 		void SetupBaseCmdTopics();
 		void SetupLegCmdTopics();
 		void SetupStateSubscription();
 
+		bool CmdStandupService(
+				const std_srvs::Empty::Request &_req,
+				std_srvs::Empty::Response &_res
+				);
+		bool CmdWalkService(
+				const std_srvs::Empty::Request &_req,
+				std_srvs::Empty::Response &_res
+				);
+
+
 		void OnGenCoordMsg(const std_msgs::Float64MultiArrayConstPtr &msg);
 		void OnGenVelMsg(const std_msgs::Float64MultiArrayConstPtr &msg);
 		void SetGenCoords(const std::vector<double> &gen_coords);
 		void SetGenVels(const std::vector<double> &gen_vels);
+
+		// ************* //
+		// STATE MACHINE //
+		// ************* //
+
+		enum RobotMode {
+			kIdle, kStandup, kWalk
+		} robot_mode_;
+
+		void SetRobotMode(RobotMode target_mode);
 
 		// ******************* //
 		// GAIT AND TRAJECTORY //
@@ -83,24 +111,42 @@ class MotionPlanner
 
 		Eigen::Vector2d vel_cmd_;
 		Eigen::Vector2d curr_2d_pos_;
+		
+		Eigen::VectorXd legs_pos_cmd_;
+		Eigen::VectorXd legs_vel_cmd_;
+		Eigen::VectorXd legs_acc_cmd_;
+		Eigen::VectorXd legs_in_contact_cmd_;
 
-		double visualization_resolution_ = 0.1;
+		Eigen::VectorXd base_pos_cmd_;
+		Eigen::VectorXd base_vel_cmd_;
+		Eigen::VectorXd base_acc_cmd_;
 
 		GaitSequence CreateCrawlSequence();
 
-		void GenerateLegsPlan();
-		void GenerateBasePlan();
+		void InitCmdVariables();
 
-		void PublishBaseTrajectories(const double time);
-		void PublishBasePosCmd(const double time);
-		void PublishBaseVelCmd(const double time);
-		void PublishBaseAccCmd(const double time);
+		void GenerateWalkLegsPlan();
+		void GenerateWalkBasePlan();
+		void UpdateStandupCmd(const double time);
+		void UpdateWalkCmd(const double time);
 
-		void PublishLegTrajectories(const double time);
-		void PublishLegsInContact(const double time);
-		void PublishLegPosCmd(const double time);
-		void PublishLegVelCmd(const double time);
-		void PublishLegAccCmd(const double time);
+		void UpdateWalkBaseCmd(const double time);
+		void UpdateWalkLegCmd(const double time);
+
+		// ****************** //
+		// COMMAND PUBLISHING //
+		// ****************** //
+
+		void PublishBaseTrajectories();
+		void PublishBasePosCmd();
+		void PublishBaseVelCmd();
+		void PublishBaseAccCmd();
+
+		void PublishLegTrajectories();
+		void PublishLegsInContact();
+		void PublishLegPosCmd();
+		void PublishLegVelCmd();
+		void PublishLegAccCmd();
 
 		// **************** //
 		// HELPER FUNCTIONS //
@@ -113,6 +159,8 @@ class MotionPlanner
 		// ************* //
 
 		// TODO: This should probably be moved to its own module
+
+		double visualization_resolution_ = 0.1;
 
 		void PublishBaseTrajVisualization();
 		void PublishPolygonVisualizationAtTime(const double time);

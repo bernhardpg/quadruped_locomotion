@@ -59,6 +59,12 @@ Eigen::VectorXd LegPlanner::GetLegsInContactAtT(const double time)
 	return gait_sequence_.contact_schedule.col(i);
 }
 
+Eigen::VectorXd LegPlanner::GetAllLegsContact()
+{
+	Eigen::VectorXd all_legs_in_contact = Eigen::VectorXd::Ones(kNumLegs);
+	return all_legs_in_contact;
+}
+
 Eigen::VectorXd LegPlanner::GetStackedLegPosAtT(const double time)
 {
 	Eigen::VectorXd stacked_leg_pos(k3D * kNumLegs);

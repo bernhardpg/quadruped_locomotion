@@ -1,6 +1,6 @@
 #include "planner/base_planner.hpp"
 
-void BasePlanner::PlanBaseMotion(
+void BasePlanner::PlanBaseWalkMotion(
 		const int polynomial_degree, const int n_traj_segments
 		)
 {
@@ -8,7 +8,36 @@ void BasePlanner::PlanBaseMotion(
 	polynomial_degree_ = polynomial_degree;
 
 	FormulateOptimizationProblem();
-	GenerateTrajectory();
+	GenerateWalkTrajectory();
+}
+
+void BasePlanner::PlanBaseStandupMotion(
+		const double seconds_to_standup_config,
+		const double target_height,
+		const Eigen::MatrixXd &curr_pose
+		)
+{
+	const int z_index_in_vels = 5;
+	const int z_index_in_coords = 6;
+
+	seconds_to_standup_ = seconds_to_standup_config;
+
+	const std::vector<double> breaks =
+	{ 0.0, seconds_to_standup_config };
+
+	Eigen::MatrixXd target_pose(k3D,1);
+	target_pose << curr_pose(0),
+								 curr_pose(1),
+								 target_height;
+
+	const std::vector<Eigen::MatrixXd> samples =
+	{ curr_pose, target_pose};
+
+	standup_traj_pos_ =
+		drake::trajectories::PiecewisePolynomial<double>
+					::FirstOrderHold(breaks, samples);
+	standup_traj_vel_	= standup_traj_pos_.derivative(1);
+	standup_traj_acc_ = standup_traj_vel_.derivative(1);
 }
 
 void BasePlanner::SetSupportPolygons(
@@ -23,24 +52,45 @@ void BasePlanner::SetCurrPos(const Eigen::Vector2d &curr_2d_pos)
 	curr_2d_pos_ = curr_2d_pos;
 }
 
-Eigen::VectorXd BasePlanner::EvalBasePosAtT(const double t)
+Eigen::VectorXd BasePlanner::EvalWalkTrajPosAtT(const double t)
 {
-	return EvalBaseTrajAtT(t, 0);
+	return EvalWalkTrajAtT(t, 0);
 }
 
-Eigen::VectorXd BasePlanner::EvalBaseVelAtT(const double t)
+Eigen::VectorXd BasePlanner::EvalWalkTrajVelAtT(const double t)
 {
-	return EvalBaseTrajAtT(t, 1);
+	return EvalWalkTrajAtT(t, 1);
 }
 
-Eigen::VectorXd BasePlanner::EvalBaseAccAtT(const double t)
+Eigen::VectorXd BasePlanner::EvalWalkTrajAccAtT(const double t)
 {
-	return EvalBaseTrajAtT(t, 2);
+	return EvalWalkTrajAtT(t, 2);
 }
 
 const int BasePlanner::GetNumTrajSegments()
 {
 	return n_traj_segments_;
+}
+
+Eigen::VectorXd BasePlanner::EvalStandupPosTrajAtT(const double time)
+{
+	if (time > seconds_to_standup_)
+		return standup_traj_pos_.value(seconds_to_standup_);
+	return standup_traj_pos_.value(time);
+}
+
+Eigen::VectorXd BasePlanner::EvalStandupVelTrajAtT(const double time)
+{
+	if (time > seconds_to_standup_)
+		return Eigen::VectorXd::Zero(k3D);
+	return standup_traj_vel_.value(time);
+}
+
+Eigen::VectorXd BasePlanner::EvalStandupAccTrajAtT(const double time)
+{
+	if (time > seconds_to_standup_)
+		return Eigen::VectorXd::Zero(k3D);
+	return standup_traj_acc_.value(time);
 }
 
 // ********** //
@@ -88,17 +138,14 @@ polynomial_matrix_t BasePlanner::GeneratePolynomials(
 	return polynomials;
 }
 
-Eigen::VectorXd BasePlanner::EvalBaseTrajAtT(
+Eigen::VectorXd BasePlanner::EvalWalkTrajAtT(
 		const double t, const int derivative
 		)
 {
-	// TODO
-	double t_rel = t; //std::fmod(t, gait_sequence_.duration); // TODO: these should be replaced with a basemon time
-
 	int traj_segment_index = 0;
-	while ((double) traj_segment_index + 1 < t_rel) ++traj_segment_index;
+	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
 
-	double t_in_segment = t_rel - (double) traj_segment_index;
+	double t_in_segment = t - (double) traj_segment_index;
 
 	Eigen::VectorXd traj_value(traj_dimension_);
 	drake::symbolic::Environment t_at_t {{t_, t_in_segment}};
@@ -129,7 +176,7 @@ Eigen::VectorXd BasePlanner::EvalBaseTrajAtT(
 // OPTIMIZATION PROBLEM //
 // ******************** //
 
-void BasePlanner::GenerateTrajectory()
+void BasePlanner::GenerateWalkTrajectory()
 {
 	SolveOptimization();
 	GeneratePolynomialsFromSolution();

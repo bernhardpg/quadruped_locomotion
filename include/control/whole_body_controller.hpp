@@ -46,7 +46,7 @@ namespace control
 			double standing_height_ = 0.6;
 
 			void SetJointInitialConfigTraj();
-			void SetComStandupTraj();
+			void SetBaseStandupTraj();
 			void SetDanceTraj();
 
 			// ********** //
@@ -114,6 +114,7 @@ namespace control
 			// STATE MACHINE // 
 			// ************* //
 
+			// TODO: remove
 			enum RobotMode {
 				kIdle, kStandup, kWalk, kDance
 			} robot_mode_;
@@ -132,9 +133,7 @@ namespace control
 			bool received_first_state_msg_ = false;
 
 			// Services
-			ros::ServiceServer cmd_standup_service_;	
 			ros::ServiceServer cmd_dance_service_;	
-			ros::ServiceServer cmd_walk_service_;	
 
 			// Advertisements
 			ros::Publisher q_j_cmd_pub_;
@@ -164,7 +163,7 @@ namespace control
 			void SetupJointCmdAdvertisement();
 			void SetupStateSubscriptions();
 
-			void SetupComCmdSubscriptions();
+			void SetupBaseCmdSubscriptions();
 			void SetupLegCmdSubscriptions();
 
 			void SetupRosServices();
@@ -176,10 +175,6 @@ namespace control
 			void PublishJointVelCmd();
 			void PublishJointTorqueCmd();
 
-			bool CmdStandupService(
-							const std_srvs::Empty::Request &_req,
-							std_srvs::Empty::Response &_res
-					);
 			bool CmdDanceService(
 							const std_srvs::Empty::Request &_req,
 							std_srvs::Empty::Response &_res
@@ -196,13 +191,13 @@ namespace control
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 
-			void OnComPosCmdMsg(
+			void OnBasePosCmdMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
-			void OnComVelCmdMsg(
+			void OnBaseVelCmdMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
-			void OnComAccCmdMsg(
+			void OnBaseAccCmdMsg(
 					const std_msgs::Float64MultiArrayConstPtr &msg
 					);
 			void OnLegsPosCmdMsg(
@@ -229,9 +224,9 @@ namespace control
 			void SetGenCoords(const std::vector<double> &gen_coords);
 			void SetGenVels(const std::vector<double> &gen_vels);
 
-			void SetComPosCmd(const std::vector<double> &base_pos_cmd);
-			void SetComVelCmd(const std::vector<double> &base_vel_cmd);
-			void SetComAccCmd(const std::vector<double> &base_acc_cmd);
+			void SetBasePosCmd(const std::vector<double> &base_pos_cmd);
+			void SetBaseVelCmd(const std::vector<double> &base_vel_cmd);
+			void SetBaseAccCmd(const std::vector<double> &base_acc_cmd);
 
 			void SetLegPosCmd(const std::vector<double> &leg_pos_cmd);
 			void SetLegVelCmd(const std::vector<double> &leg_vel_cmd);
@@ -258,7 +253,7 @@ namespace control
 						std::vector<Eigen::MatrixXd> samples
 						);
 			void SetVariablesToZero();
-			void SetZeroComCmdMotion();
+			void SetZeroBaseCmdMotion();
 			void SetZeroLegCmdMotion();
 			double GetElapsedTimeSince(ros::Time t);
 	};

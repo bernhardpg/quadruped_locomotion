@@ -28,7 +28,7 @@ namespace control
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);
-			void SetComCmd(
+			void SetBaseCmd(
 					Eigen::VectorXd r_cmd,
 					Eigen::VectorXd r_dot_cmd,
 					Eigen::VectorXd r_ddot_cmd
@@ -115,10 +115,10 @@ namespace control
 			TaskDefinition ConstructJointTorqueTask();
 			TaskDefinition ConstructFrictionConeTask();
 			TaskDefinition ConstructNoContactMotionTask();
-			TaskDefinition ConstructComPosTrajTask(
+			TaskDefinition ConstructBasePosTrajTask(
 					const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 					);
-			TaskDefinition ConstructComRotTrajTask(
+			TaskDefinition ConstructBaseRotTrajTask(
 					const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 					);
 			TaskDefinition ConstructForceMinimizationTask();

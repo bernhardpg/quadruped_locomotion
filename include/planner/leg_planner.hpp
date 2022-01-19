@@ -27,17 +27,14 @@ class LegPlanner
 				const GaitSequence &gait_sequence
 				);
 
-		std::vector<Eigen::Vector2d> GetSupportPolygonAtT(
-				const double time
-				);
-
-		std::vector<std::vector<Eigen::Vector2d>>
-			GetSupportPolygons();
+		std::vector<Eigen::Vector2d> GetSupportPolygonAtT(const double time);
+		std::vector<std::vector<Eigen::Vector2d>> GetSupportPolygons();
 
 		double GetLegTrajStartTime(const int leg_i);
 		double GetLegTrajEndTime(const int leg_i);
 		Eigen::VectorXd GetLegPosAtT(const double time, const int leg_i);
 
+		Eigen::VectorXd GetAllLegsContact();
 		Eigen::VectorXd GetLegsInContactAtT(const double time);
 		Eigen::VectorXd GetStackedLegPosAtT(const double time);
 		Eigen::VectorXd GetStackedLegVelAtT(const double time);

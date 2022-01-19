@@ -58,7 +58,7 @@ namespace control {
 		traj_end_time_s_ = seconds_to_initial_config_;
 	}
 
-	void WholeBodyController::SetComStandupTraj()
+	void WholeBodyController::SetBaseStandupTraj()
 	{
 		J_task_.resize(1,kNumGenVels);
 		J_task_.setZero();
@@ -159,16 +159,13 @@ namespace control {
 			case kJointTracking:
 				DirectJointControl();
 				break;
-//			case kFeetTracking: TODO: clean up
-//				FeetPosControl();
-//				break;
 			case kSupportConsistentTracking:
 				SupportConsistentControl();
 				break;
 			case kHoQpController:
 				{
 					SetZeroLegCmdMotion(); // TODO: replace this
-					ho_qp_controller_.SetComCmd(
+					ho_qp_controller_.SetBaseCmd(
 							r_cmd_, r_dot_cmd_, r_ddot_cmd_
 							);
 					ho_qp_controller_.SetLegCmd(
@@ -249,7 +246,7 @@ namespace control {
 					ROS_INFO("Setting mode to STANDUP");
 					q_j_dot_cmd_integrator_.Reset();
 					q_j_dot_cmd_integrator_.SetIntegral(q_j_);
-					SetComStandupTraj();
+					SetBaseStandupTraj();
 					control_mode_ = kSupportConsistentTracking;
 				}
 				break;
@@ -287,7 +284,7 @@ namespace control {
 	{
 		SetupJointCmdAdvertisement();
 		SetupStateSubscriptions();
-		SetupComCmdSubscriptions();
+		SetupBaseCmdSubscriptions();
 		SetupLegCmdSubscriptions();
 	}
 
@@ -352,13 +349,13 @@ namespace control {
 		gen_vel_sub_ = ros_node_.subscribe(gen_vel_so);
 	}
 
-	void WholeBodyController::SetupComCmdSubscriptions()
+	void WholeBodyController::SetupBaseCmdSubscriptions()
 	{
 		ros::SubscribeOptions base_pos_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/base_pos_cmd",
 					1,
-					boost::bind(&WholeBodyController::OnComPosCmdMsg, this, _1),
+					boost::bind(&WholeBodyController::OnBasePosCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
@@ -367,7 +364,7 @@ namespace control {
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/base_vel_cmd",
 					1,
-					boost::bind(&WholeBodyController::OnComVelCmdMsg, this, _1),
+					boost::bind(&WholeBodyController::OnBaseVelCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
@@ -376,7 +373,7 @@ namespace control {
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
 					"/base_acc_cmd",
 					1,
-					boost::bind(&WholeBodyController::OnComAccCmdMsg, this, _1),
+					boost::bind(&WholeBodyController::OnBaseAccCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
@@ -432,16 +429,6 @@ namespace control {
 
 	void WholeBodyController::SetupRosServices()
 	{
-		ros::AdvertiseServiceOptions cmd_standup_aso =
-			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
-            "/" + model_name_ + "/standup",
-            boost::bind(&WholeBodyController::CmdStandupService, this, _1, _2),
-            ros::VoidPtr(),
-            &this->ros_process_queue_
-        );
-
-		cmd_standup_service_ = ros_node_.advertiseService(cmd_standup_aso);
-
 		ros::AdvertiseServiceOptions cmd_dance_aso =
 			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
             "/" + model_name_ + "/dance",
@@ -451,25 +438,6 @@ namespace control {
         );
 
 		cmd_dance_service_ = ros_node_.advertiseService(cmd_dance_aso);
-
-		ros::AdvertiseServiceOptions cmd_walk_aso =
-			ros::AdvertiseServiceOptions::create<std_srvs::Empty>(
-            "/" + model_name_ + "/walk",
-            boost::bind(&WholeBodyController::CmdWalkService, this, _1, _2),
-            ros::VoidPtr(),
-            &this->ros_process_queue_
-        );
-
-		cmd_walk_service_ = ros_node_.advertiseService(cmd_walk_aso);
-	}
-
-	bool WholeBodyController::CmdStandupService(
-					const std_srvs::Empty::Request &_req,
-					std_srvs::Empty::Response &_res
-			)
-	{
-		SetRobotMode(kStandup);
-		return true;
 	}
 
 	bool WholeBodyController::CmdDanceService(
@@ -478,15 +446,6 @@ namespace control {
 			)
 	{
 		SetRobotMode(kDance);
-		return true;
-	}
-
-	bool WholeBodyController::CmdWalkService(
-					const std_srvs::Empty::Request &_req,
-					std_srvs::Empty::Response &_res
-			)
-	{
-		SetRobotMode(kWalk);
 		return true;
 	}
 
@@ -560,25 +519,25 @@ namespace control {
 		SetGenVels(msg->data);
 	}
 
-	void WholeBodyController::OnComPosCmdMsg(
+	void WholeBodyController::OnBasePosCmdMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		SetComPosCmd(msg->data);
+		SetBasePosCmd(msg->data);
 	}
 
-	void WholeBodyController::OnComVelCmdMsg(
+	void WholeBodyController::OnBaseVelCmdMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		SetComVelCmd(msg->data);
+		SetBaseVelCmd(msg->data);
 	}
 
-	void WholeBodyController::OnComAccCmdMsg(
+	void WholeBodyController::OnBaseAccCmdMsg(
 			const std_msgs::Float64MultiArrayConstPtr &msg
 			)
 	{
-		SetComAccCmd(msg->data);
+		SetBaseAccCmd(msg->data);
 	}
 
 	void WholeBodyController::OnLegsPosCmdMsg(
@@ -644,7 +603,7 @@ namespace control {
 		q_j_dot_ = GetJointsVel();
 	}
 
-	void WholeBodyController::SetComPosCmd(
+	void WholeBodyController::SetBasePosCmd(
 			const std::vector<double> &base_pos_cmd
 			)
 	{
@@ -652,7 +611,7 @@ namespace control {
 			r_cmd_(i) = base_pos_cmd[i];
 	}
 
-	void WholeBodyController::SetComVelCmd(
+	void WholeBodyController::SetBaseVelCmd(
 			const std::vector<double> &base_vel_cmd
 			)
 	{
@@ -660,7 +619,7 @@ namespace control {
 			r_dot_cmd_(i) = base_vel_cmd[i];
 	}
 
-	void WholeBodyController::SetComAccCmd(
+	void WholeBodyController::SetBaseAccCmd(
 			const std::vector<double> &base_acc_cmd
 			)
 	{
@@ -773,11 +732,11 @@ namespace control {
 		q_j_dot_cmd_integrator_ = Integrator(kNumJoints);
 		q_j_dot_cmd_integrator_.Reset();
 
-		SetZeroComCmdMotion();
+		SetZeroBaseCmdMotion();
 		SetZeroLegCmdMotion();
 	}
 
-	void WholeBodyController::SetZeroComCmdMotion()
+	void WholeBodyController::SetZeroBaseCmdMotion()
 	{
 		r_cmd_.resize(k3D);
 		r_cmd_.setZero();

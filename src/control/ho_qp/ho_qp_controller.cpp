@@ -25,7 +25,7 @@ namespace control
 		}
 	}
 
-	void HoQpController::SetComCmd(
+	void HoQpController::SetBaseCmd(
 			Eigen::VectorXd r_cmd,
 			Eigen::VectorXd r_dot_cmd,
 			Eigen::VectorXd r_ddot_cmd
@@ -160,16 +160,16 @@ namespace control
 		std::cout << "no_contact_motion_task\n";
 		PrintTask(no_contact_motion_task);
 
-		TaskDefinition com_pos_traj_task =
-			ConstructComPosTrajTask(q,u);
-		std::cout << "com_pos_traj_task\n";
-		PrintTask(com_pos_traj_task);
-		TaskDefinition com_rot_traj_task =
-			ConstructComRotTrajTask(q,u);
-		std::cout << "com_rot_traj_task\n";
-		PrintTask(com_rot_traj_task);
-		TaskDefinition com_traj_task = 
-			ConcatenateTasks(com_pos_traj_task, com_rot_traj_task);
+		TaskDefinition base_pos_traj_task =
+			ConstructBasePosTrajTask(q,u);
+		std::cout << "base_pos_traj_task\n";
+		PrintTask(base_pos_traj_task);
+		TaskDefinition base_rot_traj_task =
+			ConstructBaseRotTrajTask(q,u);
+		std::cout << "base_rot_traj_task\n";
+		PrintTask(base_rot_traj_task);
+		TaskDefinition base_traj_task = 
+			ConcatenateTasks(base_pos_traj_task, base_rot_traj_task);
 
 		TaskDefinition force_min_task = ConstructForceMinimizationTask();
 		std::cout << "force_min_task";
@@ -179,14 +179,14 @@ namespace control
 			fb_eom_task,
 			joint_torque_and_friction_task,
 			no_contact_motion_task,
-			com_traj_task,
+			base_traj_task,
 			force_min_task,
 		};
 
 		return tasks;
 	}
 
-	TaskDefinition HoQpController::ConstructComPosTrajTask(
+	TaskDefinition HoQpController::ConstructBasePosTrajTask(
 			const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 			)
 	{
@@ -209,11 +209,11 @@ namespace control
 			+ k_vel * (r_dot_cmd_ - v_IB_I);
 			//+ k_pos * (r_cmd_ - r_IB_I);
 
-		TaskDefinition com_pos_traj_task = {.A=A, .b=b};
-		return com_pos_traj_task;
+		TaskDefinition base_pos_traj_task = {.A=A, .b=b};
+		return base_pos_traj_task;
 	}
 
-	TaskDefinition HoQpController::ConstructComRotTrajTask(
+	TaskDefinition HoQpController::ConstructBaseRotTrajTask(
 			const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 			)
 	{
@@ -237,8 +237,8 @@ namespace control
 		Eigen::VectorXd b(J_b_pos_.rows());
 		b << k_vel * (wd_IB - w_IB);  // TODO: implement quaternion error here
 
-		TaskDefinition com_rot_traj_task = {.A=A, .b=b};
-		return com_rot_traj_task;
+		TaskDefinition base_rot_traj_task = {.A=A, .b=b};
+		return base_rot_traj_task;
 	}
 
 	TaskDefinition HoQpController::ConstructNoContactMotionTask()
