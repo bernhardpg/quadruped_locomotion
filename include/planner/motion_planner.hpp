@@ -17,36 +17,10 @@
 
 #include "variable_types.hpp"
 #include "dynamics/dynamics.hpp"
+#include "planner/leg_planner.hpp"
+#include "planner/gait_sequence.hpp"
 #include "helper_functions.hpp"
-
-// TODO: Move this into its own leg motion planner
-struct LegMotion
-{
-	double t_liftoff;
-	double t_touchdown;
-	Eigen::Vector2d start_pos;
-	Eigen::Vector2d end_pos;
-};
-
-struct LegTrajectory 
-{
-	double start_time;
-	double end_time;
-	drake::trajectories::PiecewisePolynomial<double> xy;
-	drake::trajectories::PiecewisePolynomial<double> z;
-	drake::trajectories::PiecewisePolynomial<double> d_xy;
-	drake::trajectories::PiecewisePolynomial<double> d_z;
-	drake::trajectories::PiecewisePolynomial<double> dd_xy;
-	drake::trajectories::PiecewisePolynomial<double> dd_z;
-};
-
-std::ostream& operator<<(std::ostream& os, const LegMotion& lm) {
-    return os << "t_liftoff: " << lm.t_liftoff << std::endl
-              << "t_touchdown: " << lm.t_touchdown << std::endl
-              << "start_pos: " << lm.start_pos.transpose() << std::endl
-              << "end_pos: " << lm.end_pos.transpose() << std::endl;
-
-}
+#include "anymal_constants.hpp"
 
 class MotionPlanner
 {
@@ -61,7 +35,6 @@ class MotionPlanner
 
 		void PublishComTrajVisualization();
 		void PublishPolygonVisualizationAtTime(const double time);
-		void PublishPolygonsVisualization();
 		void PublishLegTrajectoriesVisualization();
 
 		// COM //
@@ -72,18 +45,6 @@ class MotionPlanner
 		Eigen::VectorXd EvalComPosAtT(const double t);
 		Eigen::VectorXd EvalComVelAtT(const double t);
 		Eigen::VectorXd EvalComAccAtT(const double t);
-
-		// LEGS // 
-		// TODO: Move into own module
-
-		Eigen::VectorXd EvalLegPosAtT(const double t, const int leg_i);
-		Eigen::VectorXd EvalLegVelAtT(const double t, const int leg_i);
-		Eigen::VectorXd EvalLegAccAtT(const double t, const int leg_i);
-
-		Eigen::VectorXd GetLegsInContactAtT(const double time);
-		Eigen::VectorXd GetStackedLegPosAtT(const double time);
-		Eigen::VectorXd GetStackedLegVelAtT(const double time);
-		Eigen::VectorXd GetStackedLegAccAtT(const double time);
 
 		void PublishComTrajectories(const double time);
 		void PublishComPosCmd(const double time);
@@ -123,15 +84,11 @@ class MotionPlanner
 		// ******************* //
 		// GAIT AND TRAJECTORY //
 		// ******************* //
+		LegPlanner leg_planner_;
 
 		Dynamics robot_dynamics_;
 
-		int n_legs_ = 4;
-		int n_gait_steps_;
-		int n_gait_dims_;;
-		double t_per_gait_sequence_;
-		double t_per_step_;
-		Eigen::MatrixXd gait_sequence_;
+		GaitSequence gait_sequence_;
 
 		Eigen::Vector2d vel_cmd_;
 		int curr_gait_step_;
@@ -145,23 +102,7 @@ class MotionPlanner
 		Eigen::Vector2d pos_initial_;
 		Eigen::Vector2d pos_final_;
 
-		std::vector<std::vector<Eigen::Vector2d>> support_polygons_;
-
-		void InitGaitSequence();
-		void GenerateSupportPolygons();
-
-		// TODO: move these into a feet motion planner
-		std::vector<LegMotion> leg_motions_;
-		std::vector<LegTrajectory> leg_trajectories_;
-		std::vector<LegMotion> CreateLegMotions(); 
-		std::vector<LegTrajectory> CreateLegTrajectories(
-				std::vector<LegMotion> leg_motions
-				);
-		LegMotion CreateLegMotionForLeg(const int leg_i);
-		drake::trajectories::PiecewisePolynomial<double>
-			CreateXYLegTrajectory(LegMotion leg_motion);
-		drake::trajectories::PiecewisePolynomial<double>
-			CreateZLegTrajectory(LegMotion leg_motion);
+		GaitSequence CreateCrawlSequence();
 
 		std::vector<Eigen::MatrixXd> GenerateStanceSequence(
 				const Eigen::VectorXd &vel_cmd,
@@ -172,7 +113,6 @@ class MotionPlanner
 				const int gait_step_i,
 				const Eigen::MatrixXd &prev_stance
 				);
-		int GetGaitStepFromTime(double t);
 
 		// ******************** //
 		// OPTIMIZATION PROBLEM //
@@ -211,9 +151,6 @@ class MotionPlanner
 		// **************** //
 		// HELPER FUNCTIONS //
 		// **************** //
-		int GetLegStateAtStep(int gait_step_i, int leg_i);
-		double GetTimeAtGaitStep(int gait_step_i);
-		Eigen::VectorXd GetFootPosAtStep(int gait_step_i, int leg_i);
 
 		Eigen::MatrixXd GetTransformationMatrixAtT(
 				double t, symbolic_vector_t v
@@ -231,9 +168,5 @@ class MotionPlanner
 		symbolic_vector_t GetTrajExpressionAtT(
 				double t, symbolic_vector_t v, int segment_j
 				);
-		Eigen::Vector2d GetPolygonCentroid(
-				std::vector<Eigen::Vector2d> polygon
-				);
-
 };
 

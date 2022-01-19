@@ -24,7 +24,7 @@ namespace control
 			HoQpController();
 			~HoQpController(){};
 
-			void Update(
+			void CalcJointCmd(
 					Eigen::Matrix<double,kNumGenCoords, 1> q,
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);

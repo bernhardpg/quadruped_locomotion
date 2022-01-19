@@ -4,7 +4,7 @@ namespace control
 {
 	HoQpController::HoQpController() {}
 
-	void HoQpController::Update(
+	void HoQpController::CalcJointCmd(
 			Eigen::Matrix<double,kNumGenCoords, 1> q,
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)

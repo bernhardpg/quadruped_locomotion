@@ -110,3 +110,7 @@ add_executable(motion_planner src/planner/motion_planner.cpp)
 target_link_libraries(motion_planner ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(motion_planner drake::drake)
 target_link_libraries(motion_planner dynamics)
+target_link_libraries(motion_planner leg_planner)
+
+add_library(leg_planner src/planner/leg_planner.cpp)
+target_link_libraries(leg_planner drake::drake)

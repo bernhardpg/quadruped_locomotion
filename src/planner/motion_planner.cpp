@@ -14,19 +14,18 @@ MotionPlanner::MotionPlanner(
 	InitRos();
 
 	vel_cmd_ = Eigen::Vector2d(0.25, 0); // TODO: take from ros topic
-	InitGaitSequence();
+	gait_sequence_ = CreateCrawlSequence();
 
 	// TODO: Remember to update robot dynamcis with gen coords
 	robot_dynamics_.SetStateDefault();
 	current_stance_ = robot_dynamics_.GetStacked2DFootPosInW();
 	// TODO: For now, this assumes that we always start at the first gait step
-	stance_sequence_ = GenerateStanceSequence(vel_cmd_, current_stance_);
 
-	GenerateSupportPolygons();
+	leg_planner_.SetGaitSequence(gait_sequence_);
+	leg_planner_.PlanLegsMotion(vel_cmd_, current_stance_);
+
+	// COM optimization
 	SetupOptimizationProgram(); // TODO: move this to the right spot
-
-	leg_motions_ = CreateLegMotions();
-	leg_trajectories_ = CreateLegTrajectories(leg_motions_);
 }
 
 void MotionPlanner::PublishComTrajectories(const double time)
@@ -40,7 +39,7 @@ void MotionPlanner::PublishComPosCmd(const double time)
 {
 	std_msgs::Float64MultiArray com_pos_cmd;
 	tf::matrixEigenToMsg(
-			EvalComPosAtT(time), com_pos_cmd // TODO: add vel and acceleration
+			EvalComPosAtT(time), com_pos_cmd
 			);
 	com_pos_traj_pub_.publish(com_pos_cmd);
 }
@@ -49,7 +48,7 @@ void MotionPlanner::PublishComVelCmd(const double time)
 {
 	std_msgs::Float64MultiArray com_vel_cmd;
 	tf::matrixEigenToMsg(
-			EvalComVelAtT(time), com_vel_cmd // TODO: add vel and acceleration
+			EvalComVelAtT(time), com_vel_cmd
 			);
 	com_vel_traj_pub_.publish(com_vel_cmd);
 }
@@ -58,7 +57,7 @@ void MotionPlanner::PublishComAccCmd(const double time)
 {
 	std_msgs::Float64MultiArray com_acc_cmd;
 	tf::matrixEigenToMsg(
-			EvalComAccAtT(time), com_acc_cmd // TODO: add vel and acceleration
+			EvalComAccAtT(time), com_acc_cmd
 			);
 	com_acc_traj_pub_.publish(com_acc_cmd);
 }
@@ -75,7 +74,7 @@ void MotionPlanner::PublishLegPosCmd(const double time)
 {
 	std_msgs::Float64MultiArray legs_pos_cmd;
 	tf::matrixEigenToMsg(
-			GetStackedLegPosAtT(time), legs_pos_cmd
+			leg_planner_.GetStackedLegPosAtT(time), legs_pos_cmd
 			);
 	legs_pos_cmd_pub_.publish(legs_pos_cmd);
 }
@@ -84,7 +83,7 @@ void MotionPlanner::PublishLegVelCmd(const double time)
 {
 	std_msgs::Float64MultiArray legs_vel_cmd;
 	tf::matrixEigenToMsg(
-			GetStackedLegVelAtT(time), legs_vel_cmd
+			leg_planner_.GetStackedLegVelAtT(time), legs_vel_cmd
 			);
 	legs_vel_cmd_pub_.publish(legs_vel_cmd);
 }
@@ -93,7 +92,7 @@ void MotionPlanner::PublishLegAccCmd(const double time)
 {
 	std_msgs::Float64MultiArray legs_acc_cmd;
 	tf::matrixEigenToMsg(
-			GetStackedLegAccAtT(time), legs_acc_cmd
+			leg_planner_.GetStackedLegAccAtT(time), legs_acc_cmd
 			);
 	legs_acc_cmd_pub_.publish(legs_acc_cmd);
 }
@@ -101,247 +100,10 @@ void MotionPlanner::PublishLegAccCmd(const double time)
 void MotionPlanner::PublishLegsInContact(const double time)
 {
 	std_msgs::Float64MultiArray legs_in_contact_msg;
-	tf::matrixEigenToMsg(GetLegsInContactAtT(time), legs_in_contact_msg);
+	tf::matrixEigenToMsg(leg_planner_.GetLegsInContactAtT(time), legs_in_contact_msg);
 	legs_in_contact_pub_.publish(legs_in_contact_msg);
 }
 
-Eigen::VectorXd MotionPlanner::GetLegsInContactAtT(const double time)
-{
-	int i = GetGaitStepFromTime(time);
-	return gait_sequence_.col(i);
-}
-
-Eigen::VectorXd MotionPlanner::GetStackedLegPosAtT(const double time)
-{
-	Eigen::VectorXd stacked_leg_pos(k3D * kNumLegs);
-	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
-	{
-		stacked_leg_pos.block<k3D,1>(leg_i * k3D,0) =
-			EvalLegPosAtT(time, leg_i);
-	}
-	return stacked_leg_pos;
-}
-
-Eigen::VectorXd MotionPlanner::GetStackedLegVelAtT(const double time)
-{
-	Eigen::VectorXd stacked_leg_vel(k3D * kNumLegs);
-	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
-	{
-		stacked_leg_vel.block<k3D,1>(leg_i * k3D,0) =
-			EvalLegVelAtT(time, leg_i);
-	}
-	return stacked_leg_vel;
-}
-
-Eigen::VectorXd MotionPlanner::GetStackedLegAccAtT(const double time)
-{
-	Eigen::VectorXd stacked_leg_acc(k3D * kNumLegs);
-	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
-	{
-		stacked_leg_acc.block<k3D,1>(leg_i * k3D,0) =
-			EvalLegAccAtT(time, leg_i);
-	}
-	return stacked_leg_acc;
-}
-
-Eigen::VectorXd MotionPlanner::EvalLegPosAtT(
-		const double time, const int leg_i
-		)
-{
-	const double time_rel = std::fmod(time, t_per_gait_sequence_);
-	Eigen::VectorXd leg_pos(3);
-	leg_pos.setZero();
-
-	const bool inside_traj_time =
-		(time_rel < leg_trajectories_[leg_i].start_time)
-			|| (time_rel > leg_trajectories_[leg_i].end_time);
-
-	if (!inside_traj_time)
-	{
-		leg_pos <<
-			leg_trajectories_[leg_i].xy.value(time_rel),
-			leg_trajectories_[leg_i].z.value(time_rel);
-	}
-
-	return leg_pos;
-}
-
-Eigen::VectorXd MotionPlanner::EvalLegVelAtT(
-		const double time, const int leg_i
-		)
-{
-	const double time_rel = std::fmod(time, t_per_gait_sequence_);
-	Eigen::VectorXd leg_vel(3);
-	leg_vel.setZero();
-
-	const bool inside_traj_time =
-		(time_rel < leg_trajectories_[leg_i].start_time)
-			|| (time_rel > leg_trajectories_[leg_i].end_time);
-
-	if (!inside_traj_time)
-	{
-		leg_vel <<
-			leg_trajectories_[leg_i].xy.value(time_rel),
-			leg_trajectories_[leg_i].z.value(time_rel);
-	}
-
-	return leg_vel;
-}
-
-Eigen::VectorXd MotionPlanner::EvalLegAccAtT(
-		const double time, const int leg_i
-		)
-{
-	const double time_rel = std::fmod(time, t_per_gait_sequence_);
-	Eigen::VectorXd leg_acc(3);
-	leg_acc.setZero();
-
-	const bool inside_traj_time =
-		(time_rel < leg_trajectories_[leg_i].start_time)
-			|| (time_rel > leg_trajectories_[leg_i].end_time);
-
-	if (!inside_traj_time)
-	{
-		leg_acc <<
-			leg_trajectories_[leg_i].xy.value(time_rel),
-			leg_trajectories_[leg_i].z.value(time_rel);
-	}
-
-	return leg_acc;
-}
-
-// TODO: move all these into a leg motion planner
-std::vector<LegTrajectory> MotionPlanner::CreateLegTrajectories(
-		std::vector<LegMotion> leg_motions
-		)
-{
-	std::vector<LegTrajectory> leg_trajs;
-	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
-	{
-		LegTrajectory leg_i_traj; 
-
-		leg_i_traj.start_time = leg_motions[leg_i].t_liftoff;
-		leg_i_traj.end_time = leg_motions[leg_i].t_touchdown;
-
-		leg_i_traj.xy = CreateXYLegTrajectory(leg_motions[leg_i]);
-		leg_i_traj.z = CreateZLegTrajectory(leg_motions[leg_i]);
-
-		leg_i_traj.d_xy = leg_i_traj.xy.derivative(1);
-		leg_i_traj.d_z = leg_i_traj.z.derivative(1);
-
-		leg_i_traj.dd_xy = leg_i_traj.xy.derivative(2);
-		leg_i_traj.dd_z = leg_i_traj.z.derivative(2);
-
-		leg_trajs.push_back(leg_i_traj);
-	}
-
-	return leg_trajs;
-}
-
-drake::trajectories::PiecewisePolynomial<double>
-	MotionPlanner::CreateXYLegTrajectory(LegMotion leg_motion)
-{
-	const std::vector<double> breaks = {
-		leg_motion.t_liftoff, leg_motion.t_touchdown
-	};
-
-	std::vector<Eigen::MatrixXd> samples = {
-		leg_motion.start_pos, leg_motion.end_pos
-	};
-
-	drake::trajectories::PiecewisePolynomial<double> xy_traj =
-	 	drake::trajectories::PiecewisePolynomial<double>
-				::FirstOrderHold(breaks, samples);
-
-	return xy_traj;
-}
-
-drake::trajectories::PiecewisePolynomial<double>
-	MotionPlanner::CreateZLegTrajectory(LegMotion leg_motion)
-{
-	const double t_apex = leg_motion.t_liftoff + std::abs(
-			leg_motion.t_touchdown - leg_motion.t_liftoff
-			) / 2;
-	const std::vector<double> breaks = {
-		leg_motion.t_liftoff, t_apex, leg_motion.t_touchdown
-	};
-
-	const double z_apex_height = 0.2; // TODO: Move to member variable
-	Eigen::MatrixXd apex(1,1);
-	apex << z_apex_height;
-
-	const Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(1,1);
-	const std::vector<Eigen::MatrixXd> samples = {
-		zero, apex, zero
-	};
-
-	drake::trajectories::PiecewisePolynomial<double> z_traj =
-	 	drake::trajectories::PiecewisePolynomial<double>
-				::CubicWithContinuousSecondDerivatives(breaks, samples);
-
-	return z_traj;
-}
-
-std::vector<LegMotion> MotionPlanner::CreateLegMotions()
-{
-	std::vector<LegMotion> leg_motions;
-	for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
-	{
-		leg_motions.push_back(CreateLegMotionForLeg(leg_i));
-	}
-
-	return leg_motions;
-}
-
-LegMotion MotionPlanner::CreateLegMotionForLeg(const int leg_i)
-{
-	double t_liftoff = -1;
-	double t_touchdown = -1;
-	Eigen::VectorXd start_pos(k2D);
-	Eigen::VectorXd end_pos(k2D);
-
-	// TODO: generalize to start at any configuration
-	int last_leg_state = GetLegStateAtStep(0, leg_i);
-	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
-	{
-		if (GetLegStateAtStep(gait_step_i, leg_i) != last_leg_state)
-		{
-			if (last_leg_state == 1)	
-			{
-				t_liftoff = GetTimeAtGaitStep(gait_step_i);
-				last_leg_state = 0;
-				start_pos = GetFootPosAtStep(gait_step_i - 1, leg_i);
-			}
-			else
-			{
-				t_touchdown = GetTimeAtGaitStep(gait_step_i);
-				last_leg_state = 1;
-				end_pos = GetFootPosAtStep(gait_step_i - 1, leg_i);
-			}
-		}
-	}
-
-	LegMotion leg_i_traj = {t_liftoff, t_touchdown, start_pos, end_pos};
-	return leg_i_traj;
-}
-
-double MotionPlanner::GetTimeAtGaitStep(int gait_step_i)
-{
-	double t_at_step = t_per_step_ * gait_step_i;	
-	return t_at_step;
-}
-
-Eigen::VectorXd MotionPlanner::GetFootPosAtStep(
-		int gait_step_i, int leg_i
-		)
-{
-	return stance_sequence_[gait_step_i].col(leg_i);
-}
-
-int MotionPlanner::GetLegStateAtStep(int gait_step_i, int leg_i)
-{
-	return gait_sequence_(leg_i,gait_step_i);
-}
 
 Eigen::VectorXd MotionPlanner::EvalComPosAtT(const double t)
 {
@@ -362,7 +124,7 @@ Eigen::VectorXd MotionPlanner::EvalComTrajAtT(
 		const double t, const int derivative
 		)
 {
-	double t_rel = std::fmod(t, t_per_gait_sequence_); // TODO: these should be replaced with a common time
+	double t_rel = std::fmod(t, gait_sequence_.duration); // TODO: these should be replaced with a common time
 
 	int traj_segment_index = 0;
 	while ((double) traj_segment_index + 1 < t_rel) ++traj_segment_index;
@@ -412,7 +174,8 @@ void MotionPlanner::GenerateTrajectory()
 // TODO: move these to their own module!
 void MotionPlanner::PublishPolygonVisualizationAtTime(const double time)
 {
-	int polygon_i = GetGaitStepFromTime(time);
+	const std::vector<Eigen::Vector2d> polygon_at_t =
+		leg_planner_.GetSupportPolygonAtT(time);
 
 	visualization_msgs::Marker polygon_msg;
 	polygon_msg.header.frame_id = "world";
@@ -433,67 +196,23 @@ void MotionPlanner::PublishPolygonVisualizationAtTime(const double time)
 
 	for (
 			int point_j = 0;
-			point_j < support_polygons_[polygon_i].size();
+			point_j < polygon_at_t.size();
 			++point_j
 			)
 	{
-		p.x = support_polygons_[polygon_i][point_j](0);
-		p.y = support_polygons_[polygon_i][point_j](1);
+		p.x = polygon_at_t[point_j](0);
+		p.y = polygon_at_t[point_j](1);
 		p.z = 0;
 		polygon_msg.points.push_back(p);
 	}
 
 	// Close polygon
-	p.x = support_polygons_[polygon_i][0](0);
-	p.y = support_polygons_[polygon_i][0](1);
+	p.x = polygon_at_t[0](0);
+	p.y = polygon_at_t[0](1);
 	p.z = 0;
 	polygon_msg.points.push_back(p);
 
 	visualize_polygons_pub_.publish(polygon_msg);
-}
-
-void MotionPlanner::PublishPolygonsVisualization()
-{
-	visualization_msgs::Marker polygon_msg;
-	polygon_msg.header.frame_id = "world";
-	polygon_msg.header.stamp = ros::Time::now();
-	polygon_msg.ns = "polygons";
-	polygon_msg.action = visualization_msgs::Marker::ADD;
-	polygon_msg.pose.orientation.w = 1.0; // Set no rotation
-	polygon_msg.type = visualization_msgs::Marker::LINE_STRIP;
-
-	polygon_msg.scale.x = 0.01; // = width
-	polygon_msg.color.b = 1.0;
-	polygon_msg.color.a = 1.0;
-
-	geometry_msgs::Point p;
-	for (
-			int polygon_i = 0;
-			polygon_i < support_polygons_.size();
-			++polygon_i
-			)
-	{
-		polygon_msg.points.clear(); // clear previous points
-		polygon_msg.id = polygon_i;
-		for (
-				int point_j = 0;
-				point_j < support_polygons_[polygon_i].size();
-				++point_j
-				)
-		{
-			p.x = support_polygons_[polygon_i][point_j](0);
-			p.y = support_polygons_[polygon_i][point_j](1);
-			p.z = 0;
-			polygon_msg.points.push_back(p);
-		}
-		// Close polygon
-		p.x = support_polygons_[polygon_i][0](0);
-		p.y = support_polygons_[polygon_i][0](1);
-		p.z = 0;
-		polygon_msg.points.push_back(p);
-
-		visualize_polygons_pub_.publish(polygon_msg);
-	}
 }
 
 void MotionPlanner::PublishComTrajVisualization()
@@ -598,10 +317,10 @@ void MotionPlanner::PublishLegTrajectoriesVisualization()
 
 		geometry_msgs::Point p;
 		const double dt = 0.1;
-		for (double t = leg_trajectories_[leg_i].start_time;
-				t <= leg_trajectories_[leg_i].end_time; t += dt_)
+		for (double t = leg_planner_.GetLegTrajStartTime(leg_i);
+				t <= leg_planner_.GetLegTrajEndTime(leg_i); t += dt_)
 		{
-			Eigen::VectorXd pos_at_t = EvalLegPosAtT(t, leg_i);
+			Eigen::VectorXd pos_at_t = leg_planner_.GetLegPosAtT(t, leg_i);
 
 			p.x = pos_at_t(0);
 			p.y = pos_at_t(1);
@@ -678,100 +397,25 @@ void MotionPlanner::SetupLegCmdTopics()
 // GAIT AND TRAJECTORY //
 // ******************* //
 
-void MotionPlanner::InitGaitSequence()
+GaitSequence MotionPlanner::CreateCrawlSequence()
 {
-	// TODO: This should come from a ROS topic
-	n_gait_steps_ = 20;
-	t_per_gait_sequence_ = 10;
-	t_per_step_ = t_per_gait_sequence_ / (double) n_gait_steps_;
+	int n_gait_steps = 20;
+	double gait_duration = 10;
+	double gait_step_time = gait_duration / (double) n_gait_steps;
 
-	gait_sequence_.resize(n_legs_, n_gait_steps_);
-	gait_sequence_ << 
+	Eigen::MatrixXd gait_contact_schedule(kNumLegs, n_gait_steps);
+	gait_contact_schedule << 
 		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1,
 		1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1,
 		1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+
+	GaitSequence crawl_gait = {
+		n_gait_steps, gait_duration, gait_step_time, gait_contact_schedule 
+	};
+
+	return crawl_gait;
 }
-
-int MotionPlanner::GetGaitStepFromTime(double t)
-{
-	double t_rel = std::fmod(t, t_per_gait_sequence_);
-		
-	int gait_step_i = t_rel / t_per_step_;
-	return gait_step_i;
-}
-
-void MotionPlanner::GenerateSupportPolygons()
-{
-	support_polygons_.clear();
-
-	std::vector<Eigen::Vector2d> new_polygon;
-	for (int gait_step_i = 0; gait_step_i < n_gait_steps_; ++gait_step_i)
-	{
-		new_polygon.clear();
-		auto curr_stance = stance_sequence_[gait_step_i];
-
-		std::vector<int> leg_visualization_order = {0,2,3,1}; 
-		for (int leg_i : leg_visualization_order)	
-		{
-			if (gait_sequence_(leg_i, gait_step_i) == 1)	
-			{
-				new_polygon.push_back(curr_stance.col(leg_i));
-			}
-		}
-		support_polygons_.push_back(new_polygon);
-	}
-}
-
-std::vector<Eigen::MatrixXd> MotionPlanner::GenerateStanceSequence(
-		const Eigen::VectorXd &vel_cmd,
-		const Eigen::MatrixXd &current_stance
-		)
-{
-	std::vector<Eigen::MatrixXd> stance_sequence;
-	stance_sequence.push_back(current_stance);
-
-	for (int gait_step_i = 1; gait_step_i < n_gait_steps_; ++gait_step_i)
-	{
-		Eigen::MatrixXd next_stance =
-			GenerateStanceForNextTimestep(
-					vel_cmd, gait_step_i, stance_sequence[gait_step_i - 1]
-					);
-		stance_sequence.push_back(next_stance);
-	}
-	return stance_sequence;
-}
-
-Eigen::MatrixXd MotionPlanner::GenerateStanceForNextTimestep(
-		const Eigen::VectorXd &vel_cmd,
-		const int gait_step_i,
-		const Eigen::MatrixXd &prev_stance
-		)
-{
-	Eigen::MatrixXd next_stance(k2D, kNumLegs);
-	next_stance.setZero();
-
-	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
-	{
-		Eigen::MatrixXd prev_foot_pos = prev_stance.col(foot_i);
-
-		Eigen::MatrixXd next_foot_pos(k2D,1);
-		if (gait_sequence_(foot_i, gait_step_i) == 1)
-		{
-			next_foot_pos = prev_foot_pos;
-		}
-		else
-		{
-			next_foot_pos = prev_foot_pos
-				+ vel_cmd * t_per_step_;
-		}
-		
-		next_stance.col(foot_i) = next_foot_pos;
-	}
-
-	return next_stance;
-}
-
 
 // ******************** //
 // OPTIMIZATION PROBLEM //
@@ -861,8 +505,8 @@ void MotionPlanner::AddContinuityConstraints()
 
 void MotionPlanner::AddInitialAndFinalConstraint()
 {
-	pos_initial_ = GetPolygonCentroid(support_polygons_[0]);
-	pos_final_ = GetPolygonCentroid(support_polygons_.back());
+	pos_initial_ = leg_planner_.GetFirstPolygonCentroid();
+	pos_final_ = leg_planner_.GetLastPolygonCentroid();
 
 	prog_.AddLinearConstraint(
 			GetPosExpressionAtT(0, 0).array()
@@ -989,23 +633,8 @@ symbolic_vector_t MotionPlanner::GetTrajExpressionAtT(
 }
 
 // TODO: For now, this only calculates the center of mass which may not coincide with the actual centroid
-Eigen::Vector2d MotionPlanner::GetPolygonCentroid(
-		std::vector<Eigen::Vector2d> polygon
-		)
-{
-	Eigen::Vector2d centroid(0,0);
-	for (int point_i = 0; point_i < polygon.size(); ++point_i)
-	{
-		centroid += polygon[point_i];
-	}
-	centroid /= polygon.size();
-
-	return centroid;
-}
-
 int main( int argc, char** argv )
 {
-
 	int traj_degree = 5;
 	int n_traj_segments = 10;
 

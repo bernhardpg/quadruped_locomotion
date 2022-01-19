@@ -168,7 +168,7 @@ namespace control {
 				break;
 			case kHoQpController:
 				{
-					SetZeroLegCmdMotion(); // TODO: replace these
+					SetZeroLegCmdMotion(); // TODO: replace this
 					ho_qp_controller_.SetComCmd(
 							r_cmd_, r_dot_cmd_, r_ddot_cmd_
 							);
@@ -176,7 +176,7 @@ namespace control {
 							r_c_cmd_, r_c_dot_cmd_, r_c_ddot_cmd_,
 							legs_in_contact_
 							);
-					ho_qp_controller_.Update(q_,u_);
+					ho_qp_controller_.CalcJointCmd(q_,u_);
 					q_j_ddot_cmd_ = ho_qp_controller_.GetJointAccelerationCmd();
 					IntegrateJointAccelerations();
 					tau_j_cmd_ = ho_qp_controller_.GetJointTorqueCmd();
