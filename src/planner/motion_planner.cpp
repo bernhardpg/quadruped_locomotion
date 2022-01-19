@@ -1,73 +1,74 @@
 #include "planner/motion_planner.hpp"
 
-// TODO: clean up this class
-
-MotionPlanner::MotionPlanner(
-		int degree,
-		int n_traj_segments
-		)
-	:
-		n_traj_segments_(n_traj_segments),
-		degree_(degree)
+MotionPlanner::MotionPlanner()
 {
 	// TODO: I will need to also initialize the start time
 	InitRos();
 
 	vel_cmd_ = Eigen::Vector2d(0.25, 0); // TODO: take from ros topic
 	gait_sequence_ = CreateCrawlSequence();
+}
 
+void MotionPlanner::GenerateTrajectory()
+{
 	// TODO: Remember to update robot dynamcis with gen coords
 	robot_dynamics_.SetStateDefault();
-	current_stance_ = robot_dynamics_.GetStacked2DFootPosInW();
+	Eigen::MatrixXd current_stance =
+		robot_dynamics_.GetStacked2DFootPosInW();
 	// TODO: For now, this assumes that we always start at the first gait step
 
 	leg_planner_.SetGaitSequence(gait_sequence_);
-	leg_planner_.PlanLegsMotion(vel_cmd_, current_stance_);
+	leg_planner_.PlanLegsMotion(vel_cmd_, current_stance);
 
-	// COM optimization
-	SetupOptimizationProgram(); // TODO: move this to the right spot
+	const int polynomial_degree = 5;
+	const int n_traj_segments = 10; // TODO: move
+	base_planner_.SetSupportPolygons(leg_planner_.GetSupportPolygons());
+	base_planner_.PlanBaseMotion(polynomial_degree, n_traj_segments);
 }
 
-void MotionPlanner::PublishComTrajectories(const double time)
+void MotionPlanner::PublishBaseTrajectories(const double time)
 {
-	PublishComPosCmd(time);
-	PublishComVelCmd(time);
-	PublishComAccCmd(time);
+	double time_rel = std::fmod(time, gait_sequence_.duration); // TODO: these should be replaced with a common time
+	PublishBasePosCmd(time_rel);
+	PublishBaseVelCmd(time_rel);
+	PublishBaseAccCmd(time_rel);
 }
 
-void MotionPlanner::PublishComPosCmd(const double time)
+void MotionPlanner::PublishBasePosCmd(const double time)
 {
-	std_msgs::Float64MultiArray com_pos_cmd;
+	std_msgs::Float64MultiArray base_pos_cmd;
 	tf::matrixEigenToMsg(
-			EvalComPosAtT(time), com_pos_cmd
+			base_planner_.EvalBasePosAtT(time), base_pos_cmd
 			);
-	com_pos_traj_pub_.publish(com_pos_cmd);
+	base_pos_traj_pub_.publish(base_pos_cmd);
 }
 
-void MotionPlanner::PublishComVelCmd(const double time)
+void MotionPlanner::PublishBaseVelCmd(const double time)
 {
-	std_msgs::Float64MultiArray com_vel_cmd;
+	std_msgs::Float64MultiArray base_vel_cmd;
 	tf::matrixEigenToMsg(
-			EvalComVelAtT(time), com_vel_cmd
+			base_planner_.EvalBaseVelAtT(time), base_vel_cmd
 			);
-	com_vel_traj_pub_.publish(com_vel_cmd);
+	base_vel_traj_pub_.publish(base_vel_cmd);
 }
 
-void MotionPlanner::PublishComAccCmd(const double time)
+void MotionPlanner::PublishBaseAccCmd(const double time)
 {
-	std_msgs::Float64MultiArray com_acc_cmd;
+	std_msgs::Float64MultiArray base_acc_cmd;
 	tf::matrixEigenToMsg(
-			EvalComAccAtT(time), com_acc_cmd
+			base_planner_.EvalBaseAccAtT(time), base_acc_cmd
 			);
-	com_acc_traj_pub_.publish(com_acc_cmd);
+	base_acc_traj_pub_.publish(base_acc_cmd);
 }
 
 void MotionPlanner::PublishLegTrajectories(const double time)
 {
-	PublishLegPosCmd(time);
-	PublishLegVelCmd(time);
-	PublishLegAccCmd(time);
-	PublishLegsInContact(time);
+	double time_rel = std::fmod(time, gait_sequence_.duration); // TODO: these should be replaced with a common time
+
+	PublishLegPosCmd(time_rel);
+	PublishLegVelCmd(time_rel);
+	PublishLegAccCmd(time_rel);
+	PublishLegsInContact(time_rel);
 }
 
 void MotionPlanner::PublishLegPosCmd(const double time)
@@ -105,70 +106,16 @@ void MotionPlanner::PublishLegsInContact(const double time)
 }
 
 
-Eigen::VectorXd MotionPlanner::EvalComPosAtT(const double t)
-{
-	return EvalComTrajAtT(t, 0);
-}
-
-Eigen::VectorXd MotionPlanner::EvalComVelAtT(const double t)
-{
-	return EvalComTrajAtT(t, 1);
-}
-
-Eigen::VectorXd MotionPlanner::EvalComAccAtT(const double t)
-{
-	return EvalComTrajAtT(t, 2);
-}
-
-Eigen::VectorXd MotionPlanner::EvalComTrajAtT(
-		const double t, const int derivative
-		)
-{
-	double t_rel = std::fmod(t, gait_sequence_.duration); // TODO: these should be replaced with a common time
-
-	int traj_segment_index = 0;
-	while ((double) traj_segment_index + 1 < t_rel) ++traj_segment_index;
-
-	double t_in_segment = t_rel - (double) traj_segment_index;
-
-	Eigen::VectorXd traj_value(traj_dimension_);
-	drake::symbolic::Environment t_at_t {{t_, t_in_segment}};
-	for (int dim = 0; dim < traj_dimension_; ++dim)
-	{
-		switch(derivative)
-		{
-			case 0:
-				traj_value(dim) = 
-					polynomials_pos_(dim, traj_segment_index).Evaluate(t_at_t);
-				break;
-			case 1:
-				traj_value(dim) = 
-					polynomials_vel_(dim, traj_segment_index).Evaluate(t_at_t);
-				break;
-			case 2:
-				traj_value(dim) = 
-					polynomials_acc_(dim, traj_segment_index).Evaluate(t_at_t);
-				break;
-		}
-	}
-
-	return traj_value;
-}
-
-void MotionPlanner::GenerateTrajectory()
-{
-	result_ = Solve(prog_);
-	ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
-		<< "\nFound solution: " << result_.is_success()
-		<< "\nSolution result: " << result_.get_solution_result()
-		<< std::endl);
-	assert(result_.is_success());
-	GeneratePolynomialsFromSolution();
-}
-
 // ************* //
 // VISUALIZATION //
 // ************* //
+
+void MotionPlanner::PublishVisualization(const double time)
+{
+	PublishLegTrajectoriesVisualization();
+	PublishBaseTrajVisualization();
+	PublishPolygonVisualizationAtTime(time);
+}
 
 // TODO: These visualization functions are uneccesarily messy
 // TODO: move these to their own module!
@@ -215,7 +162,7 @@ void MotionPlanner::PublishPolygonVisualizationAtTime(const double time)
 	visualize_polygons_pub_.publish(polygon_msg);
 }
 
-void MotionPlanner::PublishComTrajVisualization()
+void MotionPlanner::PublishBaseTrajVisualization()
 {
 	visualization_msgs::Marker
 		traj_points, start_end_points, line_strip;
@@ -270,9 +217,11 @@ void MotionPlanner::PublishComTrajVisualization()
 	p.y = pos_final_(1);
 	start_end_points.points.push_back(p);
 
-	for (int k = 1; k < n_traj_segments_; ++k)
+	const int n_traj_segments = base_planner_.GetNumTrajSegments();
+
+	for (int k = 1; k < n_traj_segments; ++k)
 	{
-		Eigen::VectorXd p_xy = EvalComPosAtT(k);
+		Eigen::VectorXd p_xy = base_planner_.EvalBasePosAtT(k);
 		p.x = p_xy(0);
 		p.y = p_xy(1);
 		p.z = 0;
@@ -280,9 +229,13 @@ void MotionPlanner::PublishComTrajVisualization()
 		traj_points.points.push_back(p);
 	}
 
-	for (double t = 0; t < n_traj_segments_ - dt_; t += dt_)
+	for (
+			double t = 0;
+			t < n_traj_segments - visualization_resolution_;
+			t += visualization_resolution_
+			)
 	{
-		Eigen::VectorXd p_xy = EvalComPosAtT(t);
+		Eigen::VectorXd p_xy = base_planner_.EvalBasePosAtT(t);
 
 		p.x = p_xy(0);
 		p.y = p_xy(1);
@@ -291,9 +244,9 @@ void MotionPlanner::PublishComTrajVisualization()
 		line_strip.points.push_back(p);
 	}
 
-	visualize_com_traj_pub_.publish(line_strip);
-	visualize_com_traj_pub_.publish(traj_points);
-	visualize_com_traj_pub_.publish(start_end_points);
+	visualize_base_traj_pub_.publish(line_strip);
+	visualize_base_traj_pub_.publish(traj_points);
+	visualize_base_traj_pub_.publish(start_end_points);
 }
 
 void MotionPlanner::PublishLegTrajectoriesVisualization()
@@ -318,7 +271,7 @@ void MotionPlanner::PublishLegTrajectoriesVisualization()
 		geometry_msgs::Point p;
 		const double dt = 0.1;
 		for (double t = leg_planner_.GetLegTrajStartTime(leg_i);
-				t <= leg_planner_.GetLegTrajEndTime(leg_i); t += dt_)
+				t <= leg_planner_.GetLegTrajEndTime(leg_i); t += visualization_resolution_)
 		{
 			Eigen::VectorXd pos_at_t = leg_planner_.GetLegPosAtT(t, leg_i);
 
@@ -340,28 +293,28 @@ void MotionPlanner::PublishLegTrajectoriesVisualization()
 void MotionPlanner::InitRos()
 {
 	SetupVisualizationTopics();
-	SetupComCmdTopics();
+	SetupBaseCmdTopics();
 	SetupLegCmdTopics();
 }
 
-void MotionPlanner::SetupComCmdTopics()
+void MotionPlanner::SetupBaseCmdTopics()
 {
-  com_pos_traj_pub_ =
+  base_pos_traj_pub_ =
 		ros_node_.advertise<std_msgs::Float64MultiArray>
-		("com_pos_cmd", 10);
+		("base_pos_cmd", 10);
 
-  com_vel_traj_pub_ =
+  base_vel_traj_pub_ =
 		ros_node_.advertise<std_msgs::Float64MultiArray>
-		("com_vel_cmd", 10);
+		("base_vel_cmd", 10);
 
-  com_acc_traj_pub_ =
+  base_acc_traj_pub_ =
 		ros_node_.advertise<std_msgs::Float64MultiArray>
-		("com_acc_cmd", 10);
+		("base_acc_cmd", 10);
 }
 
 void MotionPlanner::SetupVisualizationTopics()
 {
-  visualize_com_traj_pub_ =
+  visualize_base_traj_pub_ =
 		ros_node_.advertise<visualization_msgs::Marker>
 		("visualization_trajectory", 10);
 
@@ -417,240 +370,19 @@ GaitSequence MotionPlanner::CreateCrawlSequence()
 	return crawl_gait;
 }
 
-// ******************** //
-// OPTIMIZATION PROBLEM //
-// ******************** //
-
-void MotionPlanner::SetupOptimizationProgram()
-{
-	InitDecisionVariables();
-	InitMonomials();
-	AddAccelerationCost();
-	AddContinuityConstraints();
-	AddInitialAndFinalConstraint();
-	// Enforce zmp constraint
-	// TODO: Implement
-
-}
-
-void MotionPlanner::InitMonomials()
-{
-	// Build monomial basis
-	m_.resize(degree_ + 1);
-	for (int d = 0; d < degree_ + 1; ++d)
-	{
-		m_(d) = drake::symbolic::Monomial(t_, d).ToExpression();
-	}
-	m_dot_ = drake::symbolic::Jacobian(m_, {t_});
-	m_ddot_ = drake::symbolic::Jacobian(m_dot_, {t_});
-}
-
-void MotionPlanner::InitDecisionVariables()
-{
-	// traj is defined as p = p(t_)
-	t_ = prog_.NewIndeterminates(1, 1, "t")(0,0);
-
-	// Construct coefficients
-	for (int k = 0; k < n_traj_segments_; ++k)
-	{
-		auto coeffs_at_k = prog_.NewContinuousVariables(
-				traj_dimension_, degree_ + 1, "C"
-				);
-
-		coeffs_.push_back(coeffs_at_k);
-	}
-}
-
-void MotionPlanner::AddAccelerationCost()
-{
-	double dt = 0.1;
-	for (int k = 0; k < n_traj_segments_; ++k)
-	{
-		// Implement acceleration integral as sum
-		for (double t = 0; t < 1; t += dt)
-		{
-			// TODO: Use the GetAccAtT function for this?
-			symbolic_matrix_t T_ddot =
-				GetTransformationMatrixAtT(t, m_ddot_)
-				.cast <drake::symbolic::Expression>();
-			symbolic_matrix_t Q = T_ddot.transpose() * T_ddot;
-
-			auto coeffs_test = coeffs_[k];
-			Eigen::Map<symbolic_vector_t> alpha(
-					coeffs_test.data(), coeffs_test.size()
-					);
-
-			drake::symbolic::Expression cost_at_t =
-				dt * alpha.transpose() * Q * alpha;
-
-			prog_.AddQuadraticCost(cost_at_t);
-		}
-	}
-}
-
-void MotionPlanner::AddContinuityConstraints()
-{
-	for (int k = 0; k < n_traj_segments_ - 1; ++k)
-	{
-		prog_.AddLinearConstraint(
-				GetPosExpressionAtT(1, k).array()
-				== GetPosExpressionAtT(0, k + 1).array()
-				);
-		prog_.AddLinearConstraint(
-				GetVelExpressionAtT(1, k).array()
-				== GetVelExpressionAtT(0, k + 1).array()
-				);
-	}
-}
-
-void MotionPlanner::AddInitialAndFinalConstraint()
-{
-	pos_initial_ = leg_planner_.GetFirstPolygonCentroid();
-	pos_final_ = leg_planner_.GetLastPolygonCentroid();
-
-	prog_.AddLinearConstraint(
-			GetPosExpressionAtT(0, 0).array()
-			== pos_initial_.array()
-			);
-	prog_.AddLinearConstraint(
-			GetPosExpressionAtT(1, n_traj_segments_ - 1).array()
-			== pos_final_.array()
-			);
-}
-
-void MotionPlanner::GeneratePolynomialsFromSolution()
-{
-	const std::vector<symbolic_matrix_t> coeff_values = GetCoeffValues();
-
-	polynomials_pos_ = GeneratePolynomials(m_, coeff_values);
-	polynomials_vel_ = GeneratePolynomials(m_dot_, coeff_values);
-	polynomials_acc_ = GeneratePolynomials(m_ddot_, coeff_values);
-}
-
-std::vector<symbolic_matrix_t> MotionPlanner::GetCoeffValues()
-{
-	std::vector<symbolic_matrix_t> coeff_values;
-	for (int k = 0; k < n_traj_segments_; ++k)
-	{
-		symbolic_matrix_t coeff_values_for_curr_segment =
-			result_.GetSolution(coeffs_[k]);
-		coeff_values.push_back(coeff_values_for_curr_segment);
-	}
-	return coeff_values;
-}
-
-polynomial_matrix_t MotionPlanner::GeneratePolynomials(
-		const symbolic_vector_t &monomial_basis,
-		const std::vector<symbolic_matrix_t> &coeff_values 
-		)
-{
-	polynomial_matrix_t polynomials;
-	polynomials.resize(traj_dimension_, n_traj_segments_);
-
-	for (int k = 0; k < n_traj_segments_; ++k)
-	{
-		symbolic_vector_t polynomial = coeff_values[k] * monomial_basis;
-
-		for (int dim = 0; dim < traj_dimension_; ++dim)
-			polynomials(dim,k) =
-				drake::symbolic::Polynomial(polynomial[dim]);
-	}
-
-	return polynomials;
-}
-
-
-// **************** //
-// HELPER FUNCTIONS //
-// **************** //
-
-Eigen::MatrixXd MotionPlanner::GetTransformationMatrixAtT(
-		double t, symbolic_vector_t v
-		)
-{
-	// Evaluate monomial at t
-	drake::symbolic::Environment t_curr {{t_, t}};
-	Eigen::VectorXd v_at_t(v.rows());
-	for (int i = 0; i < v.rows(); ++i)
-		v_at_t(i) = v(i).Evaluate(t_curr);
-
-	// Construct transformation at t
-	Eigen::MatrixXd T_at_t(traj_dimension_, v.rows() * 2);
-	T_at_t.setZero();
-	for (int dim = 0; dim < traj_dimension_; ++dim)
-		T_at_t.block(dim, dim * v.rows(), 1, v.rows()) = v_at_t.transpose();
-
-	return T_at_t;
-}
-
-symbolic_vector_t MotionPlanner::GetPosExpressionAtT(double t)
-{
-	int traj_segment_index = 0;
-	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
-	double t_in_segment = t - (double) traj_segment_index;
-	auto pos = GetTrajExpressionAtT(t_in_segment, m_, traj_segment_index);
-	return pos;
-}
-
-symbolic_vector_t MotionPlanner::GetPosExpressionAtT(
-		double t_in_segment, int segment_j
-		)
-{
-	auto pos = GetTrajExpressionAtT(t_in_segment, m_, segment_j);
-	return pos;
-}
-
-symbolic_vector_t MotionPlanner::GetVelExpressionAtT(
-		double t_in_segment, int segment_j
-		)
-{
-	auto vel = GetTrajExpressionAtT(t_in_segment, m_dot_, segment_j);
-	return vel;
-}
-
-symbolic_vector_t MotionPlanner::GetAccExpressionAtT(
-		double t_in_segment, int segment_j
-		)
-{
-	auto acc = GetTrajExpressionAtT(t_in_segment, m_ddot_, segment_j);
-	return acc;
-}
-
-symbolic_vector_t MotionPlanner::GetTrajExpressionAtT(
-		double t, symbolic_vector_t v, int segment_j
-		)
-{
-	symbolic_matrix_t T =
-		GetTransformationMatrixAtT(t, v)
-		.cast <drake::symbolic::Expression>();
-
-	Eigen::Map<symbolic_vector_t> alpha(
-			coeffs_[segment_j].data(), coeffs_[segment_j].size()
-			);
-
-	symbolic_vector_t traj_at_t = T * alpha;
-	return traj_at_t;
-}
-
-// TODO: For now, this only calculates the center of mass which may not coincide with the actual centroid
 int main( int argc, char** argv )
 {
-	int traj_degree = 5;
-	int n_traj_segments = 10;
-
   ros::init(argc, argv, "motion_planner");
-	MotionPlanner planner(traj_degree, n_traj_segments);
-	planner.GenerateTrajectory();
+	MotionPlanner motion_planner;
+	motion_planner.GenerateTrajectory();
 
   ros::Rate r(30);
   while (ros::ok())
   {
 		const double time = ros::Time::now().toSec();
-		planner.PublishLegTrajectories(time);
-		planner.PublishComTrajectories(time);
-		planner.PublishLegTrajectoriesVisualization();
-		planner.PublishComTrajVisualization();
-		planner.PublishPolygonVisualizationAtTime(time);
+		motion_planner.PublishLegTrajectories(time);
+		motion_planner.PublishBaseTrajectories(time);
+		motion_planner.PublishVisualization(time);
     r.sleep();
   }
 }

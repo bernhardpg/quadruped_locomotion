@@ -111,6 +111,10 @@ target_link_libraries(motion_planner ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(motion_planner drake::drake)
 target_link_libraries(motion_planner dynamics)
 target_link_libraries(motion_planner leg_planner)
+target_link_libraries(motion_planner base_planner)
 
 add_library(leg_planner src/planner/leg_planner.cpp)
 target_link_libraries(leg_planner drake::drake)
+
+add_library(base_planner src/planner/base_planner.cpp)
+target_link_libraries(base_planner drake::drake)

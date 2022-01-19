@@ -1,7 +1,5 @@
 #include "planner/leg_planner.hpp"
 
-LegPlanner::LegPlanner(){}
-
 void LegPlanner::PlanLegsMotion(
 		const Eigen::VectorXd &vel_cmd,
 		const Eigen::MatrixXd &current_stance
@@ -24,23 +22,18 @@ void LegPlanner::SetGaitSequence(
 	gait_sequence_ = gait_sequence;
 }
 
-// TODO: I can probably remove this when I have added ZMP constraints
-Eigen::Vector2d LegPlanner::GetFirstPolygonCentroid()
-{
-	return GetPolygonCentroid(support_polygons_[0]);
-}
-
-Eigen::Vector2d LegPlanner::GetLastPolygonCentroid()
-{
-	return GetPolygonCentroid(support_polygons_.back());
-}
-
 std::vector<Eigen::Vector2d> LegPlanner::GetSupportPolygonAtT(
 		const double time
 		)
 {
 	const int polygon_i = GetGaitStepFromTime(time);
 	return support_polygons_[polygon_i];
+}
+
+std::vector<std::vector<Eigen::Vector2d>>
+	LegPlanner::GetSupportPolygons()
+{
+	return support_polygons_;
 }
 
 double LegPlanner::GetLegTrajStartTime(const int leg_i)
@@ -390,19 +383,5 @@ int LegPlanner::GetGaitStepFromTime(double t)
 		
 	int gait_step_i = t_rel / gait_sequence_.step_time;
 	return gait_step_i;
-}
-
-Eigen::Vector2d LegPlanner::GetPolygonCentroid(
-		std::vector<Eigen::Vector2d> polygon
-		)
-{
-	Eigen::Vector2d centroid(0,0);
-	for (int point_i = 0; point_i < polygon.size(); ++point_i)
-	{
-		centroid += polygon[point_i];
-	}
-	centroid /= polygon.size();
-
-	return centroid;
 }
 

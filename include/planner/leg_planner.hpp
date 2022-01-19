@@ -12,7 +12,7 @@ struct LegTrajectory;
 class LegPlanner
 {
 	public:
-		LegPlanner();
+		LegPlanner(){};
 
 		void PlanLegsMotion(
 				const Eigen::VectorXd &vel_cmd,
@@ -27,11 +27,12 @@ class LegPlanner
 				const GaitSequence &gait_sequence
 				);
 
-		Eigen::Vector2d GetFirstPolygonCentroid();
-		Eigen::Vector2d GetLastPolygonCentroid();
 		std::vector<Eigen::Vector2d> GetSupportPolygonAtT(
 				const double time
 				);
+
+		std::vector<std::vector<Eigen::Vector2d>>
+			GetSupportPolygons();
 
 		double GetLegTrajStartTime(const int leg_i);
 		double GetLegTrajEndTime(const int leg_i);
@@ -93,10 +94,6 @@ class LegPlanner
 		double GetTimeAtGaitStep(int gait_step_i);
 		Eigen::VectorXd GetFootPosAtStep(int gait_step_i, int leg_i);
 		int GetGaitStepFromTime(double t);
-		Eigen::Vector2d GetPolygonCentroid(
-				std::vector<Eigen::Vector2d> polygon
-				);
-
 };
 
 

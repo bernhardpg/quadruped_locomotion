@@ -145,9 +145,9 @@ namespace control
 			ros::Subscriber gen_coord_sub_;
 			ros::Subscriber gen_vel_sub_;
 
-			ros::Subscriber com_pos_cmd_sub_;
-			ros::Subscriber com_vel_cmd_sub_;
-			ros::Subscriber com_acc_cmd_sub_;
+			ros::Subscriber base_pos_cmd_sub_;
+			ros::Subscriber base_vel_cmd_sub_;
+			ros::Subscriber base_acc_cmd_sub_;
 
 			ros::Subscriber legs_pos_cmd_sub_;
 			ros::Subscriber legs_vel_cmd_sub_;
@@ -229,9 +229,9 @@ namespace control
 			void SetGenCoords(const std::vector<double> &gen_coords);
 			void SetGenVels(const std::vector<double> &gen_vels);
 
-			void SetComPosCmd(const std::vector<double> &com_pos_cmd);
-			void SetComVelCmd(const std::vector<double> &com_vel_cmd);
-			void SetComAccCmd(const std::vector<double> &com_acc_cmd);
+			void SetComPosCmd(const std::vector<double> &base_pos_cmd);
+			void SetComVelCmd(const std::vector<double> &base_vel_cmd);
+			void SetComAccCmd(const std::vector<double> &base_acc_cmd);
 
 			void SetLegPosCmd(const std::vector<double> &leg_pos_cmd);
 			void SetLegVelCmd(const std::vector<double> &leg_vel_cmd);

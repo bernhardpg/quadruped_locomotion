@@ -84,12 +84,12 @@ namespace control {
 			curr_pose, target_pose	
 		};
 
-		auto com_pos_standup_traj
+		auto base_pos_standup_traj
 			= CreateFirstOrderHoldTraj(breaks, samples);
-		auto com_vel_standup_traj
-			= com_pos_standup_traj.derivative(1);
+		auto base_vel_standup_traj
+			= base_pos_standup_traj.derivative(1);
 
-		task_vel_traj_ = com_vel_standup_traj;
+		task_vel_traj_ = base_vel_standup_traj;
 		traj_end_time_s_ = seconds_to_standup_config_;
 	}
 
@@ -130,12 +130,12 @@ namespace control {
 			curr_pose
 		};
 
-		auto com_dance_traj 
+		auto base_dance_traj 
 			= CreateFirstOrderHoldTraj(breaks, samples);
-		auto com_vel_dance_traj 
-			= com_dance_traj.derivative(1);
+		auto base_vel_dance_traj 
+			= base_dance_traj.derivative(1);
 
-		task_vel_traj_ = com_vel_dance_traj;
+		task_vel_traj_ = base_vel_dance_traj;
 		traj_end_time_s_ = 4.0;
 	}
 
@@ -355,36 +355,36 @@ namespace control {
 
 	void WholeBodyController::SetupComCmdSubscriptions()
 	{
-		ros::SubscribeOptions com_pos_cmd_so =
+		ros::SubscribeOptions base_pos_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/com_pos_cmd",
+					"/base_pos_cmd",
 					1,
 					boost::bind(&WholeBodyController::OnComPosCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
 
-		ros::SubscribeOptions com_vel_cmd_so =
+		ros::SubscribeOptions base_vel_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/com_vel_cmd",
+					"/base_vel_cmd",
 					1,
 					boost::bind(&WholeBodyController::OnComVelCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
 
-		ros::SubscribeOptions com_acc_cmd_so =
+		ros::SubscribeOptions base_acc_cmd_so =
 			ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
-					"/com_acc_cmd",
+					"/base_acc_cmd",
 					1,
 					boost::bind(&WholeBodyController::OnComAccCmdMsg, this, _1),
 					ros::VoidPtr(),
 					&this->ros_process_queue_
 					);
 
-		com_pos_cmd_sub_ = ros_node_.subscribe(com_pos_cmd_so);
-		com_vel_cmd_sub_ = ros_node_.subscribe(com_vel_cmd_so);
-		com_acc_cmd_sub_ = ros_node_.subscribe(com_acc_cmd_so);
+		base_pos_cmd_sub_ = ros_node_.subscribe(base_pos_cmd_so);
+		base_vel_cmd_sub_ = ros_node_.subscribe(base_vel_cmd_so);
+		base_acc_cmd_sub_ = ros_node_.subscribe(base_acc_cmd_so);
 	}
 
 	void WholeBodyController::SetupLegCmdSubscriptions()
@@ -646,27 +646,27 @@ namespace control {
 	}
 
 	void WholeBodyController::SetComPosCmd(
-			const std::vector<double> &com_pos_cmd
+			const std::vector<double> &base_pos_cmd
 			)
 	{
-		for (int i = 0; i < com_pos_cmd.size(); ++i)
-			r_cmd_(i) = com_pos_cmd[i];
+		for (int i = 0; i < base_pos_cmd.size(); ++i)
+			r_cmd_(i) = base_pos_cmd[i];
 	}
 
 	void WholeBodyController::SetComVelCmd(
-			const std::vector<double> &com_vel_cmd
+			const std::vector<double> &base_vel_cmd
 			)
 	{
-		for (int i = 0; i < com_vel_cmd.size(); ++i)
-			r_dot_cmd_(i) = com_vel_cmd[i];
+		for (int i = 0; i < base_vel_cmd.size(); ++i)
+			r_dot_cmd_(i) = base_vel_cmd[i];
 	}
 
 	void WholeBodyController::SetComAccCmd(
-			const std::vector<double> &com_acc_cmd
+			const std::vector<double> &base_acc_cmd
 			)
 	{
-		for (int i = 0; i < com_acc_cmd.size(); ++i)
-			r_ddot_cmd_(i) = com_acc_cmd[i];
+		for (int i = 0; i < base_acc_cmd.size(); ++i)
+			r_ddot_cmd_(i) = base_acc_cmd[i];
 	}
 
 	void WholeBodyController::SetLegPosCmd(
