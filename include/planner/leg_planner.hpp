@@ -96,7 +96,6 @@ class LegPlanner
 		int GetGaitStepFromTime(double t);
 };
 
-
 struct LegMotion
 {
 	double t_liftoff;
@@ -104,14 +103,6 @@ struct LegMotion
 	Eigen::Vector2d start_pos;
 	Eigen::Vector2d end_pos;
 };
-
-std::ostream& operator<<(std::ostream& os, const LegMotion& lm) {
-    return os << "t_liftoff: " << lm.t_liftoff << std::endl
-              << "t_touchdown: " << lm.t_touchdown << std::endl
-              << "start_pos: " << lm.start_pos.transpose() << std::endl
-              << "end_pos: " << lm.end_pos.transpose() << std::endl;
-
-}
 
 struct LegTrajectory 
 {

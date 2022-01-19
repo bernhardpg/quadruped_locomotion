@@ -385,3 +385,11 @@ int LegPlanner::GetGaitStepFromTime(double t)
 	return gait_step_i;
 }
 
+
+std::ostream& operator<<(std::ostream& os, const LegMotion& lm) {
+    return os << "t_liftoff: " << lm.t_liftoff << std::endl
+              << "t_touchdown: " << lm.t_touchdown << std::endl
+              << "start_pos: " << lm.start_pos.transpose() << std::endl
+              << "end_pos: " << lm.end_pos.transpose() << std::endl;
+
+}

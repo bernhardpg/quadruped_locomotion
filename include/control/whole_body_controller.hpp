@@ -32,7 +32,7 @@ namespace control
 			bool print_frequency_ = false;
 
 			ros::NodeHandle ros_node_;
-			std::string model_name_;
+			const std::string model_name_ = "anymal";
 
 			Dynamics robot_dynamics_;
 

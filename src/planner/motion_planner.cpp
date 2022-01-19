@@ -9,29 +9,55 @@ MotionPlanner::MotionPlanner()
 	gait_sequence_ = CreateCrawlSequence();
 }
 
+bool MotionPlanner::IsReady()
+{
+	return received_first_state_msg_;
+}
+
+// TODO: For now, this assumes that we always start at the first gait step
 void MotionPlanner::GenerateTrajectory()
 {
-	// TODO: Remember to update robot dynamcis with gen coords
-	robot_dynamics_.SetStateDefault();
+	curr_2d_pos_ = q_.block<k2D,1>(kQuatSize,0);
+
+	assert(received_first_state_msg_ == true);
+	robot_dynamics_.SetState(q_,u_);
+
+	GenerateLegsPlan();
+	GenerateBasePlan();
+	start_time_ = ros::Time::now();
+}
+
+void MotionPlanner::GenerateLegsPlan()
+{
 	Eigen::MatrixXd current_stance =
 		robot_dynamics_.GetStacked2DFootPosInW();
-	// TODO: For now, this assumes that we always start at the first gait step
 
 	leg_planner_.SetGaitSequence(gait_sequence_);
 	leg_planner_.PlanLegsMotion(vel_cmd_, current_stance);
+}
 
+void MotionPlanner::GenerateBasePlan()
+{
 	const int polynomial_degree = 5;
 	const int n_traj_segments = 10; // TODO: move
+
+	base_planner_.SetCurrPos(curr_2d_pos_);
 	base_planner_.SetSupportPolygons(leg_planner_.GetSupportPolygons());
 	base_planner_.PlanBaseMotion(polynomial_degree, n_traj_segments);
 }
 
+void MotionPlanner::PublishMotionCmd(const double time)
+{
+	double seconds_since_start = GetElapsedTimeSince(start_time_);
+	PublishBaseTrajectories(seconds_since_start);
+	PublishLegTrajectories(seconds_since_start);
+}
+
 void MotionPlanner::PublishBaseTrajectories(const double time)
 {
-	double time_rel = std::fmod(time, gait_sequence_.duration); // TODO: these should be replaced with a common time
-	PublishBasePosCmd(time_rel);
-	PublishBaseVelCmd(time_rel);
-	PublishBaseAccCmd(time_rel);
+	PublishBasePosCmd(time);
+	PublishBaseVelCmd(time);
+	PublishBaseAccCmd(time);
 }
 
 void MotionPlanner::PublishBasePosCmd(const double time)
@@ -165,39 +191,39 @@ void MotionPlanner::PublishPolygonVisualizationAtTime(const double time)
 void MotionPlanner::PublishBaseTrajVisualization()
 {
 	visualization_msgs::Marker
-		traj_points, start_end_points, line_strip;
+		traj_points, start_point, line_strip;
 	line_strip.header.frame_id
-		= start_end_points.header.frame_id
+		= start_point.header.frame_id
 		= traj_points.header.frame_id
 		= "world";
 	line_strip.header.stamp
-		= start_end_points.header.stamp
+		= start_point.header.stamp
 		= traj_points.header.stamp
 		= ros::Time::now();
 	line_strip.ns
-		= start_end_points.ns
+		= start_point.ns
 		= traj_points.ns
 		= "trajectory";
 	line_strip.action
-		= start_end_points.action
+		= start_point.action
 		= traj_points.action
 		= visualization_msgs::Marker::ADD;
 	line_strip.pose.orientation.w
-		= start_end_points.pose.orientation.w
+		= start_point.pose.orientation.w
 		= traj_points.pose.orientation.w
 		= 1.0; // Set no rotation: The rest set to 0 by initialization
 	line_strip.id = 0;
-	start_end_points.id = 1;
+	start_point.id = 1;
 	traj_points.id = 2;
 	line_strip.type = visualization_msgs::Marker::LINE_STRIP;
-	start_end_points.type = visualization_msgs::Marker::POINTS;
+	start_point.type = visualization_msgs::Marker::POINTS;
 	traj_points.type = visualization_msgs::Marker::POINTS;
 
 	// Configure figure
-	start_end_points.scale.x = 0.05;
-  start_end_points.scale.y = 0.05;
-	start_end_points.color.r = 1.0;
-	start_end_points.color.a = 1.0;
+	start_point.scale.x = 0.05;
+  start_point.scale.y = 0.05;
+	start_point.color.r = 1.0;
+	start_point.color.a = 1.0;
 
   traj_points.scale.x = 0.02;
   traj_points.scale.y = 0.02;
@@ -210,12 +236,9 @@ void MotionPlanner::PublishBaseTrajVisualization()
 
 	// Publish initial and final point
 	geometry_msgs::Point p;
-	p.x = pos_initial_(0);
-	p.y = pos_initial_(1);
-	start_end_points.points.push_back(p);
-	p.x = pos_final_(0);
-	p.y = pos_final_(1);
-	start_end_points.points.push_back(p);
+	p.x = curr_2d_pos_(0);
+	p.y = curr_2d_pos_(1);
+	start_point.points.push_back(p);
 
 	const int n_traj_segments = base_planner_.GetNumTrajSegments();
 
@@ -246,7 +269,7 @@ void MotionPlanner::PublishBaseTrajVisualization()
 
 	visualize_base_traj_pub_.publish(line_strip);
 	visualize_base_traj_pub_.publish(traj_points);
-	visualize_base_traj_pub_.publish(start_end_points);
+	visualize_base_traj_pub_.publish(start_point);
 }
 
 void MotionPlanner::PublishLegTrajectoriesVisualization()
@@ -295,6 +318,7 @@ void MotionPlanner::InitRos()
 	SetupVisualizationTopics();
 	SetupBaseCmdTopics();
 	SetupLegCmdTopics();
+	SetupStateSubscription();
 }
 
 void MotionPlanner::SetupBaseCmdTopics()
@@ -346,6 +370,51 @@ void MotionPlanner::SetupLegCmdTopics()
 		("legs_acc_cmd", 10);
 }
 
+void MotionPlanner::SetupStateSubscription()
+{
+	gen_coord_sub_ = ros_node_
+		.subscribe<std_msgs::Float64MultiArray>(
+			"/" + model_name_ + "/gen_coord",
+			1,
+			boost::bind(&MotionPlanner::OnGenCoordMsg, this, _1)
+			);
+
+	gen_vel_sub_ = ros_node_
+		.subscribe<std_msgs::Float64MultiArray>(
+			"/" + model_name_ + "/gen_vel",
+			1,
+			boost::bind(&MotionPlanner::OnGenVelMsg, this, _1)
+			);
+}
+
+void MotionPlanner::OnGenCoordMsg(
+		const std_msgs::Float64MultiArrayConstPtr &msg
+		)
+{
+	received_first_state_msg_ = true;
+	SetGenCoords(msg->data);
+}
+
+void MotionPlanner::OnGenVelMsg(
+		const std_msgs::Float64MultiArrayConstPtr &msg
+		)
+{
+	received_first_state_msg_ = true;
+	SetGenVels(msg->data);
+}
+
+void MotionPlanner::SetGenCoords(const std::vector<double> &gen_coords)
+{
+	for (int i = 0; i < kNumGenCoords; ++i)
+		q_(i) = gen_coords[i];
+}
+
+void MotionPlanner::SetGenVels(const std::vector<double> &gen_vels)
+{
+	for (int i = 0; i < 18; ++i)
+		u_(i) = gen_vels[i];
+}
+
 // ******************* //
 // GAIT AND TRAJECTORY //
 // ******************* //
@@ -370,19 +439,36 @@ GaitSequence MotionPlanner::CreateCrawlSequence()
 	return crawl_gait;
 }
 
+// **************** //
+// HELPER FUNCTIONS //
+// **************** //
+
+double MotionPlanner::GetElapsedTimeSince(ros::Time t)
+{
+	double elapsed_time = (ros::Time::now() - t).toSec();
+	return elapsed_time; 
+}
+
 int main( int argc, char** argv )
 {
   ros::init(argc, argv, "motion_planner");
 	MotionPlanner motion_planner;
-	motion_planner.GenerateTrajectory();
+	ROS_INFO("Running motion planner");
 
-  ros::Rate r(30);
+  ros::Rate loop_rate(30);
   while (ros::ok())
   {
+		ros::spinOnce(); // fetch messages
+
+		if (!motion_planner.IsReady()) continue;
+		ROS_INFO("Generating new motion plan");
+		
 		const double time = ros::Time::now().toSec();
-		motion_planner.PublishLegTrajectories(time);
-		motion_planner.PublishBaseTrajectories(time);
+		motion_planner.GenerateTrajectory();
+		motion_planner.PublishMotionCmd(time);
 		motion_planner.PublishVisualization(time);
-    r.sleep();
+
+		ros::spinOnce(); // publish messages
+    loop_rate.sleep();
   }
 }

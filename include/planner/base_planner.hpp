@@ -21,6 +21,7 @@ class BasePlanner
 		void SetSupportPolygons(
 				const std::vector<std::vector<Eigen::Vector2d>> &support_polygons
 				);
+		void SetCurrPos(const Eigen::Vector2d &curr_pos);
 
 		Eigen::VectorXd EvalBasePosAtT(const double t);
 		Eigen::VectorXd EvalBaseVelAtT(const double t);
@@ -38,8 +39,7 @@ class BasePlanner
 		int n_traj_segments_;
 		const int traj_dimension_ = k2D;
 
-		Eigen::Vector2d pos_initial_;
-		Eigen::Vector2d pos_final_;
+		Eigen::Vector2d curr_2d_pos_;
 		std::vector<std::vector<Eigen::Vector2d>> support_polygons_;
 
 		polynomial_matrix_t polynomials_pos_;
@@ -62,7 +62,7 @@ class BasePlanner
 		// OPTIMIZATION PROBLEM //
 		// ******************** //
 
-		drake::solvers::MathematicalProgram prog_;
+		std::unique_ptr<drake::solvers::MathematicalProgram> prog_;
 		drake::solvers::MathematicalProgramResult result_;
 		std::vector<symbolic_matrix_t> coeffs_;
 
@@ -75,6 +75,7 @@ class BasePlanner
 		symbolic_matrix_t T_ddot_;
 
 		void FormulateOptimizationProblem();
+		void CreateNewMathProg();
 		void InitMonomials();
 		void InitDecisionVariables();
 		void AddAccelerationCost();

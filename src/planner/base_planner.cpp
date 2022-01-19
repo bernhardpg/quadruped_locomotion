@@ -18,6 +18,11 @@ void BasePlanner::SetSupportPolygons(
 	support_polygons_ = support_polygons;
 }
 
+void BasePlanner::SetCurrPos(const Eigen::Vector2d &curr_2d_pos)
+{
+	curr_2d_pos_ = curr_2d_pos;
+}
+
 Eigen::VectorXd BasePlanner::EvalBasePosAtT(const double t)
 {
 	return EvalBaseTrajAtT(t, 0);
@@ -124,8 +129,27 @@ Eigen::VectorXd BasePlanner::EvalBaseTrajAtT(
 // OPTIMIZATION PROBLEM //
 // ******************** //
 
+void BasePlanner::GenerateTrajectory()
+{
+	SolveOptimization();
+	GeneratePolynomialsFromSolution();
+}
+
+void BasePlanner::SolveOptimization()
+{
+	result_ = drake::solvers::Solve(*prog_);
+	// TODO: Currently this is calling SNOPT, but the program is quadratic.
+
+//	ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
+//		<< "\nFound solution: " << result_.is_success()
+//		<< "\nSolution result: " << result_.get_solution_result()
+//		<< std::endl);
+	assert(result_.is_success());
+}
+
 void BasePlanner::FormulateOptimizationProblem()
 {
+	CreateNewMathProg();
 	InitDecisionVariables();
 	InitMonomials();
 	AddAccelerationCost();
@@ -135,20 +159,28 @@ void BasePlanner::FormulateOptimizationProblem()
 	// TODO: Implement
 }
 
-void BasePlanner::GenerateTrajectory()
+void BasePlanner::CreateNewMathProg()
 {
-	SolveOptimization();
-	GeneratePolynomialsFromSolution();
+	prog_ = std::unique_ptr<drake::solvers::MathematicalProgram>(
+			new drake::solvers::MathematicalProgram
+			);
 }
 
-void BasePlanner::SolveOptimization()
+void BasePlanner::InitDecisionVariables()
 {
-	result_ = drake::solvers::Solve(prog_);
-//	ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
-//		<< "\nFound solution: " << result_.is_success()
-//		<< "\nSolution result: " << result_.get_solution_result()
-//		<< std::endl);
-	assert(result_.is_success());
+	// traj is defined as p = p(t_)
+	t_ = prog_->NewIndeterminates(1, 1, "t")(0,0);
+
+	// Construct coefficients
+	coeffs_.clear();
+	for (int k = 0; k < n_traj_segments_; ++k)
+	{
+		auto coeffs_at_k = prog_->NewContinuousVariables(
+				traj_dimension_, polynomial_degree_ + 1, "C"
+				);
+
+		coeffs_.push_back(coeffs_at_k);
+	}
 }
 
 void BasePlanner::InitMonomials()
@@ -161,22 +193,6 @@ void BasePlanner::InitMonomials()
 	}
 	m_dot_ = drake::symbolic::Jacobian(m_, {t_});
 	m_ddot_ = drake::symbolic::Jacobian(m_dot_, {t_});
-}
-
-void BasePlanner::InitDecisionVariables()
-{
-	// traj is defined as p = p(t_)
-	t_ = prog_.NewIndeterminates(1, 1, "t")(0,0);
-
-	// Construct coefficients
-	for (int k = 0; k < n_traj_segments_; ++k)
-	{
-		auto coeffs_at_k = prog_.NewContinuousVariables(
-				traj_dimension_, polynomial_degree_ + 1, "C"
-				);
-
-		coeffs_.push_back(coeffs_at_k);
-	}
 }
 
 void BasePlanner::AddAccelerationCost()
@@ -193,15 +209,14 @@ void BasePlanner::AddAccelerationCost()
 				.cast <drake::symbolic::Expression>();
 			symbolic_matrix_t Q = T_ddot.transpose() * T_ddot;
 
-			auto coeffs_test = coeffs_[k];
 			Eigen::Map<symbolic_vector_t> alpha(
-					coeffs_test.data(), coeffs_test.size()
+					coeffs_[k].data(), coeffs_[k].size()
 					);
 
 			drake::symbolic::Expression cost_at_t =
 				dt * alpha.transpose() * Q * alpha;
 
-			prog_.AddQuadraticCost(cost_at_t);
+			prog_->AddQuadraticCost(cost_at_t);
 		}
 	}
 }
@@ -210,11 +225,11 @@ void BasePlanner::AddContinuityConstraints()
 {
 	for (int k = 0; k < n_traj_segments_ - 1; ++k)
 	{
-		prog_.AddLinearConstraint(
+		prog_->AddLinearConstraint(
 				GetPosExpressionAtT(1, k).array()
 				== GetPosExpressionAtT(0, k + 1).array()
 				);
-		prog_.AddLinearConstraint(
+		prog_->AddLinearConstraint(
 				GetVelExpressionAtT(1, k).array()
 				== GetVelExpressionAtT(0, k + 1).array()
 				);
@@ -223,16 +238,18 @@ void BasePlanner::AddContinuityConstraints()
 
 void BasePlanner::AddInitialAndFinalConstraint()
 {
-	pos_initial_ = GetPolygonCentroid(support_polygons_[0]);
-	pos_final_ = GetPolygonCentroid(support_polygons_.back());
-
-	prog_.AddLinearConstraint(
-			GetPosExpressionAtT(0, 0).array()
-			== pos_initial_.array()
+	Eigen::Vector2d pos_final_desired = GetPolygonCentroid(
+			support_polygons_.back()
 			);
-	prog_.AddLinearConstraint(
-			GetPosExpressionAtT(1, n_traj_segments_ - 1).array()
-			== pos_final_.array()
+	symbolic_vector_t pos_initial_expr = GetPosExpressionAtT(0, 0);
+	symbolic_vector_t pos_final_expr =
+		GetPosExpressionAtT(1, n_traj_segments_ - 1);
+
+	prog_->AddLinearConstraint(
+			pos_initial_expr.array() == curr_2d_pos_.array()
+			);
+	prog_->AddLinearConstraint(
+			pos_final_expr.array() == pos_final_desired.array()
 			);
 }
 

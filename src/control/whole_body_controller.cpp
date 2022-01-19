@@ -5,7 +5,6 @@ namespace control {
 		: loop_rate_(frequency)
 	{
 		ROS_INFO("Running controller at %d Hz", frequency);
-		model_name_ = "anymal"; // TODO: Replace with node argument
 		
 		SetVariablesToZero();
 
@@ -24,15 +23,15 @@ namespace control {
 
 	WholeBodyController::~WholeBodyController()
 	{
-			ros_node_.shutdown();
+		ros_node_.shutdown();
 
-			ros_process_queue_.clear();
-			ros_process_queue_.disable();
-			ros_process_queue_thread_.join();
+		ros_process_queue_.clear();
+		ros_process_queue_.disable();
+		ros_process_queue_thread_.join();
 
-			ros_publish_queue_.clear();
-			ros_publish_queue_.disable();
-			ros_publish_queue_thread_.join();
+		ros_publish_queue_.clear();
+		ros_publish_queue_.disable();
+		ros_publish_queue_thread_.join();
 	}
 
 	// **************** //
