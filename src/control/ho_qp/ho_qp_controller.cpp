@@ -24,28 +24,42 @@ namespace control
 	}
 
 	void HoQpController::SetBaseCmd(
-			Eigen::VectorXd r_cmd,
-			Eigen::VectorXd r_dot_cmd,
-			Eigen::VectorXd r_ddot_cmd
+			Eigen::VectorXd base_cmd,
+			Eigen::VectorXd base_dot_cmd,
+			Eigen::VectorXd base_ddot_cmd
 			)
 	{
-		r_cmd_ = r_cmd; 
-		r_dot_cmd_ = r_dot_cmd;
-		r_ddot_cmd_ = r_ddot_cmd;
+		base_cmd_ = base_cmd; 
+		base_dot_cmd_ = base_dot_cmd;
+		base_ddot_cmd_ = base_ddot_cmd;
 	}
 
 	void HoQpController::SetLegCmd(
-			Eigen::VectorXd r_c_cmd,
-			Eigen::VectorXd r_c_dot_cmd,
-			Eigen::VectorXd r_c_ddot_cmd,
-			std::vector<int> legs_in_contact
+			Eigen::VectorXd leg_cmd,
+			Eigen::VectorXd leg_dot_cmd,
+			Eigen::VectorXd leg_ddot_cmd,
+			Eigen::VectorXd contact_pattern_cmd
 			)
 	{
-		r_c_cmd_ = r_c_cmd;
-		r_c_dot_cmd_ = r_c_dot_cmd;
-		r_c_ddot_cmd_ = r_c_ddot_cmd;
-		legs_in_contact_ = legs_in_contact;
-		num_contacts_ = legs_in_contact_.size();
+		contact_legs_ = GetContactLegs(contact_pattern_cmd);
+		num_contacts_ = contact_legs_.size();
+
+		swing_legs_ = GetSwingLegs(contact_pattern_cmd);
+		num_swing_legs_ = swing_legs_.size();
+
+		swing_leg_cmd_ = GetSwingLegCmd(
+				leg_cmd, swing_legs_, num_swing_legs_
+				);
+		swing_leg_dot_cmd_ = GetSwingLegCmd(
+				leg_dot_cmd, swing_legs_, num_swing_legs_
+				);
+		swing_leg_ddot_cmd_ = GetSwingLegCmd(
+				leg_ddot_cmd, swing_legs_, num_swing_legs_
+				);
+
+		// TODO remove
+		assert(swing_leg_cmd_.rows() == k3D * num_swing_legs_);
+
 		num_decision_vars_ = kNumGenVels + k3D * num_contacts_;
 	}
 
@@ -86,8 +100,12 @@ namespace control
 		c_ = robot_dynamics_.GetBiasVector();
 		c_j_ = GetJointRows(c_);
 
-		J_c_ = robot_dynamics_.GetStackedContactJacobianInW(legs_in_contact_);
-		J_c_dot_u_ = robot_dynamics_.GetStackedContactAccInW(legs_in_contact_);
+		J_c_ = robot_dynamics_.GetStackedContactJacobianInW(contact_legs_);
+		J_c_dot_u_ = robot_dynamics_.GetStackedContactAccInW(contact_legs_);
+
+		J_swing_ =
+			robot_dynamics_.GetStackedContactJacobianInW(swing_legs_);
+
 		Eigen::MatrixXd J_c_t = J_c_.transpose();
 		J_c_j_t_ = GetJointRows(J_c_t);
 
@@ -144,8 +162,13 @@ namespace control
 			ConstructBasePosTrajTask(q,u);
 		TaskDefinition base_rot_traj_task =
 			ConstructBaseRotTrajTask(q,u);
-		TaskDefinition base_traj_task = 
-			ConcatenateTasks(base_pos_traj_task, base_rot_traj_task);
+		TaskDefinition swing_leg_task =
+			ConstructSwingLegTask(q,u);
+
+		std::vector<TaskDefinition> tracking_tasks = {
+			base_pos_traj_task, base_rot_traj_task, swing_leg_task
+		};
+		TaskDefinition tracking_task = ConcatenateTasks(tracking_tasks);
 
 		TaskDefinition force_min_task = ConstructForceMinimizationTask();
 		//TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
@@ -154,11 +177,32 @@ namespace control
 			fb_eom_task,
 			joint_torque_and_friction_task,
 			no_contact_motion_task,
-			base_traj_task,
+			tracking_task,
 			force_min_task
 		};
 
 		return tasks;
+	}
+
+	TaskDefinition HoQpController::ConstructSwingLegTask(
+			const Eigen::VectorXd &q, const Eigen::VectorXd &u 
+			)
+	{
+		// TODO: move to member variables
+		const double k_p = 1.0;
+		const double k_v = 1.0;
+
+		Eigen::VectorXd swing_leg_pos =
+			robot_dynamics_.GetStackedFootPosInW(swing_legs_);
+
+		Eigen::VectorXd swing_leg_vel = J_swing_ * u;
+
+		Eigen::VectorXd swing_cmd = swing_leg_ddot_cmd_
+			+ k_p * (swing_leg_cmd_ - swing_leg_pos)
+			+ k_v * (swing_leg_dot_cmd_ - swing_leg_vel);
+
+		TaskDefinition swing_leg_task;
+		return swing_leg_task;
 	}
 
 	TaskDefinition HoQpController::ConstructBasePosTrajTask(
@@ -166,11 +210,11 @@ namespace control
 			)
 	{
 		// TODO: rename these
-		const Eigen::VectorXd r_IB_I = q.block(kQuatSize,0,k3D,1);
-		const Eigen::VectorXd v_IB_I = u.block(k3D,0,k3D,1);
+		const Eigen::VectorXd base_pos = q.block(kQuatSize,0,k3D,1);
+		const Eigen::VectorXd base_vel = u.block(k3D,0,k3D,1);
 
-		double k_pos = 1.0;
-		double k_vel = 1.0;
+		const double k_pos = 1.0;
+		const double k_vel = 1.0;
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
@@ -180,10 +224,12 @@ namespace control
 		Eigen::MatrixXd A(J_b_pos_.rows(), num_decision_vars_);
 		A << J_b_pos_, zero;
 
+		const Eigen::VectorXd cmd = base_ddot_cmd_
+			+ k_vel * (base_dot_cmd_ - base_vel);
+			+ k_pos * (base_cmd_ - base_pos);
+
 		Eigen::VectorXd b(J_b_pos_.rows());
-		b << r_ddot_cmd_
-			+ k_vel * (r_dot_cmd_ - v_IB_I);
-			+ k_pos * (r_cmd_ - r_IB_I);
+		b << cmd;
 
 		std::cout << "base error:\n";
 		PrintMatrix(b.transpose());
@@ -213,8 +259,12 @@ namespace control
 		Eigen::MatrixXd A(J_b_rot_.rows(), num_decision_vars_);
 		A << J_b_rot_, zero;
 
+		const Eigen::VectorXd cmd =
+			k_vel * (wd_IB - w_IB);  // TODO: implement quaternion error here
+
 		Eigen::VectorXd b(J_b_pos_.rows());
-		b << k_vel * (wd_IB - w_IB);  // TODO: implement quaternion error here
+		b << cmd;
+			
 		std::cout << "base rotation error:\n";
 		PrintMatrix(b.transpose());
 
@@ -262,7 +312,7 @@ namespace control
 		{
 			D.block<num_constraints_per_leg,k3D>
 				(i * num_constraints_per_leg,
-				 kNumTwistCoords + legs_in_contact_[i] * k3D)
+				 kNumTwistCoords + contact_legs_[i] * k3D)
 				= friction_pyramic_constraint;
 		}
 		Eigen::VectorXd f = Eigen::VectorXd::Zero(D.rows());
@@ -363,5 +413,47 @@ namespace control
 		Derived m_j
 			= m.block(kNumTwistCoords,0,kNumJoints,m.cols());
 		return m_j;
+	}
+
+	std::vector<int> HoQpController::GetContactLegs(
+			const Eigen::VectorXd &contact_pattern
+			)
+	{
+		std::vector<int> contact_legs;
+		for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+		{
+			if (contact_pattern[leg_i] == 1)
+				contact_legs.push_back(leg_i);
+		}
+		return contact_legs;
+	}
+
+	std::vector<int> HoQpController::GetSwingLegs(
+			const Eigen::VectorXd &contact_pattern
+			)
+	{
+		std::vector<int> swing_legs;
+		for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
+		{
+			if (contact_pattern[leg_i] == 0)
+				swing_legs.push_back(leg_i);
+		}
+		return swing_legs;
+	}
+
+	Eigen::VectorXd HoQpController::GetSwingLegCmd(
+			const Eigen::VectorXd &legs_cmd,
+			const std::vector<int> &swing_legs,
+			const int num_swing_legs
+			)
+	{
+		Eigen::VectorXd swing_legs_cmd(num_swing_legs * k3D);
+		for (int i = 0; i < num_swing_legs_; ++i)
+		{
+			auto swing_leg_cmd =
+				legs_cmd.block<k3D,1>(k3D * swing_legs[i],0);
+			swing_legs_cmd.block<k3D,1>(k3D * i,0) = swing_leg_cmd;
+		}
+		return swing_legs_cmd;
 	}
 }

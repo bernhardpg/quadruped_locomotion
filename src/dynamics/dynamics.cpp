@@ -136,20 +136,40 @@ Eigen::VectorXd Dynamics::GetFootPosInW(int foot_i)
 	return pose.translation();
 }
 
-Eigen::MatrixXd Dynamics::GetStackedFootPosInW()
+Eigen::VectorXd Dynamics::GetStackedFootPosInW(
+		const std::vector<int> &feet
+		)
 {
-	Eigen::MatrixXd stacked_foot_pos(k3D, kNumLegs);
-	for (int foot_i = 0; foot_i < kNumLegs; ++foot_i)
+	const int num_feet = feet.size();
+	Eigen::VectorXd stacked_foot_pos(k3D * num_feet);
+	for (int i = 0; i < num_feet; ++i)
 	{
-		stacked_foot_pos.col(foot_i) = GetFootPosInW(foot_i);
+		stacked_foot_pos.block<k3D,1>(i * k3D,0) =
+			GetFootPosInW(feet[i]);
 	}
 
 	return stacked_foot_pos;
 }
 
-Eigen::MatrixXd Dynamics::GetStacked2DFootPosInW()
+Eigen::MatrixXd Dynamics::GetHorisontallyStackedFootPosInW(
+		const std::vector<int> &feet
+		)
 {
-	return GetStackedFootPosInW().topRows(2);
+	const int num_feet = feet.size();
+	Eigen::MatrixXd stacked_foot_pos(k3D, num_feet);
+	for (int i = 0; i < num_feet; ++i)
+	{
+		stacked_foot_pos.col(i) = GetFootPosInW(feet[i]);
+	}
+
+	return stacked_foot_pos;
+}
+
+Eigen::MatrixXd Dynamics::GetStacked2DFootPosInW(
+		const std::vector<int> &feet
+		)
+{
+	return GetHorisontallyStackedFootPosInW(feet).topRows(2);
 }
 
 // *********************** //

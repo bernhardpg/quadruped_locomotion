@@ -47,8 +47,18 @@ class Dynamics
 		// ****************** //
 
 		Eigen::VectorXd GetFootPosInW(int foot_i);
-		Eigen::MatrixXd GetStackedFootPosInW();
-		Eigen::MatrixXd GetStacked2DFootPosInW();
+
+		// TODO: return vectors stacked vertically instead of horisontally
+		// TODO: Currently, these two functions are doing the exact same thing. Decide on one representation (vectors) and stick with it!
+		Eigen::VectorXd GetStackedFootPosInW(
+				const std::vector<int> &feet
+				);
+		Eigen::MatrixXd GetHorisontallyStackedFootPosInW(
+				const std::vector<int> &feet
+				);
+		Eigen::MatrixXd GetStacked2DFootPosInW(
+				const std::vector<int> &feet
+				);
 
 		// *********************** //
 		// DIFFERENTIAL KINEMATICS // 

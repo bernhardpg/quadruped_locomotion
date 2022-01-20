@@ -35,7 +35,7 @@ class LegPlanner
 		Eigen::VectorXd GetLegPosAtT(const double time, const int leg_i);
 
 		Eigen::VectorXd GetAllLegsContact();
-		Eigen::VectorXd GetLegsInContactAtT(const double time);
+		Eigen::VectorXd GetContactPatternAtT(const double time);
 		Eigen::VectorXd GetStackedLegPosAtT(const double time);
 		Eigen::VectorXd GetStackedLegVelAtT(const double time);
 		Eigen::VectorXd GetStackedLegAccAtT(const double time);

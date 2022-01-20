@@ -11,7 +11,7 @@ struct TaskDefinition
 };
 
 TaskDefinition ConcatenateTasks(
-		TaskDefinition t1, TaskDefinition t2
+		const TaskDefinition &t1, const TaskDefinition &t2
 		)
 {
 	Eigen::MatrixXd A_concat = 
@@ -28,3 +28,15 @@ TaskDefinition ConcatenateTasks(
 	
 	return res;
 }
+
+TaskDefinition ConcatenateTasks(
+		const std::vector<TaskDefinition> &tasks
+		)
+{
+	TaskDefinition res = tasks[0];
+	for (int i = 1; i < tasks.size(); ++i)
+		res = ConcatenateTasks(res,tasks[i]);
+	
+	return res;
+}
+

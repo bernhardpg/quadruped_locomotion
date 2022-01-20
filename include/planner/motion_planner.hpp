@@ -47,7 +47,7 @@ class MotionPlanner
 		ros::Publisher visualize_leg_traj_pub_; 
 		ros::Publisher visualize_polygons_pub_; 
 
-		ros::Publisher legs_in_contact_pub_; 
+		ros::Publisher contact_pattern_pub_; 
 		ros::Publisher legs_pos_cmd_pub_; 
 		ros::Publisher legs_vel_cmd_pub_; 
 		ros::Publisher legs_acc_cmd_pub_; 
@@ -115,7 +115,7 @@ class MotionPlanner
 		Eigen::VectorXd legs_pos_cmd_;
 		Eigen::VectorXd legs_vel_cmd_;
 		Eigen::VectorXd legs_acc_cmd_;
-		Eigen::VectorXd legs_in_contact_cmd_;
+		Eigen::VectorXd contact_pattern_cmd_;
 
 		Eigen::VectorXd base_pos_cmd_;
 		Eigen::VectorXd base_vel_cmd_;
@@ -143,7 +143,7 @@ class MotionPlanner
 		void PublishBaseAccCmd();
 
 		void PublishLegTrajectories();
-		void PublishLegsInContact();
+		void PublishContactPattern();
 		void PublishLegPosCmd();
 		void PublishLegVelCmd();
 		void PublishLegAccCmd();

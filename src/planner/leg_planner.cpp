@@ -53,7 +53,7 @@ Eigen::VectorXd LegPlanner::GetLegPosAtT(
 	return EvalLegPosAtT(time, leg_i);
 }
 
-Eigen::VectorXd LegPlanner::GetLegsInContactAtT(const double time)
+Eigen::VectorXd LegPlanner::GetContactPatternAtT(const double time)
 {
 	int i = GetGaitStepFromTime(time);
 	return gait_sequence_.contact_schedule.col(i);

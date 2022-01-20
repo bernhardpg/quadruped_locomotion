@@ -54,7 +54,7 @@ void MotionPlanner::UpdateStandupCmd(const double time)
 	base_pos_cmd_ = base_planner_.EvalStandupPosTrajAtT(time);
 	base_vel_cmd_ = base_planner_.EvalStandupVelTrajAtT(time);
 	base_acc_cmd_ = base_planner_.EvalStandupAccTrajAtT(time);
-	legs_in_contact_cmd_ = leg_planner_.GetAllLegsContact();
+	contact_pattern_cmd_ = leg_planner_.GetAllLegsContact();
 }
 
 void MotionPlanner::UpdateWalkCmd(const double time)
@@ -76,7 +76,7 @@ void MotionPlanner::UpdateWalkLegCmd(const double time)
 	legs_pos_cmd_ = leg_planner_.GetStackedLegPosAtT(time);
 	legs_vel_cmd_ = leg_planner_.GetStackedLegVelAtT(time);
 	legs_acc_cmd_ = leg_planner_.GetStackedLegAccAtT(time);
-	legs_in_contact_cmd_ = leg_planner_.GetLegsInContactAtT(time);
+	contact_pattern_cmd_ = leg_planner_.GetContactPatternAtT(time);
 }
 
 // ****************** //
@@ -122,7 +122,7 @@ void MotionPlanner::PublishLegTrajectories()
 	PublishLegPosCmd();
 	PublishLegVelCmd();
 	PublishLegAccCmd();
-	PublishLegsInContact();
+	PublishContactPattern();
 }
 
 void MotionPlanner::PublishLegPosCmd()
@@ -146,11 +146,11 @@ void MotionPlanner::PublishLegAccCmd()
 	legs_acc_cmd_pub_.publish(legs_acc_cmd_msg);
 }
 
-void MotionPlanner::PublishLegsInContact()
+void MotionPlanner::PublishContactPattern()
 {
-	std_msgs::Float64MultiArray legs_in_contact_msg;
-	tf::matrixEigenToMsg(legs_in_contact_cmd_, legs_in_contact_msg);
-	legs_in_contact_pub_.publish(legs_in_contact_msg);
+	std_msgs::Float64MultiArray contact_pattern_msg;
+	tf::matrixEigenToMsg(contact_pattern_cmd_, contact_pattern_msg);
+	contact_pattern_pub_.publish(contact_pattern_msg);
 }
 
 // ************* //
@@ -412,7 +412,7 @@ void MotionPlanner::SetupVisualizationTopics()
 
 void MotionPlanner::SetupLegCmdTopics()
 {
-  legs_in_contact_pub_ =
+  contact_pattern_pub_ =
 		ros_node_.advertise<std_msgs::Float64MultiArray>
 		("legs_contact_cmd", 10);
 
@@ -527,8 +527,8 @@ void MotionPlanner::InitCmdVariables()
 	legs_vel_cmd_.resize(k3D * kNumLegs);
 	legs_vel_cmd_.setZero();
 	legs_acc_cmd_.resize(k3D * kNumLegs);
-	legs_in_contact_cmd_.resize(kNumLegs);
-	legs_in_contact_cmd_.setZero();
+	contact_pattern_cmd_.resize(kNumLegs);
+	contact_pattern_cmd_.setZero();
 }
  
 
@@ -554,8 +554,10 @@ GaitSequence MotionPlanner::CreateCrawlSequence()
 
 void MotionPlanner::GenerateWalkLegsPlan()
 {
+	// TODO: remove
+	const std::vector<int> all_feet = {0,1,2,3};
 	Eigen::MatrixXd current_stance =
-		robot_dynamics_.GetStacked2DFootPosInW();
+		robot_dynamics_.GetStacked2DFootPosInW(all_feet);
 
 	leg_planner_.SetGaitSequence(gait_sequence_);
 	leg_planner_.PlanLegsMotion(vel_cmd_, current_stance);

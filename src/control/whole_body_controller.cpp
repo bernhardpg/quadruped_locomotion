@@ -61,8 +61,6 @@ namespace control {
 
 	void WholeBodyController::SetControlMode(ControlMode target_mode)
 	{
-		assert(target_mode != control_mode_);
-		
 		switch(target_mode)
 		{
 			case kJointTracking:
@@ -101,7 +99,7 @@ namespace control {
 							);
 					ho_qp_controller_.SetLegCmd(
 							r_c_cmd_, r_c_dot_cmd_, r_c_ddot_cmd_,
-							legs_in_contact_cmd_
+							contact_pattern_cmd_
 							);
 					ho_qp_controller_.CalcJointCmd(q_,u_);
 					q_j_ddot_cmd_ = ho_qp_controller_.GetJointAccelerationCmd();
@@ -518,15 +516,8 @@ namespace control {
 			const std::vector<double> &leg_contact_cmd
 			)
 	{
-		// TODO: this conversion should happen elsewhere
-		legs_in_contact_cmd_.clear();
 		for (int leg_i = 0; leg_i < kNumLegs; ++leg_i)
-		{
-			if (leg_contact_cmd[leg_i] == 1)
-			{
-				legs_in_contact_cmd_.push_back(leg_i);
-			}
-		}
+			contact_pattern_cmd_(leg_i) = leg_contact_cmd[leg_i];
 	}
 
 	// **************** //
@@ -585,8 +576,8 @@ namespace control {
 
 	void WholeBodyController::SetZeroLegCmdMotion()
 	{
-		legs_in_contact_cmd_.clear();
-		legs_in_contact_cmd_ = {0,1,2,3};
+		// all legs in contact by default
+		contact_pattern_cmd_ = Eigen::VectorXd::Ones(kNumLegs);
 
 		r_c_cmd_.resize(k3D * kNumLegs);
 		r_c_cmd_.setZero();

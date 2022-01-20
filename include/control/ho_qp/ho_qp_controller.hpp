@@ -29,15 +29,15 @@ namespace control
 					Eigen::Matrix<double,kNumGenVels, 1> u
 					);
 			void SetBaseCmd(
-					Eigen::VectorXd r_cmd,
-					Eigen::VectorXd r_dot_cmd,
-					Eigen::VectorXd r_ddot_cmd
+					Eigen::VectorXd base_cmd,
+					Eigen::VectorXd base_dot_cmd,
+					Eigen::VectorXd base_ddot_cmd
 					);
 			void SetLegCmd(
-					Eigen::VectorXd r_c_cmd,
-					Eigen::VectorXd r_c_dot_cmd,
-					Eigen::VectorXd r_c_ddot_cmd,
-					std::vector<int> legs_in_contact
+					Eigen::VectorXd swing_leg_cmd,
+					Eigen::VectorXd swing_leg_dot_cmd,
+					Eigen::VectorXd swing_leg_ddot_cmd,
+					Eigen::VectorXd legs_in_contact_cmd
 					);
 
 			Eigen::VectorXd GetJointAccelerationCmd();
@@ -70,6 +70,7 @@ namespace control
 			Eigen::MatrixXd J_c_;
 			Eigen::MatrixXd J_c_j_t_;
 			Eigen::VectorXd J_c_dot_u_;
+			Eigen::MatrixXd J_swing_;
 			Eigen::MatrixXd J_b_pos_;
 			Eigen::MatrixXd J_b_rot_;
 
@@ -82,16 +83,18 @@ namespace control
 			// ********** //
 			// CONTROLLER // 
 			// ********** //
-			Eigen::VectorXd r_cmd_;
-			Eigen::VectorXd r_dot_cmd_;
-			Eigen::VectorXd r_ddot_cmd_;
+			Eigen::VectorXd base_cmd_;
+			Eigen::VectorXd base_dot_cmd_;
+			Eigen::VectorXd base_ddot_cmd_;
 
-			Eigen::VectorXd r_c_cmd_;
-			Eigen::VectorXd r_c_dot_cmd_;
-			Eigen::VectorXd r_c_ddot_cmd_;
-			std::vector<int> legs_in_contact_;
+			Eigen::VectorXd swing_leg_cmd_;
+			Eigen::VectorXd swing_leg_dot_cmd_;
+			Eigen::VectorXd swing_leg_ddot_cmd_;
+			std::vector<int> contact_legs_;
+			std::vector<int> swing_legs_;
 			
 			int num_contacts_ = 0;
+			int num_swing_legs_ = 0;
 			int	num_decision_vars_ = 0;
 
 			Eigen::VectorXd solution_;
@@ -120,6 +123,9 @@ namespace control
 			TaskDefinition ConstructBaseRotTrajTask(
 					const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 					);
+			TaskDefinition ConstructSwingLegTask(
+					const Eigen::VectorXd &q, const Eigen::VectorXd &u 
+					);
 			TaskDefinition ConstructForceMinimizationTask();
 			TaskDefinition ConstructJointAccMinimizationTask();
 
@@ -135,22 +141,16 @@ namespace control
 			Derived GetJointRows(
 					const Eigen::DenseBase<Derived> &m
 					);
-
-			// ******* //
-			// TESTING //
-			// ******* //
-
-			void TestEomConstraint();
-			void TestTwoTasksEqFirst(); 
-			void TestTwoTasksIneqFirst();
-			void TestThreeTasks();
-			void TestFourTasks();
-			void TestSingleEqTask();
-
-			Eigen::VectorXd SolveWithLinearProgram(TaskDefinition task);
-			Eigen::VectorXd SolveWithLinearProgram(
-					Eigen::MatrixXd A, Eigen::VectorXd b,
-					Eigen::MatrixXd D, Eigen::VectorXd f
+			std::vector<int> GetContactLegs(
+					const Eigen::VectorXd &contact_pattern
+					);
+			std::vector<int> GetSwingLegs(
+					const Eigen::VectorXd &contact_pattern
+					);
+			Eigen::VectorXd GetSwingLegCmd(
+					const Eigen::VectorXd &legs_cmd,
+					const std::vector<int> &swing_legs,
+					const int num_swing_legs
 					);
 	};
 }

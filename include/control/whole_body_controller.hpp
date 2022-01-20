@@ -65,7 +65,7 @@ namespace control
 			Eigen::VectorXd r_c_cmd_;
 			Eigen::VectorXd r_c_dot_cmd_;
 			Eigen::VectorXd r_c_ddot_cmd_;
-			std::vector<int> legs_in_contact_cmd_;
+			Eigen::VectorXd contact_pattern_cmd_;
 
 			Eigen::VectorXd q_j_;
 			Eigen::VectorXd q_j_dot_;
