@@ -22,14 +22,14 @@
 
 namespace control
 {
-	class WholeBodyController // TODO: Is this really more of a state machine?
+	class WholeBodyController 
 	{
 		public:
 			WholeBodyController(int frequency);
 			~WholeBodyController();
 
 		private:
-			bool print_frequency_ = true;
+			bool print_frequency_ = false;
 
 			ros::NodeHandle ros_node_;
 			const std::string model_name_ = "anymal";

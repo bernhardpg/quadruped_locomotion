@@ -140,30 +140,38 @@ Eigen::VectorXd BasePlanner::EvalWalkTrajAtT(
 		)
 {
 	int traj_segment_index = 0;
-	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
+	while (((double) traj_segment_index + 1 < t)
+			&& (traj_segment_index + 1 < n_traj_segments_))
+		++traj_segment_index;
 
 	double t_in_segment = t - (double) traj_segment_index;
 
-	Eigen::VectorXd traj_value(traj_dimension_);
+	Eigen::VectorXd traj_value_2d(traj_dimension_);
 	drake::symbolic::Environment t_at_t {{t_, t_in_segment}};
 	for (int dim = 0; dim < traj_dimension_; ++dim)
 	{
 		switch(derivative)
 		{
 			case 0:
-				traj_value(dim) = 
+				traj_value_2d(dim) = 
 					polynomials_pos_(dim, traj_segment_index).Evaluate(t_at_t);
 				break;
 			case 1:
-				traj_value(dim) = 
+				traj_value_2d(dim) = 
 					polynomials_vel_(dim, traj_segment_index).Evaluate(t_at_t);
 				break;
 			case 2:
-				traj_value(dim) = 
+				traj_value_2d(dim) = 
 					polynomials_acc_(dim, traj_segment_index).Evaluate(t_at_t);
 				break;
 		}
 	}
+
+	Eigen::VectorXd traj_value(k3D);
+	traj_value <<
+		traj_value_2d(0),
+		traj_value_2d(1),
+		0;
 
 	return traj_value;
 }

@@ -96,7 +96,6 @@ namespace control {
 				break;
 			case kHoQpController:
 				{
-					SetZeroLegCmdMotion(); // TODO: replace this
 					ho_qp_controller_.SetBaseCmd(
 							r_cmd_, r_dot_cmd_, r_ddot_cmd_
 							);

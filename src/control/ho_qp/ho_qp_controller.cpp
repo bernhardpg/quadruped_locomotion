@@ -15,8 +15,8 @@ namespace control
 			opt_problems = ConstructOptProblems(tasks);
 
 		solution_ = opt_problems.back()->GetSolution();
-		std::cout << "contact forces:\n";
-		PrintMatrix(solution_.block<12,1>(kNumGenVels,0).transpose());
+//		std::cout << "contact forces:\n";
+		//PrintMatrix(solution_.block<12,1>(kNumGenVels,0).transpose());
 		std::cout << "q_j_ddot:\n";
 		q_j_ddot_cmd_ = solution_.block<kNumJoints,1>(kNumTwistCoords,0);
 		PrintMatrix(q_j_ddot_cmd_.transpose());
@@ -148,16 +148,14 @@ namespace control
 			ConcatenateTasks(base_pos_traj_task, base_rot_traj_task);
 
 		TaskDefinition force_min_task = ConstructForceMinimizationTask();
-		TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
-
+		//TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
-			//fb_eom_task,
+			fb_eom_task,
 			joint_torque_and_friction_task,
 			no_contact_motion_task,
 			base_traj_task,
-			force_min_task,
-			acc_min_task
+			force_min_task
 		};
 
 		return tasks;
@@ -167,11 +165,12 @@ namespace control
 			const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 			)
 	{
+		// TODO: rename these
 		const Eigen::VectorXd r_IB_I = q.block(kQuatSize,0,k3D,1);
 		const Eigen::VectorXd v_IB_I = u.block(k3D,0,k3D,1);
 
-		double k_pos = 0.0;
-		double k_vel = 1;
+		double k_pos = 1.0;
+		double k_vel = 1.0;
 
 		Eigen::MatrixXd zero = 
 			Eigen::MatrixXd::Zero(
@@ -203,7 +202,7 @@ namespace control
 		Eigen::VectorXd wd_IB(3);
 		wd_IB << 0, 0, 0; // Always try to keep no angular motion
 
-		const double k_pos = 0.5;
+		const double k_pos = 1.0;
 		const double k_vel = 1.0;
 
 		Eigen::MatrixXd zero = 
@@ -216,6 +215,8 @@ namespace control
 
 		Eigen::VectorXd b(J_b_pos_.rows());
 		b << k_vel * (wd_IB - w_IB);  // TODO: implement quaternion error here
+		std::cout << "base rotation error:\n";
+		PrintMatrix(b.transpose());
 
 		TaskDefinition base_rot_traj_task = {.A=A, .b=b};
 		return base_rot_traj_task;

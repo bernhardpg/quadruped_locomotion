@@ -491,8 +491,8 @@ void MotionPlanner::SetRobotMode(RobotMode target_mode)
 				InitCmdVariables();
 				const Eigen::VectorXd curr_pos =
 					q_.block<k3D, 1>(kQuatSize, 0);
-				const double target_height = 0.43;
-				const double time_to_standup = 4.0;
+				const double target_height = 0.2;
+				const double time_to_standup = 2.0;
 				base_planner_.PlanBaseStandupMotion(
 						time_to_standup, target_height, curr_pos
 						);
