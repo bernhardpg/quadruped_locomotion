@@ -209,6 +209,8 @@ std::vector<LegTrajectory> LegPlanner::CreateLegTrajectories(
 drake::trajectories::PiecewisePolynomial<double>
 	LegPlanner::CreateXYLegTrajectory(const LegMotion &leg_motion)
 {
+	assert(leg_motion.t_liftoff < leg_motion.t_touchdown);
+
 	const std::vector<double> breaks = {
 		leg_motion.t_liftoff, leg_motion.t_touchdown
 	};
@@ -227,6 +229,8 @@ drake::trajectories::PiecewisePolynomial<double>
 drake::trajectories::PiecewisePolynomial<double>
 	LegPlanner::CreateZLegTrajectory(const LegMotion &leg_motion)
 {
+	assert(leg_motion.t_liftoff < leg_motion.t_touchdown);
+
 	const double t_apex = leg_motion.t_liftoff + std::abs(
 			leg_motion.t_touchdown - leg_motion.t_liftoff
 			) / 2;

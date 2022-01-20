@@ -15,11 +15,12 @@ namespace control
 			opt_problems = ConstructOptProblems(tasks);
 
 		solution_ = opt_problems.back()->GetSolution();
-//		std::cout << "contact forces:\n";
-		//PrintMatrix(solution_.block<12,1>(kNumGenVels,0).transpose());
-		std::cout << "q_j_ddot:\n";
+		CheckSolutionValid("fb_eom", tasks[0], solution_);
+		CheckSolutionValid("friction and torque", tasks[1], solution_);
+		CheckSolutionValid("no contact motion", tasks[2], solution_);
+		CheckSolutionValid("traj tracking", tasks[3], solution_);
+		CheckSolutionValid("min forces", tasks[4], solution_);
 		q_j_ddot_cmd_ = solution_.block<kNumJoints,1>(kNumTwistCoords,0);
-		PrintMatrix(q_j_ddot_cmd_.transpose());
 		CalcJointTorquesCmd();
 	}
 
@@ -90,8 +91,6 @@ namespace control
 			Eigen::Matrix<double,kNumGenVels, 1> u
 			)
 	{
-		std::cout << "height: " << q(6) << std::endl;
-
 		robot_dynamics_.SetState(q,u);
 
 		M_ = robot_dynamics_.GetMassMatrix();
@@ -197,11 +196,21 @@ namespace control
 
 		Eigen::VectorXd swing_leg_vel = J_swing_ * u;
 
-		Eigen::VectorXd swing_cmd = swing_leg_ddot_cmd_
+		Eigen::VectorXd cmd = swing_leg_ddot_cmd_
 			+ k_p * (swing_leg_cmd_ - swing_leg_pos)
 			+ k_v * (swing_leg_dot_cmd_ - swing_leg_vel);
 
-		TaskDefinition swing_leg_task;
+		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
+					J_swing_.rows(), k3D * num_contacts_
+					);
+
+		Eigen::MatrixXd A(J_swing_.rows(), num_decision_vars_);
+		A << J_swing_, zero;
+
+		Eigen::VectorXd b(J_swing_.rows());
+		b << cmd;
+
+		TaskDefinition swing_leg_task = {.A=A, .b=b};
 		return swing_leg_task;
 	}
 

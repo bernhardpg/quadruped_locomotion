@@ -60,9 +60,9 @@ void AssertSolutionValid(TaskDefinition task, Eigen::VectorXd sol)
 	}
 }
 
-void CheckSolutionValid(TaskDefinition task, Eigen::VectorXd sol)
+void CheckSolutionValid(std::string task_name, TaskDefinition task, Eigen::VectorXd sol)
 {
-	std::cout << "=== Checking solution ===\n";
+	std::cout << "=== Checking task: " << task_name << std::endl;
 	double eps = 1e-7;
 	if (task.A.rows() > 0)
 	{

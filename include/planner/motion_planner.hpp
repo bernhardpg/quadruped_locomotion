@@ -111,6 +111,7 @@ class MotionPlanner
 
 		Eigen::Vector2d vel_cmd_;
 		Eigen::Vector2d curr_2d_pos_;
+		double curr_height_;
 		
 		Eigen::VectorXd legs_pos_cmd_;
 		Eigen::VectorXd legs_vel_cmd_;
@@ -122,6 +123,7 @@ class MotionPlanner
 		Eigen::VectorXd base_acc_cmd_;
 
 		GaitSequence CreateCrawlSequence();
+		GaitSequence CreateSimpleSequence();
 
 		void InitCmdVariables();
 

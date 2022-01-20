@@ -7,7 +7,8 @@ MotionPlanner::MotionPlanner()
 	SetRobotMode(kIdle);
 
 	vel_cmd_ = Eigen::Vector2d(0.25, 0); // TODO: take from ros topic
-	gait_sequence_ = CreateCrawlSequence();
+	gait_sequence_ = CreateSimpleSequence();
+	//gait_sequence_ = CreateCrawlSequence();
 }
 
 bool MotionPlanner::IsReady() // TODO: remove this?
@@ -40,6 +41,7 @@ void MotionPlanner::Update(const double time)
 void MotionPlanner::GenerateWalkCmdTraj()
 {
 	curr_2d_pos_ = q_.block<k2D,1>(kQuatSize,0);
+	curr_height_ = q_(kQuatSize + 2);
 
 	assert(received_first_state_msg_ == true);
 	robot_dynamics_.SetState(q_,u_);
@@ -531,6 +533,26 @@ void MotionPlanner::InitCmdVariables()
 	contact_pattern_cmd_.setZero();
 }
  
+GaitSequence MotionPlanner::CreateSimpleSequence()
+{
+	int n_gait_steps = 12;
+	double gait_duration = 20;
+	double gait_step_time = gait_duration / (double) n_gait_steps;
+
+	Eigen::MatrixXd gait_contact_schedule(kNumLegs, n_gait_steps);
+	gait_contact_schedule << 
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+		1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
+		1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1,
+		1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+
+
+	GaitSequence simple_gait = {
+		n_gait_steps, gait_duration, gait_step_time, gait_contact_schedule 
+	};
+
+	return simple_gait;
+}
 
 GaitSequence MotionPlanner::CreateCrawlSequence()
 {
@@ -570,7 +592,9 @@ void MotionPlanner::GenerateWalkBasePlan()
 
 	base_planner_.SetCurrPos(curr_2d_pos_);
 	base_planner_.SetSupportPolygons(leg_planner_.GetSupportPolygons());
-	base_planner_.PlanBaseWalkMotion(polynomial_degree, n_traj_segments);
+	base_planner_.PlanBaseWalkMotion(
+			polynomial_degree, n_traj_segments, curr_height_
+			);
 }
 
 // **************** //
