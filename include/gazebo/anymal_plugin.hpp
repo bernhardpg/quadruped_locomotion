@@ -84,6 +84,10 @@ namespace gazebo
 			// Advertisements
 			ros::Publisher gen_coord_pub_;
 			ros::Publisher gen_vel_pub_;
+
+			ros::Publisher joint_positions_pub_;
+			ros::Publisher joint_velocities_pub_;
+
 			ros::Publisher joint_torques_pub_;
 
 			// Queues

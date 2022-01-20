@@ -15,6 +15,7 @@ find_package(pinocchio REQUIRED COMPONENTS)
 find_package(
 	catkin REQUIRED COMPONENTS dynamic_reconfigure
 	roscpp REQUIRED
+	tf REQUIRED
 	std_msgs REQUIRED
 	gazebo REQUIRED
 	Eigen3 REQUIRED
@@ -103,7 +104,7 @@ add_dependencies(joint_controller ${PROJECT_NAME}_gencfg)
 
 # Joint state publisher
 add_executable(joint_state_publisher src/visualize/joint_state_publisher.cpp)
-target_link_libraries(joint_state_publisher ${roscpp_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(joint_state_publisher ${roscpp_LIBRARIES} ${catkin_LIBRARIES} ${tf_LIBRARIES})
 
 # Motion planner
 add_executable(motion_planner src/planner/motion_planner.cpp src/planner/leg_planner.cpp src/planner/base_planner.cpp)

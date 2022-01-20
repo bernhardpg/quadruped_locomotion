@@ -15,11 +15,13 @@ JointStatePublisher::JointStatePublisher(int frequency_)
 
 void JointStatePublisher::InitRos()
 {
+	// TODO remove these
 	gen_coord_pub_ = node_handle_
 		.advertise<std_msgs::Float64MultiArray>(
 				"/anymal/gen_coord/", 1
 				);
 
+	// TODO remove these
 	gen_vel_pub_ = node_handle_
 		.advertise<std_msgs::Float64MultiArray>(
 				"/anymal/gen_vel/", 1
@@ -28,6 +30,12 @@ void JointStatePublisher::InitRos()
 	joint_state_pub_ = node_handle_
 		.advertise<sensor_msgs::JointState>(
 				"/joint_states", 1
+				);
+
+	gen_coord_sub_ = node_handle_
+		.subscribe<std_msgs::Float64MultiArray>(
+				"/anymal/gen_coord", 1,
+				boost::bind(&JointStatePublisher::OnGenCoordMsg, this, _1)
 				);
 
 	joint_positions_sub_ = node_handle_
@@ -112,6 +120,39 @@ void JointStatePublisher::PublishJointState()
 	}
 
 	joint_state_pub_.publish(joint_state_msg);
+}
+
+void JointStatePublisher::OnGenCoordMsg(
+		const std_msgs::Float64MultiArrayConstPtr &msg
+		)
+{
+	Eigen::VectorXd pose(kQuatSize + k3D);
+	const std::vector<double> data = msg->data;
+	for (int i = 0; i < (kQuatSize + k3D); ++i)
+	{
+		pose(i) = data[i];
+	}
+
+	PublishWorldToBaseTransform(pose);
+}
+
+void JointStatePublisher::PublishWorldToBaseTransform(
+		const Eigen::VectorXd &pose
+		)
+{
+	static tf::TransformBroadcaster tf_broadcaster;
+
+  tf::Transform transform;
+	tf::Vector3 pos(pose(4), pose(5), pose(6));
+  transform.setOrigin(pos);
+
+  tf::Quaternion attitude(pose(1), pose(2), pose(3), pose(0));
+  transform.setRotation(attitude);
+
+  tf_broadcaster.sendTransform(
+				tf::StampedTransform(
+					transform, ros::Time::now(), "world", "base" 
+					));
 }
 
 void JointStatePublisher::OnJointPosMsg(

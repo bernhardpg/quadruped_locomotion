@@ -209,7 +209,6 @@ namespace control
 			const Eigen::VectorXd &q, const Eigen::VectorXd &u 
 			)
 	{
-		// TODO: rename these
 		const Eigen::VectorXd base_pos = q.block(kQuatSize,0,k3D,1);
 		const Eigen::VectorXd base_vel = u.block(k3D,0,k3D,1);
 

@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <launch>
+	<!-- TODO remove anymal_config as it is not used -->
 	<rosparam file="$(find quadruped_locomotion)/config/anymal_config.yaml" command="load"/>
 
 	<include file="$(find gazebo_ros)/launch/empty_world.launch"/>
-	<!-- Load anymal urdf into ROS parameter server -->
+
+	<!--  Load anymal description into ros parameter server -->
 	<include file="$(find anymal_c_simple_description)/launch/load.launch"/>
+
+  <!-- Give the robot description parameter a name -->
+  <arg name="description_name"           default="anymal_description"/>
+  <!-- Joint state topic name -->
+  <arg name="joint_states_topic"       default="/joint_states"/>
 
 	<!-- Spawn anymal into Gazebo -->
 	<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model"
@@ -17,7 +24,18 @@
 
 	<node pkg="quadruped_locomotion" type="joint_controller" output="screen" name="joint_controller"/>
 
-	<node pkg="quadruped_locomotion" type="motion_planner_node" output="screen" name="motion_planner"/>
+	<node pkg="quadruped_locomotion" type="joint_state_publisher" output="screen" name="joint_state_publisher">
+		<remap from="joint_positions" to="anymal/joint_positions"/>
+		<remap from="joint_velocities" to="anymal/joint_velocities"/>
+	</node>
+
+  <!-- Robot state publisher -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen">
+    <param name="publish_frequency" value="100"/>
+    <param name="use_tf_static"     value="true"/>
+    <remap from="robot_description" to="$(arg description_name)"/>
+    <remap from="joint_states"      to="$(arg joint_states_topic)"/>
+  </node>
 
 	<node name="rviz" pkg="rviz" type="rviz"
 		args="-d $(find quadruped_locomotion)/rviz/show_motion_plan.rviz"/>

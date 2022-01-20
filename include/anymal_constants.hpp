@@ -40,10 +40,14 @@ const std::vector<std::string> kJointNames =
 	"LH_KFE",
 	"RH_KFE"
 };
- // Foot ordering: LF LH RF RH
+//const Eigen::MatrixXd kInitialJointConfig = (Eigen::MatrixXd(kNumJoints,1) << 
+//		0,0,0,0,
+//		2,2,-2,-2,
+//		-2.3,-2.3,2.3,2.3)
+//.finished();
 const Eigen::MatrixXd kInitialJointConfig = (Eigen::MatrixXd(kNumJoints,1) << 
 		0,0,0,0,
-		2,2,-2,-2,
-		-2.3,-2.3,2.3,2.3)
+		0.5,0.5,-0.5,-0.5,
+		-0.9,-0.9,0.9,0.9)
 .finished();
 

@@ -339,6 +339,26 @@ namespace gazebo
 					&this->ros_publish_queue_
 					);
 
+		ros::AdvertiseOptions joint_positions_ao =
+			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
+					"/" + this->model_->GetName() + "/joint_positions",
+					1,
+					ros::SubscriberStatusCallback(),
+					ros::SubscriberStatusCallback(),
+					ros::VoidPtr(),
+					&this->ros_publish_queue_
+					);
+
+		ros::AdvertiseOptions joint_velocities_ao =
+			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
+					"/" + this->model_->GetName() + "/joint_velocities",
+					1,
+					ros::SubscriberStatusCallback(),
+					ros::SubscriberStatusCallback(),
+					ros::VoidPtr(),
+					&this->ros_publish_queue_
+					);
+
 		ros::AdvertiseOptions joint_torques_ao =
 			ros::AdvertiseOptions::create<std_msgs::Float64MultiArray>(
 					"/" + this->model_->GetName() + "/joint_torques",
@@ -349,9 +369,13 @@ namespace gazebo
 					&this->ros_publish_queue_
 					);
 
-		this->gen_coord_pub_ = this->ros_node_->advertise(gen_coord_ao);
-		this->gen_vel_pub_ = this->ros_node_->advertise(gen_vel_ao);
-		this->joint_torques_pub_ = this->ros_node_->advertise(joint_torques_ao);
+		gen_coord_pub_ = ros_node_->advertise(gen_coord_ao);
+		gen_vel_pub_ = ros_node_->advertise(gen_vel_ao);
+
+		joint_positions_pub_ = ros_node_->advertise(joint_positions_ao);
+		joint_velocities_pub_ = ros_node_->advertise(joint_velocities_ao);
+
+		joint_torques_pub_ = ros_node_->advertise(joint_torques_ao);
 
 		// Set up subscriptions
 		ros::SubscribeOptions vel_cmd_so =
@@ -419,6 +443,10 @@ namespace gazebo
 			joint_vector_t q_j; // generalized coordinates
 			q_j = this->GetJointPositions();
 
+			std_msgs::Float64MultiArray joint_pos_msg;
+			tf::matrixEigenToMsg(q_j, joint_pos_msg);
+			joint_positions_pub_.publish(joint_pos_msg);
+
 			gen_coord_vector_t q;
 			q.block<7,1>(0,0) = q_b;
 			q.block<kNumJoints,1>(kNumPoseCoords,0) = q_j;
@@ -427,6 +455,10 @@ namespace gazebo
 			u_b = GetBaseTwist();
 			joint_vector_t u_j;
 			u_j = this->GetJointVelocities();
+
+			std_msgs::Float64MultiArray joint_vel_msg;
+			tf::matrixEigenToMsg(u_j, joint_vel_msg);
+			joint_velocities_pub_.publish(joint_vel_msg);
 			
 			gen_vel_vector_t	u;
 			u.block<6,1>(0,0) = u_b;
@@ -437,16 +469,15 @@ namespace gazebo
 
 			std_msgs::Float64MultiArray gen_coord_msg;
 			tf::matrixEigenToMsg(q, gen_coord_msg);
+			gen_coord_pub_.publish(gen_coord_msg);
 
 			std_msgs::Float64MultiArray gen_vel_msg;
 			tf::matrixEigenToMsg(u, gen_vel_msg);
+			gen_vel_pub_.publish(gen_vel_msg);
 
 			std_msgs::Float64MultiArray joint_torques_msg;
 			tf::matrixEigenToMsg(tau, joint_torques_msg);
-
-			this->gen_coord_pub_.publish(gen_coord_msg);
-			this->gen_vel_pub_.publish(gen_vel_msg);
-			this->joint_torques_pub_.publish(joint_torques_msg);
+			joint_torques_pub_.publish(joint_torques_msg);
 
 			loop_rate.sleep();	
 		}

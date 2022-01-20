@@ -29,7 +29,6 @@ void MotionPlanner::Update(const double time)
 			PublishMotionCmd();
 			break;	
 		case kWalk:
-			GenerateWalkCmdTraj();
 			UpdateWalkCmd(seconds_since_start);
 			PublishMotionCmd();
 			PublishVisualization(seconds_since_start);
@@ -500,6 +499,7 @@ void MotionPlanner::SetRobotMode(RobotMode target_mode)
 			}
 		case kWalk:
 			ROS_INFO("Setting mode to WALK");
+			GenerateWalkCmdTraj();
 			break;
 		default:
 			break;
