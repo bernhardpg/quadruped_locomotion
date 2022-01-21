@@ -161,7 +161,10 @@ std::vector<std::vector<Eigen::Vector2d>>
 		new_polygon.clear();
 		auto curr_stance = stance_sequence_[gait_step_i];
 
-		std::vector<int> leg_visualization_order = {0,2,3,1}; 
+		// TODO: move 
+		// Enforces point order: LF LH RH RF LF
+		// NOTE: Closes polygon by adding the first point as last too
+		const std::vector<int> leg_visualization_order = {0,2,3,1,0};
 		for (int leg_i : leg_visualization_order)	
 		{
 			if (GetLegStateAtStep(gait_step_i, leg_i) == 1)	

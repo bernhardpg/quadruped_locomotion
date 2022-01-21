@@ -40,6 +40,8 @@ const std::vector<std::string> kJointNames =
 	"LH_KFE",
 	"RH_KFE"
 };
+
+// TODO: Reimplement once I reimplement support consistent control
 //const Eigen::MatrixXd kInitialJointConfig = (Eigen::MatrixXd(kNumJoints,1) << 
 //		0,0,0,0,
 //		2,2,-2,-2,

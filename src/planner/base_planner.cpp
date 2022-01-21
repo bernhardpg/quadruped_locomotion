@@ -137,6 +137,7 @@ Eigen::VectorXd BasePlanner::EvalWalkTrajAtT(
 	return traj_value;
 }
 
+
 // ******************** //
 // OPTIMIZATION PROBLEM //
 // ******************** //
@@ -167,8 +168,70 @@ void BasePlanner::FormulateOptimizationProblem()
 	AddAccelerationCost();
 	AddContinuityConstraints();
 	AddInitialAndFinalConstraint();
+	AddZmpConstraints();
 	// Enforce zmp constraint
 	// TODO: Implement
+}
+
+void BasePlanner::AddZmpConstraints()
+{
+	const int polygon_i = 0;
+	const std::vector<Eigen::Vector2d> &support_polygon =
+		support_polygons_[polygon_i];
+	Eigen::MatrixXd A = ConstructAMatrixFromPolygon(support_polygon);
+	Eigen::VectorXd b = ConstructBVectorFromPolygon(support_polygon, A);
+
+}
+
+Eigen::MatrixXd BasePlanner::ConstructAMatrixFromPolygon(
+		const std::vector<Eigen::Vector2d> &points
+		)
+{
+	const int num_edges = points.size() - 1;
+
+	Eigen::MatrixXd A(num_edges, k2D);
+	A.setZero();
+
+	for (int i = 0; i < num_edges; ++i)
+	{
+		const Eigen::Vector2d &p1 = points[i];
+		const Eigen::Vector2d &p2 = points[i + 1];
+		Eigen::Vector2d n = GetNormalPointingInwards(p1, p2);
+		A.row(i) = n;
+	}
+
+	return A;
+}
+
+Eigen::MatrixXd BasePlanner::ConstructBVectorFromPolygon(
+		const std::vector<Eigen::Vector2d> &points,
+		const Eigen::MatrixXd &A
+		)
+{
+	const int num_edges = points.size() - 1;
+
+	Eigen::VectorXd b(num_edges);
+	b.setZero();
+
+	for (int i = 0; i < num_edges; ++i)
+	{
+		Eigen::Vector2d n = A.row(i);
+		const double c = - n.transpose() * points[i];
+		b(i) = c;
+	}
+
+	return b;
+}
+
+Eigen::Vector2d BasePlanner::GetNormalPointingInwards(
+		const Eigen::Vector2d &p1,
+		const Eigen::Vector2d &p2
+		)
+{
+	const Eigen::Vector2d r = p2 - p1;
+	const Eigen::Vector2d n(-r(0), r(1));
+
+	return n;
 }
 
 void BasePlanner::CreateNewMathProg()

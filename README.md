@@ -8,14 +8,14 @@
 
 ## Current plan
 - [X] Calculate feed forward torques to pass to joint controller
-- [ ] Generalize to arbitrary feet in contact for HoQpController
-- [ ] Implement end-effector task for HoQpController
-- [ ] Fix support polygons from ZMP motion planner
-- [ ] Fix gait sequence feet order
-- [ ] Get end-effector trajectory from ZMP motion planner
+- [X] Generalize to arbitrary feet in contact for HoQpController
+- [X] Implement end-effector task for HoQpController
+- [X] Fix support polygons from ZMP motion planner
+- [X] Fix gait sequence feet order
+- [X] Get end-effector trajectory from ZMP motion planner
 - [ ] Get A and b from polygon
 - [ ] Implement zmp constraints
-- [ ] Implement current position as constraint on first spline
+- [X] Implement current position as constraint on first spline
 - [ ] (Make constraint on final position a soft one)
 - [ ] (Implement path regularizer?)
 

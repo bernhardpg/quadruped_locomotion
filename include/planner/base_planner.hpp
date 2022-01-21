@@ -115,6 +115,19 @@ class BasePlanner
 		void AddAccelerationCost();
 		void AddContinuityConstraints();
 		void AddInitialAndFinalConstraint();
+		void AddZmpConstraints();
+
+		Eigen::MatrixXd ConstructAMatrixFromPolygon(
+				const std::vector<Eigen::Vector2d> &points
+				);
+		Eigen::MatrixXd ConstructBVectorFromPolygon(
+				const std::vector<Eigen::Vector2d> &points,
+				const Eigen::MatrixXd &A
+				);
+		Eigen::Vector2d GetNormalPointingInwards(
+				const Eigen::Vector2d &p1,
+				const Eigen::Vector2d &p2
+				);
 
 		void SolveOptimization();
 

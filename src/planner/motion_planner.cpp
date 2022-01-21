@@ -201,12 +201,6 @@ void MotionPlanner::PublishPolygonVisualizationAtTime(const double time)
 		polygon_msg.points.push_back(p);
 	}
 
-	// Close polygon
-	p.x = polygon_at_t[0](0);
-	p.y = polygon_at_t[0](1);
-	p.z = 0;
-	polygon_msg.points.push_back(p);
-
 	visualize_polygons_pub_.publish(polygon_msg);
 }
 
