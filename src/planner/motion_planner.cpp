@@ -535,16 +535,16 @@ void MotionPlanner::InitCmdVariables()
  
 GaitSequence MotionPlanner::CreateSimpleSequence()
 {
-	int n_gait_steps = 12;
+	int n_gait_steps = 9;
 	double gait_duration = 20;
 	double gait_step_time = gait_duration / (double) n_gait_steps;
 
 	Eigen::MatrixXd gait_contact_schedule(kNumLegs, n_gait_steps);
 	gait_contact_schedule << 
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
-		1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
-		1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1,
-		1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+		1, 1, 1, 1, 1, 1, 1, 0, 1,
+		1, 1, 1, 1, 1, 0, 1, 1, 1,
+		1, 1, 1, 0, 1, 1, 1, 1, 1,
+		1, 0, 1, 1, 1, 1, 1, 1, 1;
 
 
 	GaitSequence simple_gait = {

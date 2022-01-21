@@ -15,11 +15,11 @@ namespace control
 			opt_problems = ConstructOptProblems(tasks);
 
 		solution_ = opt_problems.back()->GetSolution();
-		CheckSolutionValid("fb_eom", tasks[0], solution_);
-		CheckSolutionValid("friction and torque", tasks[1], solution_);
-		CheckSolutionValid("no contact motion", tasks[2], solution_);
+		//CheckSolutionValid("fb_eom", tasks[0], solution_);
+		//CheckSolutionValid("friction and torque", tasks[1], solution_);
+		//CheckSolutionValid("no contact motion", tasks[2], solution_);
 		CheckSolutionValid("traj tracking", tasks[3], solution_);
-		CheckSolutionValid("min forces", tasks[4], solution_);
+		//CheckSolutionValid("min forces", tasks[4], solution_);
 		q_j_ddot_cmd_ = solution_.block<kNumJoints,1>(kNumTwistCoords,0);
 		CalcJointTorquesCmd();
 	}
@@ -104,6 +104,8 @@ namespace control
 
 		J_swing_ =
 			robot_dynamics_.GetStackedContactJacobianInW(swing_legs_);
+		J_swing_dot_u_ =
+			robot_dynamics_.GetStackedContactAccInW(swing_legs_);
 
 		Eigen::MatrixXd J_c_t = J_c_.transpose();
 		J_c_j_t_ = GetJointRows(J_c_t);
@@ -170,7 +172,6 @@ namespace control
 		TaskDefinition tracking_task = ConcatenateTasks(tracking_tasks);
 
 		TaskDefinition force_min_task = ConstructForceMinimizationTask();
-		//TaskDefinition acc_min_task = ConstructJointAccMinimizationTask();
 
 		std::vector<TaskDefinition> tasks{
 			fb_eom_task,
@@ -196,9 +197,13 @@ namespace control
 
 		Eigen::VectorXd swing_leg_vel = J_swing_ * u;
 
-		Eigen::VectorXd cmd = swing_leg_ddot_cmd_
-			+ k_p * (swing_leg_cmd_ - swing_leg_pos)
-			+ k_v * (swing_leg_dot_cmd_ - swing_leg_vel);
+		PrintMatrix((swing_leg_cmd_).transpose());
+		PrintMatrix((swing_leg_dot_cmd_).transpose());
+		PrintMatrix((swing_leg_ddot_cmd_).transpose());
+
+		Eigen::VectorXd cmd = -swing_leg_ddot_cmd_ - J_swing_dot_u_;
+			- k_p * (swing_leg_cmd_)
+			- k_v * (swing_leg_dot_cmd_);
 
 		Eigen::MatrixXd zero = Eigen::MatrixXd::Zero(
 					J_swing_.rows(), k3D * num_contacts_
@@ -232,15 +237,12 @@ namespace control
 		Eigen::MatrixXd A(J_b_pos_.rows(), num_decision_vars_);
 		A << J_b_pos_, zero;
 
-		const Eigen::VectorXd cmd = base_ddot_cmd_
+		const Eigen::VectorXd cmd = base_ddot_cmd_ // TODO: here I have ignored J_body_dot * u which is known to be zero in the world frame
 			+ k_vel * (base_dot_cmd_ - base_vel);
 			+ k_pos * (base_cmd_ - base_pos);
 
 		Eigen::VectorXd b(J_b_pos_.rows());
 		b << cmd;
-
-		std::cout << "base error:\n";
-		PrintMatrix(b.transpose());
 
 		TaskDefinition base_pos_traj_task = {.A=A, .b=b};
 		return base_pos_traj_task;
@@ -269,13 +271,11 @@ namespace control
 
 		const Eigen::VectorXd cmd =
 			k_vel * (wd_IB - w_IB);  // TODO: implement quaternion error here
+		// TODO: here I have ignored J_body_dot * u which is known to be zero in the world frame
 
 		Eigen::VectorXd b(J_b_pos_.rows());
 		b << cmd;
 			
-		std::cout << "base rotation error:\n";
-		PrintMatrix(b.transpose());
-
 		TaskDefinition base_rot_traj_task = {.A=A, .b=b};
 		return base_rot_traj_task;
 	}

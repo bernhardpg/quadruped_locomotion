@@ -67,10 +67,11 @@ namespace control
 			Eigen::MatrixXd M_j_;
 			Eigen::VectorXd c_;
 			Eigen::VectorXd c_j_;
-			Eigen::MatrixXd J_c_;
+			Eigen::MatrixXd J_c_; // TODO: rename with 'support' instead of c
 			Eigen::MatrixXd J_c_j_t_;
 			Eigen::VectorXd J_c_dot_u_;
 			Eigen::MatrixXd J_swing_;
+			Eigen::MatrixXd J_swing_dot_u_;
 			Eigen::MatrixXd J_b_pos_;
 			Eigen::MatrixXd J_b_rot_;
 

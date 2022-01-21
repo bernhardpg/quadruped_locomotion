@@ -49,7 +49,7 @@ const std::vector<std::string> kJointNames =
 //.finished();
 const Eigen::MatrixXd kInitialJointConfig = (Eigen::MatrixXd(kNumJoints,1) << 
 		0,0,0,0,
-		0.5,0.5,-0.5,-0.5,
+		0.7,0.7,-0.7,-0.7,
 		-0.9,-0.9,0.9,0.9)
 .finished();
 

@@ -310,11 +310,11 @@ Eigen::VectorXd LegPlanner::EvalLegPosAtT(
 	Eigen::VectorXd leg_pos(3);
 	leg_pos.setZero();
 
-	const bool inside_traj_time =
+	const bool outside_traj_time =
 		(time_rel < leg_trajectories_[leg_i].start_time)
 			|| (time_rel > leg_trajectories_[leg_i].end_time);
 
-	if (!inside_traj_time)
+	if (!outside_traj_time)
 	{
 		leg_pos <<
 			leg_trajectories_[leg_i].xy.value(time_rel),
@@ -332,15 +332,15 @@ Eigen::VectorXd LegPlanner::EvalLegVelAtT(
 	Eigen::VectorXd leg_vel(3);
 	leg_vel.setZero();
 
-	const bool inside_traj_time =
+	const bool outside_traj_time =
 		(time_rel < leg_trajectories_[leg_i].start_time)
 			|| (time_rel > leg_trajectories_[leg_i].end_time);
 
-	if (!inside_traj_time)
+	if (!outside_traj_time)
 	{
 		leg_vel <<
-			leg_trajectories_[leg_i].xy.value(time_rel),
-			leg_trajectories_[leg_i].z.value(time_rel);
+			leg_trajectories_[leg_i].d_xy.value(time_rel),
+			leg_trajectories_[leg_i].d_z.value(time_rel);
 	}
 
 	return leg_vel;
@@ -354,15 +354,15 @@ Eigen::VectorXd LegPlanner::EvalLegAccAtT(
 	Eigen::VectorXd leg_acc(3);
 	leg_acc.setZero();
 
-	const bool inside_traj_time =
+	const bool outside_traj_time =
 		(time_rel < leg_trajectories_[leg_i].start_time)
 			|| (time_rel > leg_trajectories_[leg_i].end_time);
 
-	if (!inside_traj_time)
+	if (!outside_traj_time)
 	{
 		leg_acc <<
-			leg_trajectories_[leg_i].xy.value(time_rel),
-			leg_trajectories_[leg_i].z.value(time_rel);
+			leg_trajectories_[leg_i].dd_xy.value(time_rel),
+			leg_trajectories_[leg_i].dd_z.value(time_rel);
 	}
 
 	return leg_acc;
