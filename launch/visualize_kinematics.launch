@@ -27,10 +27,8 @@
     <remap from="joint_states"      to="$(arg joint_states_topic)"/>
   </node>
 
-  <!-- RViz -->
-  <node name="rviz" pkg="rviz" type="rviz"
-        args="-d $(find anymal_c_simple_description)/config/rviz/standalone.rviz"
-        output="screen"/>
+	<node name="rviz" pkg="rviz" type="rviz"
+		args="-d $(find quadruped_locomotion)/rviz/show_motion_plan.rviz"/>
 
 
 </launch>

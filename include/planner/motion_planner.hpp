@@ -164,7 +164,7 @@ class MotionPlanner
 
 		double visualization_resolution_ = 0.1;
 
-		void PublishBaseTrajVisualization();
+		void PublishBaseTrajVisualization(const double curr_time);
 		void PublishPolygonVisualizationAtTime(const double time);
 		void PublishLegTrajectoriesVisualization();
 };

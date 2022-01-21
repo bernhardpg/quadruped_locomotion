@@ -9,6 +9,7 @@ Panels:
         - /Marker1
         - /Marker2
         - /Marker3
+        - /RobotModel1
       Splitter Ratio: 0.5
     Tree Height: 1160
   - Class: rviz/Selection
@@ -60,7 +61,7 @@ Visualization Manager:
       Marker Topic: visualization_trajectory
       Name: Marker
       Namespaces:
-        {}
+        trajectory: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -68,7 +69,7 @@ Visualization Manager:
       Marker Topic: /visualization_polygons
       Name: Marker
       Namespaces:
-        {}
+        polygons: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -76,10 +77,10 @@ Visualization Manager:
       Marker Topic: leg_visualization_trajectory
       Name: Marker
       Namespaces:
-        {}
+        leg_trajectories: true
       Queue Size: 100
       Value: true
-    - Alpha: 1
+    - Alpha: 0.5
       Class: rviz/RobotModel
       Collision Enabled: false
       Enabled: true
@@ -481,7 +482,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 4.917461395263672
+      Distance: 2.877898693084717
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -497,9 +498,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6153983473777771
+      Pitch: 0.6347966194152832
       Target Frame: <Fixed Frame>
-      Yaw: 1.3040432929992676
+      Yaw: 3.859034299850464
     Saved: ~
 Window Geometry:
   Displays:

@@ -26,8 +26,8 @@ class JointStatePublisher
 		ros::Subscriber joint_positions_sub_; 
 		ros::Subscriber joint_velocities_sub_; // TODO: Expand to joint efforts when needed.
 
-		// TODO: will feedback commanded joint positions as state. This should be a ROS parameter
-		bool publish_cmd_as_state_ = false;
+		// TODO: will feedback commanded joint pos and vel as state. This should be a ROS parameter
+		bool publish_cmd_as_state_ = true;
 		joint_vector_t joint_positions_;
 		joint_vector_t joint_velocities_;
 

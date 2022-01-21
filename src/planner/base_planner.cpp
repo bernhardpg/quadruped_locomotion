@@ -4,20 +4,30 @@
 // WALK TRAJECTORY //
 // *************** //
 
-void BasePlanner::PlanBaseWalkMotion(
-		const int polynomial_degree,
-		const int n_traj_segments,
-		const double walking_height
-		)
+BasePlanner::BasePlanner()
 {
-	n_traj_segments_ = n_traj_segments;
-	polynomial_degree_ = polynomial_degree;
+	const int kDefaultPolynomialDegree = 5;
+	polynomial_degree_ = kDefaultPolynomialDegree;
+
+	const int kDefaultNumTrajSegments = 10;
+	n_traj_segments_ = kDefaultNumTrajSegments;
+}
+
+void BasePlanner::PlanBaseWalkMotion(const double walking_height)
+{
 	walking_height_ = walking_height;
 
 	FormulateOptimizationProblem();
 	GenerateWalkTrajectory();
 }
 
+void BasePlanner::SetGaitSequence(GaitSequence gait_sequence)
+{
+	gait_sequence_ = gait_sequence;
+
+	seconds_per_segment_ =
+		gait_sequence_.duration / (double) n_traj_segments_;
+}
 
 void BasePlanner::SetSupportPolygons(
 		const std::vector<std::vector<Eigen::Vector2d>> &support_polygons
@@ -49,6 +59,11 @@ Eigen::VectorXd BasePlanner::EvalWalkTrajAccAtT(const double t)
 const int BasePlanner::GetNumTrajSegments()
 {
 	return n_traj_segments_;
+}
+
+const double BasePlanner::GetSecondsPerSegment()
+{
+	return seconds_per_segment_;
 }
 
 void BasePlanner::GeneratePolynomialsFromSolution()
@@ -93,18 +108,15 @@ polynomial_matrix_t BasePlanner::GeneratePolynomials(
 }
 
 Eigen::VectorXd BasePlanner::EvalWalkTrajAtT(
-		const double t, const int derivative
+		const double t_abs, const int derivative
 		)
 {
-	int traj_segment_index = 0;
-	while (((double) traj_segment_index + 1 < t)
-			&& (traj_segment_index + 1 < n_traj_segments_))
-		++traj_segment_index;
-
-	double t_in_segment = t - (double) traj_segment_index;
+	int traj_segment_index = GetSegmentIndexForT(t_abs);
+	double t_normalized =
+		GetTimeInSegmentNormalized(t_abs, traj_segment_index);
 
 	Eigen::VectorXd traj_value_2d(traj_dimension_);
-	drake::symbolic::Environment t_at_t {{t_, t_in_segment}};
+	drake::symbolic::Environment t_at_t {{t_, t_normalized}};
 	double z_coord;
 	for (int dim = 0; dim < traj_dimension_; ++dim)
 	{
@@ -150,13 +162,13 @@ void BasePlanner::GenerateWalkTrajectory()
 
 void BasePlanner::SolveOptimization()
 {
+	//std::cout << prog_->to_string();
 	result_ = drake::solvers::Solve(*prog_);
-	// TODO: Currently this is calling SNOPT, but the program is quadratic.
 
-//	ROS_INFO_STREAM("Solver id: " << result_.get_solver_id()
-//		<< "\nFound solution: " << result_.is_success()
-//		<< "\nSolution result: " << result_.get_solution_result()
-//		<< std::endl);
+	std::cout << "Solver id: " << result_.get_solver_id()
+		<< "\nFound solution: " << result_.is_success()
+		<< "\nSolution result: " << result_.get_solution_result()
+		<< std::endl;
 	assert(result_.is_success());
 }
 
@@ -167,20 +179,63 @@ void BasePlanner::FormulateOptimizationProblem()
 	InitMonomials();
 	AddAccelerationCost();
 	AddContinuityConstraints();
-	AddInitialAndFinalConstraint();
+	AddInitialPosConstraint();
+	//AddFinalPosConstraint();
 	AddZmpConstraints();
-	// Enforce zmp constraint
-	// TODO: Implement
 }
 
 void BasePlanner::AddZmpConstraints()
 {
-	const int polygon_i = 0;
-	const std::vector<Eigen::Vector2d> &support_polygon =
-		support_polygons_[polygon_i];
-	Eigen::MatrixXd A = ConstructAMatrixFromPolygon(support_polygon);
-	Eigen::VectorXd b = ConstructBVectorFromPolygon(support_polygon, A);
+	CreatePolygonIneqForm();
 
+	// TODO: move this?
+	const double dt = 0.1;
+
+	const double end_time = gait_sequence_.duration;
+
+	for (double t = 0; t < end_time; t += dt)
+	{
+		auto zmp_at_t = GetZmpExpressionAtT(t);
+
+		const int polygon_i = GetGaitStepFromTime(t);
+		const Eigen::MatrixXd &A = polygons_A_matrices_[polygon_i];
+		const Eigen::VectorXd &b = polygons_b_vectors_[polygon_i];
+		const Eigen::VectorXd zero = Eigen::VectorXd::Zero(b.rows());
+
+		prog_->AddLinearConstraint(
+				(A * zmp_at_t + b).array() >= zero.array()
+				);
+	}
+}
+
+symbolic_vector_t BasePlanner::GetZmpExpressionAtT(const double t_abs)
+{
+	symbolic_vector_t pos_at_t = GetPosExpressionAtT(t_abs);
+	symbolic_vector_t acc_at_t = GetAccExpressionAtT(t_abs);
+	const double g = 9.81;
+
+	// Assumes z_ddot = 0;
+	symbolic_vector_t zmp_at_t = pos_at_t - walking_height_ * acc_at_t / g;
+	return zmp_at_t;
+}
+
+void BasePlanner::CreatePolygonIneqForm()
+{
+	polygons_A_matrices_.clear();
+	polygons_b_vectors_.clear();
+
+	for (int polygon_i = 0;
+			polygon_i < support_polygons_.size();
+			++polygon_i)
+	{
+		const std::vector<Eigen::Vector2d> &support_polygon =
+			support_polygons_[polygon_i];
+		Eigen::MatrixXd A = ConstructAMatrixFromPolygon(support_polygon);
+		polygons_A_matrices_.push_back(A);
+
+		Eigen::VectorXd b = ConstructBVectorFromPolygon(support_polygon, A);
+		polygons_b_vectors_.push_back(b);
+	}
 }
 
 Eigen::MatrixXd BasePlanner::ConstructAMatrixFromPolygon(
@@ -194,8 +249,8 @@ Eigen::MatrixXd BasePlanner::ConstructAMatrixFromPolygon(
 
 	for (int i = 0; i < num_edges; ++i)
 	{
-		const Eigen::Vector2d &p1 = points[i];
-		const Eigen::Vector2d &p2 = points[i + 1];
+		Eigen::Vector2d p1 = points[i];
+		Eigen::Vector2d p2 = points[i + 1];
 		Eigen::Vector2d n = GetNormalPointingInwards(p1, p2);
 		A.row(i) = n;
 	}
@@ -203,22 +258,25 @@ Eigen::MatrixXd BasePlanner::ConstructAMatrixFromPolygon(
 	return A;
 }
 
-Eigen::MatrixXd BasePlanner::ConstructBVectorFromPolygon(
+Eigen::VectorXd BasePlanner::ConstructBVectorFromPolygon(
 		const std::vector<Eigen::Vector2d> &points,
 		const Eigen::MatrixXd &A
 		)
 {
 	const int num_edges = points.size() - 1;
+	const double kSafetyMargin = 0.0;
 
 	Eigen::VectorXd b(num_edges);
 	b.setZero();
 
 	for (int i = 0; i < num_edges; ++i)
 	{
-		Eigen::Vector2d n = A.row(i);
-		const double c = - n.transpose() * points[i];
-		b(i) = c;
+		const Eigen::Vector2d n = A.row(i);
+		const Eigen::Vector2d p = points[i];
+		b(i) = - n.transpose() * p;
 	}
+
+	b *= 0.5;
 
 	return b;
 }
@@ -229,7 +287,8 @@ Eigen::Vector2d BasePlanner::GetNormalPointingInwards(
 		)
 {
 	const Eigen::Vector2d r = p2 - p1;
-	const Eigen::Vector2d n(-r(0), r(1));
+	Eigen::Vector2d n(-r(1), r(0));
+	n.normalize();
 
 	return n;
 }
@@ -291,38 +350,45 @@ void BasePlanner::AddAccelerationCost()
 			drake::symbolic::Expression cost_at_t =
 				dt * alpha.transpose() * Q * alpha;
 
-			prog_->AddQuadraticCost(cost_at_t);
+			const bool is_convex = true;
+			prog_->AddQuadraticCost(cost_at_t, is_convex);
 		}
 	}
 }
 
 void BasePlanner::AddContinuityConstraints()
 {
+	const double t_segment_start = 0;
+	const double t_segment_end = 1;
+
 	for (int k = 0; k < n_traj_segments_ - 1; ++k)
 	{
 		prog_->AddLinearConstraint(
-				GetPosExpressionAtT(1, k).array()
-				== GetPosExpressionAtT(0, k + 1).array()
+				GetPosExpressionAtT(t_segment_end, k).array()
+				== GetPosExpressionAtT(t_segment_start, k + 1).array()
 				);
 		prog_->AddLinearConstraint(
-				GetVelExpressionAtT(1, k).array()
-				== GetVelExpressionAtT(0, k + 1).array()
+				GetVelExpressionAtT(t_segment_end, k).array()
+				== GetVelExpressionAtT(t_segment_start, k + 1).array()
 				);
 	}
 }
 
-void BasePlanner::AddInitialAndFinalConstraint()
+void BasePlanner::AddInitialPosConstraint()
+{
+	symbolic_vector_t pos_initial_expr = GetPosExpressionAtT(0);
+	prog_->AddLinearConstraint(
+			pos_initial_expr.array() == curr_2d_pos_.array()
+			);
+}
+
+void BasePlanner::AddFinalPosConstraint()
 {
 	Eigen::Vector2d pos_final_desired = GetPolygonCentroid(
 			support_polygons_.back()
 			);
-	symbolic_vector_t pos_initial_expr = GetPosExpressionAtT(0, 0);
-	symbolic_vector_t pos_final_expr =
-		GetPosExpressionAtT(1, n_traj_segments_ - 1);
-
-	prog_->AddLinearConstraint(
-			pos_initial_expr.array() == curr_2d_pos_.array()
-			);
+	const double end_time = gait_sequence_.duration;
+	symbolic_vector_t pos_final_expr = GetPosExpressionAtT(end_time);
 	prog_->AddLinearConstraint(
 			pos_final_expr.array() == pos_final_desired.array()
 			);
@@ -379,10 +445,29 @@ Eigen::VectorXd BasePlanner::EvalStandupAccTrajAtT(const double time)
 	return standup_traj_acc_.value(time);
 }
 
-
 // **************** //
 // HELPER FUNCTIONS //
 // **************** //
+
+double BasePlanner::GetTimeInSegmentNormalized(
+		const double t_abs, const int traj_segment_index
+		)
+{
+	double t_in_segment =
+		t_abs - (double) traj_segment_index * seconds_per_segment_;
+	double t_normalized = t_in_segment / seconds_per_segment_;
+	return t_normalized;
+}
+
+int BasePlanner::GetSegmentIndexForT(double t)
+{
+	int traj_segment_index = 0;
+	while (
+			(double) (traj_segment_index + 1) * seconds_per_segment_ < t
+			)
+		++traj_segment_index;
+	return traj_segment_index;
+}
 
 Eigen::MatrixXd BasePlanner::GetTransformationMatrixAtT(
 		double t, symbolic_vector_t v
@@ -403,36 +488,51 @@ Eigen::MatrixXd BasePlanner::GetTransformationMatrixAtT(
 	return T_at_t;
 }
 
-symbolic_vector_t BasePlanner::GetPosExpressionAtT(double t)
+symbolic_vector_t BasePlanner::GetPosExpressionAtT(const double t_abs)
 {
-	int traj_segment_index = 0;
-	while ((double) traj_segment_index + 1 < t) ++traj_segment_index;
-	double t_in_segment = t - (double) traj_segment_index;
-	auto pos = GetTrajExpressionAtT(t_in_segment, m_, traj_segment_index);
+	int traj_segment_index = GetSegmentIndexForT(t_abs);
+	double t_normalized =
+		GetTimeInSegmentNormalized(t_abs, traj_segment_index);
+
+	auto pos = GetTrajExpressionAtT(t_normalized, m_, traj_segment_index);
 	return pos;
 }
 
+symbolic_vector_t BasePlanner::GetAccExpressionAtT(const double t_abs)
+{
+	int traj_segment_index = GetSegmentIndexForT(t_abs);
+	double t_normalized =
+		GetTimeInSegmentNormalized(t_abs, traj_segment_index);
+
+	auto acc =
+		GetTrajExpressionAtT(t_normalized, m_ddot_, traj_segment_index);
+	return acc;
+}
+
 symbolic_vector_t BasePlanner::GetPosExpressionAtT(
-		double t_in_segment, int segment_j
+		double t_in_segment_normalized, int segment_j
 		)
 {
-	auto pos = GetTrajExpressionAtT(t_in_segment, m_, segment_j);
+	auto pos =
+		GetTrajExpressionAtT(t_in_segment_normalized, m_, segment_j);
 	return pos;
 }
 
 symbolic_vector_t BasePlanner::GetVelExpressionAtT(
-		double t_in_segment, int segment_j
+		double t_in_segment_normalized, int segment_j
 		)
 {
-	auto vel = GetTrajExpressionAtT(t_in_segment, m_dot_, segment_j);
+	auto vel =
+		GetTrajExpressionAtT(t_in_segment_normalized, m_dot_, segment_j);
 	return vel;
 }
 
 symbolic_vector_t BasePlanner::GetAccExpressionAtT(
-		double t_in_segment, int segment_j
+		double t_in_segment_normalized, int segment_j
 		)
 {
-	auto acc = GetTrajExpressionAtT(t_in_segment, m_ddot_, segment_j);
+	auto acc =
+		GetTrajExpressionAtT(t_in_segment_normalized, m_ddot_, segment_j);
 	return acc;
 }
 
@@ -465,5 +565,14 @@ Eigen::Vector2d BasePlanner::GetPolygonCentroid(
 	centroid /= polygon.size();
 
 	return centroid;
+}
+
+// TODO: currently this is duplicated both here and in LegPlanner
+int BasePlanner::GetGaitStepFromTime(const double t_abs)
+{
+	double t_rel = std::fmod(t_abs, gait_sequence_.duration);
+		
+	int gait_step_i = t_rel / gait_sequence_.step_time;
+	return gait_step_i;
 }
 

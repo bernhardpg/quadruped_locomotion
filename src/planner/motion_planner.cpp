@@ -1,12 +1,14 @@
 #include "planner/motion_planner.hpp"
 
+// TODO: currently this will crash after the trajectory time has run out
+
 MotionPlanner::MotionPlanner()
 {
 	InitRos();
 	InitCmdVariables();
 	SetRobotMode(kIdle);
 
-	vel_cmd_ = Eigen::Vector2d(0.25, 0); // TODO: take from ros topic
+	vel_cmd_ = Eigen::Vector2d(0.1, 0); // TODO: take from ros topic
 	gait_sequence_ = CreateSimpleSequence();
 	//gait_sequence_ = CreateCrawlSequence();
 }
@@ -60,7 +62,6 @@ void MotionPlanner::UpdateStandupCmd(const double time)
 
 void MotionPlanner::UpdateWalkCmd(const double time)
 {
-	// TODO: there is a mistake here where base trajectory is published as 2D and not 3D!
 	UpdateWalkBaseCmd(time);
 	UpdateWalkLegCmd(time);
 }
@@ -161,7 +162,7 @@ void MotionPlanner::PublishContactPattern()
 void MotionPlanner::PublishVisualization(const double time)
 {
 	PublishLegTrajectoriesVisualization();
-	PublishBaseTrajVisualization();
+	PublishBaseTrajVisualization(time);
 	PublishPolygonVisualizationAtTime(time);
 }
 
@@ -204,7 +205,7 @@ void MotionPlanner::PublishPolygonVisualizationAtTime(const double time)
 	visualize_polygons_pub_.publish(polygon_msg);
 }
 
-void MotionPlanner::PublishBaseTrajVisualization()
+void MotionPlanner::PublishBaseTrajVisualization(const double curr_time)
 {
 	visualization_msgs::Marker
 		traj_points, start_point, line_strip;
@@ -241,8 +242,8 @@ void MotionPlanner::PublishBaseTrajVisualization()
 	start_point.color.r = 1.0;
 	start_point.color.a = 1.0;
 
-  traj_points.scale.x = 0.02;
-  traj_points.scale.y = 0.02;
+  traj_points.scale.x = 0.015;
+  traj_points.scale.y = 0.015;
 	traj_points.color.g = 1.0;
 	traj_points.color.a = 1.0;
 
@@ -250,27 +251,32 @@ void MotionPlanner::PublishBaseTrajVisualization()
 	line_strip.color.g = 1.0;
 	line_strip.color.a = 1.0;
 
-	// Publish initial and final point
+	// current point
+	Eigen::VectorXd curr_pos = base_planner_.EvalWalkTrajPosAtT(curr_time);
 	geometry_msgs::Point p;
-	p.x = curr_2d_pos_(0);
-	p.y = curr_2d_pos_(1);
+	p.x = curr_pos(0);
+	p.y = curr_pos(1);
+	p.z = curr_pos(2);
 	start_point.points.push_back(p);
 
 	const int n_traj_segments = base_planner_.GetNumTrajSegments();
+	const int seconds_per_segment = base_planner_.GetSecondsPerSegment();
 
+	// Marking each polynomial segment
 	for (int k = 1; k < n_traj_segments; ++k)
 	{
-		Eigen::VectorXd p_xy = base_planner_.EvalWalkTrajPosAtT(k);
+		Eigen::VectorXd p_xy =
+			base_planner_.EvalWalkTrajPosAtT(k * seconds_per_segment);
 		p.x = p_xy(0);
 		p.y = p_xy(1);
-		p.z = 0;
+		p.z = p_xy(2);
 
 		traj_points.points.push_back(p);
 	}
 
 	for (
 			double t = 0;
-			t < n_traj_segments - visualization_resolution_;
+			t < gait_sequence_.duration;
 			t += visualization_resolution_
 			)
 	{
@@ -278,7 +284,7 @@ void MotionPlanner::PublishBaseTrajVisualization()
 
 		p.x = p_xy(0);
 		p.y = p_xy(1);
-		p.z = 0;
+		p.z = p_xy(2);
 
 		line_strip.points.push_back(p);
 	}
@@ -581,14 +587,10 @@ void MotionPlanner::GenerateWalkLegsPlan()
 
 void MotionPlanner::GenerateWalkBasePlan()
 {
-	const int polynomial_degree = 5;
-	const int n_traj_segments = 10; // TODO: move
-
 	base_planner_.SetCurrPos(curr_2d_pos_);
+	base_planner_.SetGaitSequence(gait_sequence_);
 	base_planner_.SetSupportPolygons(leg_planner_.GetSupportPolygons());
-	base_planner_.PlanBaseWalkMotion(
-			polynomial_degree, n_traj_segments, curr_height_
-			);
+	base_planner_.PlanBaseWalkMotion(curr_height_);
 }
 
 // **************** //
