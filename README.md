@@ -1,10 +1,14 @@
-# Quadruped locomotion
+# [WIP] Quadruped locomotion
 
-## Features
+*Note: This project is a work-in-progress.*
+
+## Current Features
+- Whole-Body Control based on Hierarchical Optimization
+- Zero-Moment-Point Center-of-Mass Motion Planner
 - Low-level joint force control
 - Differential inverse kinematics control
 - Support consistent differential inverse kinematics control
-- TODO: COM zero moment point motion planner for any gait sequence
+
 
 ## Current plan
 - [X] Calculate feed forward torques to pass to joint controller
